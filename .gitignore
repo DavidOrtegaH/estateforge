@@ -16,6 +16,9 @@ build/
 npm-debug.log*
 pnpm-debug.log*
 
+# Coverage
+coverage/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -24,9 +27,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Testing
-coverage/
-
-# Temporary files
+# Temporary
 *.tmp
 *.temp
