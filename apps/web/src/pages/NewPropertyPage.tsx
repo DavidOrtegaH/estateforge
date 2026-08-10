@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type {
+  GeneratedListing,
   Property,
   PropertyCondition,
   PropertyOperation,
   PropertyType,
-} from '@/types/property'
-import type { GeneratedListing } from '@/types/listing'
+} from '@estateforge/shared'
 import { Button } from '@/components/ui/button'
 import { generateListing } from '@/services/generationService'
 

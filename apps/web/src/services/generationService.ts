@@ -1,5 +1,7 @@
-import type { Property } from '@/types/property'
-import type { GeneratedListing } from '@/types/listing'
+import type {
+  GeneratedListing,
+  Property,
+} from '@estateforge/shared'
 
 const API_URL = 'http://localhost:3000'
 
