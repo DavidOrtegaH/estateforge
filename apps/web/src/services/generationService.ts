@@ -1,23 +1,32 @@
-import type {
-  GenerateListingRequest,
-  GenerateListingResponse,
-} from '@/types/generation'
+import type { Property } from '@/types/property'
+import type { GeneratedListing } from '@/types/listing'
 
-export async function generateListing(
-  request: GenerateListingRequest,
-): Promise<GenerateListingResponse> {
-  console.log('Generation request:', request)
+const API_URL = 'http://localhost:3000'
 
-  return {
-    listing: {
-      title: 'Título de ejemplo',
-      description: 'Descripción generada de ejemplo.',
-      highlights: [
-        '3 habitaciones',
-        '2 baños',
-        'Terraza',
-      ],
-      callToAction: 'Contacta con nosotros para concertar una visita.',
+interface GenerateListingResponse {
+  listing: GeneratedListing
+}
+
+export async function generateListing({
+  property,
+}: {
+  property: Property
+}): Promise<GenerateListingResponse> {
+  const response = await fetch(`${API_URL}/api/generations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
+    body: JSON.stringify({
+      property,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      `Error generating listing: ${response.status}`,
+    )
   }
+
+  return response.json() as Promise<GenerateListingResponse>
 }
