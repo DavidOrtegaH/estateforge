@@ -1,18 +1,20 @@
-import { Button } from '@/components/ui/button'
+import { BrowserRouter, Route, Routes } from 'react-router'
+import AppLayout from '@/components/layout/AppLayout'
+import DashboardPage from '@/pages/DashboardPage'
+import PropertiesPage from '@/pages/PropertiesPage'
+import NewPropertyPage from '@/pages/NewPropertyPage'
 
 function App() {
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="mb-6 text-4xl font-bold">
-          EstateForge
-        </h1>
-
-        <Button>
-          Crear inmueble
-        </Button>
-      </div>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/inmuebles" element={<PropertiesPage />} />
+          <Route path="/inmuebles/nuevo" element={<NewPropertyPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
