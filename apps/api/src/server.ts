@@ -1,9 +1,6 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
-import type {
-  GeneratedListing,
-  Property,
-} from '@estateforge/shared'
+import { generationRoutes } from './routes/generation.routes.js'
 
 const app = Fastify({
   logger: true,
@@ -20,30 +17,7 @@ app.get('/health', async () => {
   }
 })
 
-app.post('/api/generations', async (request) => {
-  const body = request.body as {
-    property: Property
-  }
-
-  console.log('Property received:', body.property)
-
-  const listing: GeneratedListing = {
-    title: 'Título generado desde la API',
-    description:
-      'Descripción generada desde el backend de EstateForge.',
-    highlights: [
-      '3 habitaciones',
-      '2 baños',
-      'Terraza',
-    ],
-    callToAction:
-      'Contacta con nosotros para concertar una visita.',
-  }
-
-  return {
-    listing,
-  }
-})
+await app.register(generationRoutes)
 
 const start = async () => {
   try {
