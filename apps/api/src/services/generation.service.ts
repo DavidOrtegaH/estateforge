@@ -1,23 +1,31 @@
 import type {
   GeneratedListing,
-  Property,
+  GenerationRequest,
 } from '@estateforge/shared'
 
-export async function generateListing(
-  property: Property,
-): Promise<GeneratedListing> {
-  console.log('Generating listing for property:', property)
+import { buildListingPrompt } from './prompt.service.js'
+import type { AIProvider } from '../ai/ai-provider.js'
+import { MockAIProvider } from '../ai/mock-ai.provider.js'
+import { OpenAIProvider } from '../ai/openai.provider.js'
 
-  return {
-    title: 'Título generado desde EstateForge',
-    description:
-      'Descripción generada desde el servicio de generación de EstateForge.',
-    highlights: [
-      '3 habitaciones',
-      '2 baños',
-      'Terraza',
-    ],
-    callToAction:
-      'Contacta con nosotros para concertar una visita.',
+function createAIProvider(): AIProvider {
+  const provider = process.env.AI_PROVIDER ?? 'mock'
+
+  if (provider === 'openai') {
+    return new OpenAIProvider()
   }
+
+  return new MockAIProvider()
+}
+
+const aiProvider = createAIProvider()
+
+export async function generateListing(
+  request: GenerationRequest,
+): Promise<GeneratedListing> {
+  const prompt = buildListingPrompt(request)
+
+  const result = await aiProvider.generate(prompt)
+
+  return JSON.parse(result) as GeneratedListing
 }

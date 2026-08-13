@@ -1,4 +1,5 @@
 import { useState } from 'react'
+
 import type {
   GeneratedListing,
   Property,
@@ -47,17 +48,19 @@ function NewPropertyPage() {
     }))
   }
 
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault()
+async function handleSubmit(
+  event: React.SubmitEvent<HTMLFormElement>,
+) {
+  event.preventDefault()
 
-    const response = await generateListing({
-      property,
-    })
+  const result = await generateListing({
+    property,
+    tone: 'professional',
+    language: 'es',
+  })
 
-    setGeneratedListing(response.listing)
-  }
+  setGeneratedListing(result)
+}
 
   return (
     <div className="mx-auto max-w-4xl">

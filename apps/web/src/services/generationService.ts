@@ -1,34 +1,31 @@
 import type {
   GeneratedListing,
-  Property,
+  GenerationRequest,
 } from '@estateforge/shared'
 
-const API_URL = 'http://localhost:3000'
-
-interface GenerateListingResponse {
-  listing: GeneratedListing
-}
-
-export async function generateListing({
-  property,
-}: {
-  property: Property
-}): Promise<GenerateListingResponse> {
-  const response = await fetch(`${API_URL}/api/generations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function generateListing(
+  request: GenerationRequest,
+): Promise<GeneratedListing> {
+  const response = await fetch(
+    'http://localhost:3000/api/generations',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
     },
-    body: JSON.stringify({
-      property,
-    }),
-  })
+  )
 
   if (!response.ok) {
     throw new Error(
-      `Error generating listing: ${response.status}`,
+      `Generation failed: ${response.status}`,
     )
   }
 
-  return response.json() as Promise<GenerateListingResponse>
+  const data = (await response.json()) as {
+    listing: GeneratedListing
+  }
+
+  return data.listing
 }
