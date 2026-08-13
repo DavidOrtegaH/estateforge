@@ -25,7 +25,5 @@ export async function generateListing(
 ): Promise<GeneratedListing> {
   const prompt = buildListingPrompt(request)
 
-  const result = await aiProvider.generate(prompt)
-
-  return JSON.parse(result) as GeneratedListing
+  return aiProvider.generate(prompt)
 }

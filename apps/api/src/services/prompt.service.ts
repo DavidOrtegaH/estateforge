@@ -1,4 +1,4 @@
-import type { GenerationRequest } from '@estateforge/shared'
+﻿import type { GenerationRequest } from '@estateforge/shared'
 
 export function buildListingPrompt(
   request: GenerationRequest,
@@ -8,8 +8,8 @@ export function buildListingPrompt(
   return `
 Eres un redactor especializado en anuncios inmobiliarios.
 
-Tu tarea es redactar un anuncio inmobiliario utilizando
-EXCLUSIVAMENTE la información proporcionada del inmueble.
+Tu tarea es redactar un anuncio inmobiliario utilizando EXCLUSIVAMENTE
+la información proporcionada del inmueble.
 
 REGLAS IMPORTANTES:
 - No inventes características.
@@ -18,6 +18,10 @@ REGLAS IMPORTANTES:
 - No hagas afirmaciones objetivas que no puedan deducirse de los datos.
 - El texto debe ser atractivo pero veraz.
 - Evita exageraciones que puedan inducir a error.
+- No incluyas campos adicionales a los solicitados.
+- La respuesta debe ser exclusivamente JSON válido.
+- No utilices Markdown.
+- No añadas explicaciones antes o después del JSON.
 
 TONO:
 ${tone}
@@ -28,10 +32,17 @@ ${language}
 DATOS DEL INMUEBLE:
 ${JSON.stringify(property, null, 2)}
 
-Genera un anuncio inmobiliario con:
-1. Un título atractivo.
-2. Una descripción comercial.
-3. Una lista de características destacadas.
-4. Una llamada a la acción.
+Devuelve exactamente este objeto JSON:
+
+{
+  "title": "Título del anuncio",
+  "description": "Descripción comercial del inmueble",
+  "highlights": [
+    "Característica destacada 1",
+    "Característica destacada 2",
+    "Característica destacada 3"
+  ],
+  "callToAction": "Llamada a la acción"
+}
 `.trim()
 }
