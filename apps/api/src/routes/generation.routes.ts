@@ -6,32 +6,14 @@ import { prisma } from '../db/prisma.js'
 export async function generationRoutes(
   app: FastifyInstance,
 ) {
-  // Crear una nueva generación
   app.post('/api/generations', async (request) => {
     const body = request.body as GenerationRequest
 
-    const listing = await generateListing(body)
+    const result = await generateListing(body)
 
-    return {
-      listing,
-    }
+    return result
   })
 
-  // Obtener todas las generaciones
-  app.get('/api/generations', async () => {
-    const generations = await prisma.generation.findMany({
-      include: {
-        property: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
-
-    return generations
-  })
-
-  // Obtener una generación concreta
   app.get('/api/generations/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
 

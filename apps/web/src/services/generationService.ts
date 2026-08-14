@@ -3,9 +3,15 @@ import type {
   GenerationRequest,
 } from '@estateforge/shared'
 
+export interface GenerationResult {
+  listing: GeneratedListing
+  propertyId: string
+  generationId: string
+}
+
 export async function generateListing(
   request: GenerationRequest,
-): Promise<GeneratedListing> {
+): Promise<GenerationResult> {
   const response = await fetch(
     'http://localhost:3000/api/generations',
     {
@@ -23,9 +29,5 @@ export async function generateListing(
     )
   }
 
-  const data = (await response.json()) as {
-    listing: GeneratedListing
-  }
-
-  return data.listing
+  return response.json() as Promise<GenerationResult>
 }

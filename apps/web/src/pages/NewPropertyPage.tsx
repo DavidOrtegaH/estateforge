@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 
 import type {
   GeneratedListing,
@@ -38,6 +39,12 @@ function NewPropertyPage() {
   const [generatedListing, setGeneratedListing] =
     useState<GeneratedListing | null>(null)
 
+  const [createdPropertyId, setCreatedPropertyId] =
+    useState<string | null>(null)
+
+  const [createdGenerationId, setCreatedGenerationId] =
+    useState<string | null>(null)
+
   function updateProperty<K extends keyof Property>(
     field: K,
     value: Property[K],
@@ -48,19 +55,21 @@ function NewPropertyPage() {
     }))
   }
 
-async function handleSubmit(
-  event: React.SubmitEvent<HTMLFormElement>,
-) {
-  event.preventDefault()
+  async function handleSubmit(
+    event: React.SubmitEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
 
-  const result = await generateListing({
-    property,
-    tone: 'professional',
-    language: 'es',
-  })
+    const result = await generateListing({
+      property,
+      tone: 'professional',
+      language: 'es',
+    })
 
-  setGeneratedListing(result)
-}
+    setGeneratedListing(result.listing)
+    setCreatedPropertyId(result.propertyId)
+    setCreatedGenerationId(result.generationId)
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -96,7 +105,9 @@ async function handleSubmit(
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Tipo de inmueble</span>
+              <span className="text-sm font-medium">
+                Tipo de inmueble
+              </span>
 
               <select
                 value={property.type}
@@ -124,35 +135,48 @@ async function handleSubmit(
                 min="0"
                 value={property.price || ''}
                 onChange={(event) =>
-                  updateProperty('price', Number(event.target.value))
+                  updateProperty(
+                    'price',
+                    Number(event.target.value),
+                  )
                 }
                 className="h-10 rounded-md border bg-background px-3"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Superficie (m²)</span>
+              <span className="text-sm font-medium">
+                Superficie (m²)
+              </span>
 
               <input
                 type="number"
                 min="0"
                 value={property.area || ''}
                 onChange={(event) =>
-                  updateProperty('area', Number(event.target.value))
+                  updateProperty(
+                    'area',
+                    Number(event.target.value),
+                  )
                 }
                 className="h-10 rounded-md border bg-background px-3"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Habitaciones</span>
+              <span className="text-sm font-medium">
+                Habitaciones
+              </span>
 
               <input
                 type="number"
                 min="0"
                 value={property.bedrooms || ''}
                 onChange={(event) =>
-                  updateProperty('bedrooms', Number(event.target.value))
+                  updateProperty(
+                    'bedrooms',
+                    Number(event.target.value),
+                  )
                 }
                 className="h-10 rounded-md border bg-background px-3"
               />
@@ -166,7 +190,10 @@ async function handleSubmit(
                 min="0"
                 value={property.bathrooms || ''}
                 onChange={(event) =>
-                  updateProperty('bathrooms', Number(event.target.value))
+                  updateProperty(
+                    'bathrooms',
+                    Number(event.target.value),
+                  )
                 }
                 className="h-10 rounded-md border bg-background px-3"
               />
@@ -185,7 +212,10 @@ async function handleSubmit(
                 type="text"
                 value={property.address}
                 onChange={(event) =>
-                  updateProperty('address', event.target.value)
+                  updateProperty(
+                    'address',
+                    event.target.value,
+                  )
                 }
                 className="h-10 rounded-md border bg-background px-3"
               />
@@ -198,7 +228,10 @@ async function handleSubmit(
                 type="text"
                 value={property.city}
                 onChange={(event) =>
-                  updateProperty('city', event.target.value)
+                  updateProperty(
+                    'city',
+                    event.target.value,
+                  )
                 }
                 className="h-10 rounded-md border bg-background px-3"
               />
@@ -211,7 +244,10 @@ async function handleSubmit(
                 type="text"
                 value={property.neighborhood}
                 onChange={(event) =>
-                  updateProperty('neighborhood', event.target.value)
+                  updateProperty(
+                    'neighborhood',
+                    event.target.value,
+                  )
                 }
                 className="h-10 rounded-md border bg-background px-3"
               />
@@ -284,7 +320,10 @@ async function handleSubmit(
                   type="checkbox"
                   checked={property[field]}
                   onChange={(event) =>
-                    updateProperty(field, event.target.checked)
+                    updateProperty(
+                      field,
+                      event.target.checked,
+                    )
                   }
                 />
 
@@ -369,6 +408,26 @@ async function handleSubmit(
               </p>
             </div>
           </div>
+
+          <div className="mt-8 flex flex-wrap gap-3 border-t pt-6">
+            {createdPropertyId && (
+              <Link
+                to={`/inmuebles/${createdPropertyId}`}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                Ver inmueble
+              </Link>
+            )}
+
+            {createdGenerationId && (
+              <Link
+                to={`/historial/${createdGenerationId}`}
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
+              >
+                Ver anuncio
+              </Link>
+            )}
+          </div>
         </section>
       )}
     </div>
@@ -376,4 +435,3 @@ async function handleSubmit(
 }
 
 export default NewPropertyPage
-

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+
 import {
   getProperties,
   type PropertyItem,
@@ -13,10 +14,10 @@ function PropertiesPage() {
   useEffect(() => {
     async function loadProperties() {
       try {
-        const data = await getProperties()
-        setProperties(data)
+        const result = await getProperties()
+        setProperties(result)
       } catch {
-        setError('No se pudieron cargar los inmuebles.')
+        setError('No se han podido cargar los inmuebles.')
       } finally {
         setLoading(false)
       }
@@ -28,10 +29,7 @@ function PropertiesPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">
-          Inmuebles
-        </h1>
-
+        <h1 className="text-3xl font-bold">Inmuebles</h1>
         <p className="mt-4 text-muted-foreground">
           Cargando inmuebles...
         </p>
@@ -42,27 +40,19 @@ function PropertiesPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">
-          Inmuebles
-        </h1>
-
-        <p className="mt-4 text-red-600">
-          {error}
-        </p>
+        <h1 className="text-3xl font-bold">Inmuebles</h1>
+        <p className="mt-4 text-destructive">{error}</p>
       </div>
     )
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">
-            Inmuebles
-          </h1>
-
+          <h1 className="text-3xl font-bold">Inmuebles</h1>
           <p className="mt-2 text-muted-foreground">
-            Propiedades almacenadas en EstateForge.
+            Gestiona los inmuebles registrados en EstateForge.
           </p>
         </div>
 
@@ -76,15 +66,19 @@ function PropertiesPage() {
 
       {properties.length === 0 ? (
         <div className="mt-8 rounded-lg border border-dashed p-8 text-center">
-          <p className="text-muted-foreground">
-            Todavía no hay inmuebles registrados.
+          <h2 className="font-semibold">
+            Todavía no hay inmuebles
+          </h2>
+
+          <p className="mt-2 text-sm text-muted-foreground">
+            Crea tu primer inmueble para empezar a generar anuncios.
           </p>
 
           <Link
             to="/inmuebles/nuevo"
-            className="mt-4 inline-block text-sm underline"
+            className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            Crear el primer inmueble
+            Crear primer inmueble
           </Link>
         </div>
       ) : (
@@ -93,7 +87,7 @@ function PropertiesPage() {
             <Link
               key={property.id}
               to={`/inmuebles/${property.id}`}
-              className="rounded-lg border bg-card p-5 shadow-sm transition hover:border-primary hover:shadow-md"
+              className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -102,16 +96,30 @@ function PropertiesPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {property.city || 'Ubicación no indicada'}
+                    {property.city || 'Sin ciudad'}
+                    {property.neighborhood
+                      ? ` · ${property.neighborhood}`
+                      : ''}
                   </p>
                 </div>
 
-                <span className="text-sm font-semibold">
-                  {property.price.toLocaleString('es-ES')} €
+                <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                  {property.operation === 'sale'
+                    ? 'Venta'
+                    : 'Alquiler'}
                 </span>
               </div>
 
-              <div className="mt-5 grid grid-cols-3 gap-2 text-sm">
+              <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">
+                    Precio
+                  </p>
+                  <p className="font-medium">
+                    {property.price.toLocaleString('es-ES')} €
+                  </p>
+                </div>
+
                 <div>
                   <p className="text-muted-foreground">
                     Superficie
@@ -140,40 +148,18 @@ function PropertiesPage() {
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full bg-muted px-3 py-1 text-xs">
-                  {property.operation === 'sale'
-                    ? 'Venta'
-                    : 'Alquiler'}
-                </span>
-
-                <span className="rounded-full bg-muted px-3 py-1 text-xs">
-                  {property.condition}
-                </span>
-
-                {property.terrace && (
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs">
-                    Terraza
-                  </span>
-                )}
-
-                {property.garage && (
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs">
-                    Garaje
-                  </span>
-                )}
-
-                {property.pool && (
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs">
-                    Piscina
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-5 border-t pt-4 text-xs text-muted-foreground">
-                {property.generations.length === 1
-                  ? '1 anuncio generado'
-                  : `${property.generations.length} anuncios generados`}
+              <div className="mt-5 border-t pt-4 text-sm text-muted-foreground">
+                {property.generations.length === 0
+                  ? 'Sin anuncios generados'
+                  : `${property.generations.length} anuncio${
+                      property.generations.length === 1
+                        ? ''
+                        : 's'
+                    } generado${
+                      property.generations.length === 1
+                        ? ''
+                        : 's'
+                    }`}
               </div>
             </Link>
           ))}

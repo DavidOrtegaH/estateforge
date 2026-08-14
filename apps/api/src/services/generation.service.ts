@@ -23,7 +23,11 @@ const aiProvider = createAIProvider()
 
 export async function generateListing(
   request: GenerationRequest,
-): Promise<GeneratedListing> {
+): Promise<{
+  listing: GeneratedListing
+  propertyId: string
+  generationId: string
+}> {
   const prompt = buildListingPrompt(request)
 
   const result = await aiProvider.generate(prompt)
@@ -49,11 +53,12 @@ export async function generateListing(
       garden: request.property.garden,
       airConditioning: request.property.airConditioning,
       heating: request.property.heating,
-      additionalInformation: request.property.additionalInformation,
+      additionalInformation:
+        request.property.additionalInformation,
     },
   })
 
-  await prisma.generation.create({
+  const generation = await prisma.generation.create({
     data: {
       propertyId: property.id,
       title: result.title,
@@ -66,5 +71,9 @@ export async function generateListing(
     },
   })
 
-  return result
+  return {
+    listing: result,
+    propertyId: property.id,
+    generationId: generation.id,
+  }
 }
