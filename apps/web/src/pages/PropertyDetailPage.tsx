@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
+
 import {
   getProperty,
   type PropertyItem,
-} from '../services/propertyService'
+} from '@/services/propertyService'
 
 function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -15,20 +16,21 @@ function PropertyDetailPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!id) {
-      setError('Inmueble no encontrado.')
-      setLoading(false)
-      return
-    }
-
-    const propertyId = id
-
     async function loadProperty() {
+      if (!id) {
+        setError('No se ha indicado el inmueble.')
+        setLoading(false)
+        return
+      }
+
       try {
-        const data = await getProperty(propertyId)
-        setProperty(data)
+        const result = await getProperty(id)
+
+        setProperty(result)
       } catch {
-        setError('No se pudo cargar el inmueble.')
+        setError(
+          'No se ha podido cargar el inmueble.',
+        )
       } finally {
         setLoading(false)
       }
@@ -40,9 +42,13 @@ function PropertyDetailPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">
-          Cargando inmueble...
+        <h1 className="text-3xl font-bold">
+          Inmueble
         </h1>
+
+        <p className="mt-4 text-muted-foreground">
+          Cargando inmueble...
+        </p>
       </div>
     )
   }
@@ -50,61 +56,98 @@ function PropertyDetailPage() {
   if (error || !property) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">
+        <Link
+          to="/inmuebles"
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          ← Volver a inmuebles
+        </Link>
+
+        <h1 className="mt-6 text-3xl font-bold">
           Inmueble no encontrado
         </h1>
 
         <p className="mt-2 text-muted-foreground">
-          {error}
+          {error ?? 'No se ha encontrado el inmueble.'}
         </p>
-
-        <Link
-          to="/inmuebles"
-          className="mt-4 inline-block text-sm underline"
-        >
-          ← Volver a inmuebles
-        </Link>
       </div>
     )
   }
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <Link
         to="/inmuebles"
-        className="text-sm text-muted-foreground hover:underline"
+        className="text-sm font-medium text-primary hover:underline"
       >
         ← Volver a inmuebles
       </Link>
 
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mt-6 flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold">
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            {property.operation}
+          </p>
+
+          <h1 className="mt-1 text-3xl font-bold">
             {property.type}
           </h1>
 
           <p className="mt-2 text-muted-foreground">
-            {property.address || 'Dirección no indicada'}
-          </p>
-
-          <p className="text-muted-foreground">
-            {property.city || 'Ciudad no indicada'}
+            {property.address || 'Sin dirección'}
+            {property.city
+              ? ` · ${property.city}`
+              : ''}
             {property.neighborhood
               ? ` · ${property.neighborhood}`
               : ''}
           </p>
         </div>
 
-        <div className="text-left sm:text-right">
-          <p className="text-2xl font-bold">
-            {property.price.toLocaleString('es-ES')} €
+        <p className="whitespace-nowrap text-2xl font-bold">
+          {property.price.toLocaleString('es-ES')} €
+        </p>
+      </div>
+
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border bg-card p-5">
+          <p className="text-sm text-muted-foreground">
+            Superficie
           </p>
 
-          <span className="text-sm text-muted-foreground">
-            {property.operation === 'sale'
-              ? 'Venta'
-              : 'Alquiler'}
-          </span>
+          <p className="mt-1 text-xl font-semibold">
+            {property.area} m²
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-5">
+          <p className="text-sm text-muted-foreground">
+            Habitaciones
+          </p>
+
+          <p className="mt-1 text-xl font-semibold">
+            {property.bedrooms}
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-5">
+          <p className="text-sm text-muted-foreground">
+            Baños
+          </p>
+
+          <p className="mt-1 text-xl font-semibold">
+            {property.bathrooms}
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-5">
+          <p className="text-sm text-muted-foreground">
+            Estado
+          </p>
+
+          <p className="mt-1 text-xl font-semibold">
+            {property.condition}
+          </p>
         </div>
       </div>
 
@@ -113,119 +156,69 @@ function PropertyDetailPage() {
           Características
         </h2>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">
-              Superficie
-            </p>
-            <p className="mt-1 font-semibold">
-              {property.area} m²
-            </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {property.floor !== null && (
+            <div className="rounded-md border p-4">
+              Planta: {property.floor}
+            </div>
+          )}
+
+          <div className="rounded-md border p-4">
+            Ascensor:{' '}
+            {property.elevator ? 'Sí' : 'No'}
           </div>
 
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">
-              Habitaciones
-            </p>
-            <p className="mt-1 font-semibold">
-              {property.bedrooms}
-            </p>
+          <div className="rounded-md border p-4">
+            Terraza:{' '}
+            {property.terrace ? 'Sí' : 'No'}
           </div>
 
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">
-              Baños
-            </p>
-            <p className="mt-1 font-semibold">
-              {property.bathrooms}
-            </p>
+          <div className="rounded-md border p-4">
+            Balcón:{' '}
+            {property.balcony ? 'Sí' : 'No'}
           </div>
 
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">
-              Planta
-            </p>
-            <p className="mt-1 font-semibold">
-              {property.floor ?? '—'}
-            </p>
+          <div className="rounded-md border p-4">
+            Garaje:{' '}
+            {property.garage ? 'Sí' : 'No'}
           </div>
-        </div>
-      </section>
 
-      <section className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="text-xl font-semibold">
-          Estado y equipamiento
-        </h2>
+          <div className="rounded-md border p-4">
+            Piscina:{' '}
+            {property.pool ? 'Sí' : 'No'}
+          </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-muted px-3 py-1 text-sm">
-            {property.condition}
-          </span>
+          <div className="rounded-md border p-4">
+            Jardín:{' '}
+            {property.garden ? 'Sí' : 'No'}
+          </div>
 
-          {property.elevator && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Ascensor
-            </span>
-          )}
+          <div className="rounded-md border p-4">
+            Aire acondicionado:{' '}
+            {property.airConditioning ? 'Sí' : 'No'}
+          </div>
 
-          {property.terrace && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Terraza
-            </span>
-          )}
-
-          {property.balcony && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Balcón
-            </span>
-          )}
-
-          {property.garage && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Garaje
-            </span>
-          )}
-
-          {property.pool && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Piscina
-            </span>
-          )}
-
-          {property.garden && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Jardín
-            </span>
-          )}
-
-          {property.airConditioning && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Aire acondicionado
-            </span>
-          )}
-
-          {property.heating && (
-            <span className="rounded-full bg-muted px-3 py-1 text-sm">
-              Calefacción
-            </span>
-          )}
+          <div className="rounded-md border p-4">
+            Calefacción:{' '}
+            {property.heating ? 'Sí' : 'No'}
+          </div>
         </div>
       </section>
 
       {property.additionalInformation && (
-        <section className="mt-8 rounded-lg border bg-card p-6">
+        <section className="mt-8">
           <h2 className="text-xl font-semibold">
             Información adicional
           </h2>
 
-          <p className="mt-4 whitespace-pre-line leading-7">
+          <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
             {property.additionalInformation}
           </p>
         </section>
       )}
 
       <section className="mt-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold">
               Anuncios generados
@@ -236,38 +229,41 @@ function PropertyDetailPage() {
             </p>
           </div>
 
-          <span className="rounded-full bg-muted px-3 py-1 text-sm">
-            {property.generations.length}
-          </span>
+          <Link
+            to="/inmuebles/nuevo"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            Crear otro inmueble
+          </Link>
         </div>
 
         {property.generations.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-dashed p-6 text-center">
-            <p className="text-muted-foreground">
+          <div className="mt-4 rounded-lg border border-dashed p-6">
+            <p className="text-sm text-muted-foreground">
               Este inmueble todavía no tiene anuncios
               generados.
             </p>
           </div>
         ) : (
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-3">
             {property.generations.map((generation) => (
               <Link
                 key={generation.id}
                 to={`/historial/${generation.id}`}
-                className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-md"
+                className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-sm"
               >
                 <h3 className="font-semibold">
                   {generation.title}
                 </h3>
 
-                <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
+                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
                   {generation.description}
                 </p>
 
-                <p className="mt-4 text-xs text-muted-foreground">
-                  {new Date(
-                    generation.createdAt,
-                  ).toLocaleString('es-ES')}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {generation.provider} ·{' '}
+                  {generation.language} ·{' '}
+                  {generation.tone}
                 </p>
               </Link>
             ))}

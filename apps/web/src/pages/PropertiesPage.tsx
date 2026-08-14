@@ -29,7 +29,10 @@ function PropertiesPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">Inmuebles</h1>
+        <h1 className="text-3xl font-bold">
+          Inmuebles
+        </h1>
+
         <p className="mt-4 text-muted-foreground">
           Cargando inmuebles...
         </p>
@@ -40,8 +43,13 @@ function PropertiesPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">Inmuebles</h1>
-        <p className="mt-4 text-destructive">{error}</p>
+        <h1 className="text-3xl font-bold">
+          Inmuebles
+        </h1>
+
+        <p className="mt-4 text-destructive">
+          {error}
+        </p>
       </div>
     )
   }
@@ -50,9 +58,12 @@ function PropertiesPage() {
     <div>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Inmuebles</h1>
+          <h1 className="text-3xl font-bold">
+            Inmuebles
+          </h1>
+
           <p className="mt-2 text-muted-foreground">
-            Gestiona los inmuebles registrados en EstateForge.
+            Gestiona los inmuebles y sus anuncios generados.
           </p>
         </div>
 
@@ -65,20 +76,21 @@ function PropertiesPage() {
       </div>
 
       {properties.length === 0 ? (
-        <div className="mt-8 rounded-lg border border-dashed p-8 text-center">
+        <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
           <h2 className="font-semibold">
-            Todavía no hay inmuebles
+            No hay inmuebles todavía
           </h2>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Crea tu primer inmueble para empezar a generar anuncios.
+            Crea tu primer inmueble para empezar a generar
+            anuncios.
           </p>
 
           <Link
             to="/inmuebles/nuevo"
-            className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="mt-5 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            Crear primer inmueble
+            Crear inmueble
           </Link>
         </div>
       ) : (
@@ -91,75 +103,66 @@ function PropertiesPage() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="font-semibold">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {property.operation}
+                  </p>
+
+                  <h2 className="mt-1 text-lg font-semibold">
                     {property.type}
                   </h2>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {property.city || 'Sin ciudad'}
-                    {property.neighborhood
-                      ? ` · ${property.neighborhood}`
-                      : ''}
-                  </p>
                 </div>
 
-                <span className="rounded-full bg-muted px-2 py-1 text-xs">
-                  {property.operation === 'sale'
-                    ? 'Venta'
-                    : 'Alquiler'}
+                <p className="whitespace-nowrap text-lg font-bold">
+                  {property.price.toLocaleString(
+                    'es-ES',
+                  )}{' '}
+                  €
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-sm">
+                  {property.city || 'Sin ciudad'}
+                </p>
+
+                {property.neighborhood && (
+                  <p className="text-sm text-muted-foreground">
+                    {property.neighborhood}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="rounded-md bg-muted px-2 py-1">
+                  {property.area} m²
+                </span>
+
+                <span className="rounded-md bg-muted px-2 py-1">
+                  {property.bedrooms}{' '}
+                  {property.bedrooms === 1
+                    ? 'habitación'
+                    : 'habitaciones'}
+                </span>
+
+                <span className="rounded-md bg-muted px-2 py-1">
+                  {property.bathrooms}{' '}
+                  {property.bathrooms === 1
+                    ? 'baño'
+                    : 'baños'}
                 </span>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-muted-foreground">
-                    Precio
-                  </p>
-                  <p className="font-medium">
-                    {property.price.toLocaleString('es-ES')} €
-                  </p>
-                </div>
+              <div className="mt-5 border-t pt-4">
+                <p className="text-xs text-muted-foreground">
+                  Anuncios generados
+                </p>
 
-                <div>
-                  <p className="text-muted-foreground">
-                    Superficie
-                  </p>
-                  <p className="font-medium">
-                    {property.area} m²
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-muted-foreground">
-                    Habitaciones
-                  </p>
-                  <p className="font-medium">
-                    {property.bedrooms}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-muted-foreground">
-                    Baños
-                  </p>
-                  <p className="font-medium">
-                    {property.bathrooms}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 border-t pt-4 text-sm text-muted-foreground">
-                {property.generations.length === 0
-                  ? 'Sin anuncios generados'
-                  : `${property.generations.length} anuncio${
-                      property.generations.length === 1
-                        ? ''
-                        : 's'
-                    } generado${
-                      property.generations.length === 1
-                        ? ''
-                        : 's'
-                    }`}
+                <p className="mt-1 text-sm font-medium">
+                  {property.generations.length}{' '}
+                  {property.generations.length === 1
+                    ? 'anuncio'
+                    : 'anuncios'}
+                </p>
               </div>
             </Link>
           ))}

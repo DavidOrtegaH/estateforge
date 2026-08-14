@@ -37,9 +37,11 @@ export interface PropertyItem {
   generations: PropertyGeneration[]
 }
 
+const API_URL = 'http://localhost:3000'
+
 export async function getProperties(): Promise<PropertyItem[]> {
   const response = await fetch(
-    'http://localhost:3000/api/properties',
+    `${API_URL}/api/properties`,
   )
 
   if (!response.ok) {
@@ -55,7 +57,7 @@ export async function getProperty(
   id: string,
 ): Promise<PropertyItem> {
   const response = await fetch(
-    `http://localhost:3000/api/properties/${id}`,
+    `${API_URL}/api/properties/${id}`,
   )
 
   if (!response.ok) {
