@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { generationRoutes } from './routes/generation.routes.js'
+import { propertyRoutes } from './routes/property.routes.js'
 
 const app = Fastify({
   logger: true,
@@ -18,6 +19,7 @@ app.get('/health', async () => {
 })
 
 await app.register(generationRoutes)
+await app.register(propertyRoutes)
 
 const start = async () => {
   try {

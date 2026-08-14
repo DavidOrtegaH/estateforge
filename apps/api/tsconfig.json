@@ -9,5 +9,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src"]
+  "include": ["src", "../web/src/services/propertyService.ts"]
 }

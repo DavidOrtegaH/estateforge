@@ -33,6 +33,13 @@ function AppLayout() {
           >
             Crear inmueble
           </NavLink>
+
+          <NavLink
+            to="/historial"
+            className="block rounded-md px-3 py-2 text-sm hover:bg-muted"
+          >
+            Historial
+          </NavLink>
         </nav>
       </aside>
 
