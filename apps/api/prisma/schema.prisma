@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Property {
+  id                 String       @id @default(cuid())
+  operation          String
+  type               String
+  price              Float
+  address            String
+  city               String
+  neighborhood       String
+  area               Float
+  bedrooms           Int
+  bathrooms          Int
+  floor              Int?
+  condition          String
+  elevator           Boolean
+  terrace            Boolean
+  balcony            Boolean
+  garage             Boolean
+  pool               Boolean
+  garden             Boolean
+  airConditioning    Boolean
+  heating            Boolean
+  additionalInformation String
+
+  generations        Generation[]
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model Generation {
+  id            String   @id @default(cuid())
+
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  title         String
+  description   String
+  highlights    String
+  callToAction  String
+
+  provider      String
+  tone          String
+  language      String
+
+  createdAt     DateTime @default(now())
+
+  @@index([propertyId])
+}
