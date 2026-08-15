@@ -1,6 +1,11 @@
 import type {
   GeneratedListing,
   GenerationRequest,
+  PropertyOperation,
+  PropertyType,
+  PropertyCondition,
+  ListingTone,
+  ListingLanguage,
 } from '@estateforge/shared'
 
 import { prisma } from '../db/prisma.js'
@@ -20,6 +25,12 @@ function createAIProvider(): AIProvider {
 }
 
 const aiProvider = createAIProvider()
+
+interface ExistingPropertyGenerationRequest {
+  propertyId: string
+  tone: string
+  language: string
+}
 
 export async function generateListing(
   request: GenerationRequest,
@@ -57,6 +68,75 @@ export async function generateListing(
         request.property.additionalInformation,
     },
   })
+
+  const generation = await prisma.generation.create({
+    data: {
+      propertyId: property.id,
+      title: result.title,
+      description: result.description,
+      highlights: JSON.stringify(result.highlights),
+      callToAction: result.callToAction,
+      provider: process.env.AI_PROVIDER ?? 'mock',
+      tone: request.tone,
+      language: request.language,
+    },
+  })
+
+  return {
+    listing: result,
+    propertyId: property.id,
+    generationId: generation.id,
+  }
+}
+
+export async function generateListingForExistingProperty(
+  request: ExistingPropertyGenerationRequest,
+): Promise<{
+  listing: GeneratedListing
+  propertyId: string
+  generationId: string
+}> {
+  const property = await prisma.property.findUnique({
+    where: {
+      id: request.propertyId,
+    },
+  })
+
+  if (!property) {
+    throw new Error('Property not found')
+  }
+
+  const generationRequest: GenerationRequest = {
+    property: {
+      operation: property.operation as PropertyOperation,
+      type: property.type as PropertyType,
+      price: property.price,
+      address: property.address,
+      city: property.city,
+      neighborhood: property.neighborhood,
+      area: property.area,
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      floor: property.floor ?? undefined,
+      condition: property.condition as PropertyCondition,
+      elevator: property.elevator,
+      terrace: property.terrace,
+      balcony: property.balcony,
+      garage: property.garage,
+      pool: property.pool,
+      garden: property.garden,
+      airConditioning: property.airConditioning,
+      heating: property.heating,
+      additionalInformation:
+        property.additionalInformation,
+    },
+    tone: request.tone as ListingTone,
+    language: request.language as ListingLanguage,
+  }
+
+  const prompt = buildListingPrompt(generationRequest)
+
+  const result = await aiProvider.generate(prompt)
 
   const generation = await prisma.generation.create({
     data: {

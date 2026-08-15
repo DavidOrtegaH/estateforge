@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type { GenerationRequest } from '@estateforge/shared'
+
 import { generateListing } from '../services/generation.service.js'
 import { prisma } from '../db/prisma.js'
 
@@ -14,24 +15,43 @@ export async function generationRoutes(
     return result
   })
 
-  app.get('/api/generations/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
-
-    const generation = await prisma.generation.findUnique({
-      where: {
-        id,
+  app.get('/api/generations', async () => {
+    const generations = await prisma.generation.findMany({
+      orderBy: {
+        createdAt: 'desc',
       },
       include: {
         property: true,
       },
     })
 
-    if (!generation) {
-      return reply.code(404).send({
-        message: 'Generation not found',
-      })
-    }
-
-    return generation
+    return generations
   })
+
+  app.get(
+    '/api/generations/:id',
+    async (request, reply) => {
+      const { id } = request.params as {
+        id: string
+      }
+
+      const generation =
+        await prisma.generation.findUnique({
+          where: {
+            id,
+          },
+          include: {
+            property: true,
+          },
+        })
+
+      if (!generation) {
+        return reply.code(404).send({
+          message: 'Generation not found',
+        })
+      }
+
+      return generation
+    },
+  )
 }

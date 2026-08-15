@@ -6,6 +6,10 @@ import {
   type PropertyItem,
 } from '@/services/propertyService'
 
+import {
+  generatePropertyListing,
+} from '@/services/propertyGenerationService'
+
 function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>()
 
@@ -14,6 +18,10 @@ function PropertyDetailPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [generating, setGenerating] = useState(false)
+  const [generationError, setGenerationError] =
+    useState<string | null>(null)
 
   useEffect(() => {
     async function loadProperty() {
@@ -38,6 +46,33 @@ function PropertyDetailPage() {
 
     void loadProperty()
   }, [id])
+
+  async function handleGenerateListing() {
+    if (!id) {
+      return
+    }
+
+    setGenerating(true)
+    setGenerationError(null)
+
+    try {
+      await generatePropertyListing({
+        propertyId: id,
+        tone: 'professional',
+        language: 'es',
+      })
+
+      const updatedProperty = await getProperty(id)
+
+      setProperty(updatedProperty)
+    } catch {
+      setGenerationError(
+        'No se ha podido generar el anuncio.',
+      )
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -229,13 +264,25 @@ function PropertyDetailPage() {
             </p>
           </div>
 
-          <Link
-            to="/inmuebles/nuevo"
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          <button
+            type="button"
+            onClick={() => {
+              void handleGenerateListing()
+            }}
+            disabled={generating}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Crear otro inmueble
-          </Link>
+            {generating
+              ? 'Generando...'
+              : 'Generar nuevo anuncio'}
+          </button>
         </div>
+
+        {generationError && (
+          <p className="mt-3 text-sm text-destructive">
+            {generationError}
+          </p>
+        )}
 
         {property.generations.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed p-6">
