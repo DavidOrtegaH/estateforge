@@ -1,6 +1,15 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db/prisma.js'
 
+function parseGenerationHighlights<T extends { highlights: string }>(
+  generation: T,
+) {
+  return {
+    ...generation,
+    highlights: JSON.parse(generation.highlights) as string[],
+  }
+}
+
 export async function propertyRoutes(
   app: FastifyInstance,
 ) {
@@ -14,7 +23,12 @@ export async function propertyRoutes(
       },
     })
 
-    return properties
+    return properties.map((property) => ({
+      ...property,
+      generations: property.generations.map(
+        parseGenerationHighlights,
+      ),
+    }))
   })
 
   app.get(
@@ -40,7 +54,12 @@ export async function propertyRoutes(
         })
       }
 
-      return property
+      return {
+        ...property,
+        generations: property.generations.map(
+          parseGenerationHighlights,
+        ),
+      }
     },
   )
 
@@ -72,7 +91,7 @@ export async function propertyRoutes(
 
       return {
         success: true,
-        propertyId: id,
+        message: 'Property deleted',
       }
     },
   )

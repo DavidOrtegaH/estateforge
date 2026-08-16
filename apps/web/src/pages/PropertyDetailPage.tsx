@@ -11,6 +11,35 @@ import {
   generatePropertyListing,
 } from '@/services/propertyGenerationService'
 
+function parseHighlights(
+  highlights: unknown,
+): string[] {
+  if (Array.isArray(highlights)) {
+    return highlights.filter(
+      (item): item is string =>
+        typeof item === 'string',
+    )
+  }
+
+  if (typeof highlights === 'string') {
+    try {
+      const parsed: unknown =
+        JSON.parse(highlights)
+
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (item): item is string =>
+            typeof item === 'string',
+        )
+      }
+    } catch {
+      return []
+    }
+  }
+
+  return []
+}
+
 function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -30,6 +59,12 @@ function PropertyDetailPage() {
 
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] =
+    useState<string | null>(null)
+
+  const [copyingGenerationId, setCopyingGenerationId] =
+    useState<string | null>(null)
+
+  const [copySuccess, setCopySuccess] =
     useState<string | null>(null)
 
   useEffect(() => {
@@ -56,12 +91,13 @@ function PropertyDetailPage() {
   }, [id])
 
   async function handleGenerateListing() {
-    if (!id) {
+    if (!id || generating) {
       return
     }
 
     setGenerating(true)
     setGenerationError(null)
+    setCopySuccess(null)
 
     try {
       await generatePropertyListing({
@@ -100,13 +136,61 @@ function PropertyDetailPage() {
 
     try {
       await deleteProperty(id)
-
       navigate('/inmuebles')
     } catch {
       setDeleteError(
         'No se ha podido eliminar el inmueble.',
       )
       setDeleting(false)
+    }
+  }
+
+  async function handleCopyGeneration(
+    generationId: string,
+    title: string,
+    description: string,
+    highlights: unknown,
+    callToAction: string,
+  ) {
+    if (copyingGenerationId) {
+      return
+    }
+
+    setCopyingGenerationId(generationId)
+    setCopySuccess(null)
+
+    try {
+      const parsedHighlights =
+        parseHighlights(highlights)
+
+      const text = [
+        title,
+        '',
+        description,
+        '',
+        parsedHighlights.length > 0
+          ? [
+              'Características destacadas:',
+              ...parsedHighlights.map(
+                (highlight) => `• ${highlight}`,
+              ),
+            ].join('\n')
+          : '',
+        '',
+        callToAction,
+      ]
+        .filter(
+          (section) => section.trim().length > 0,
+        )
+        .join('\n')
+
+      await navigator.clipboard.writeText(text)
+
+      setCopySuccess(generationId)
+    } catch {
+      setCopySuccess(null)
+    } finally {
+      setCopyingGenerationId(null)
     }
   }
 
@@ -319,7 +403,8 @@ function PropertyDetailPage() {
             </dt>
 
             <dd className="mt-1 font-medium">
-              {property.neighborhood || 'No indicado'}
+              {property.neighborhood ||
+                'No indicado'}
             </dd>
           </div>
         </dl>
@@ -431,50 +516,105 @@ function PropertyDetailPage() {
         ) : (
           <div className="mt-5 space-y-4">
             {property.generations.map(
-              (generation) => (
-                <Link
-                  key={generation.id}
-                  to={`/historial/${generation.id}`}
-                  className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-sm"
-                >
-                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                    <div>
-                      <h3 className="font-semibold">
-                        {generation.title}
-                      </h3>
+              (generation) => {
+                const highlights =
+                  parseHighlights(
+                    generation.highlights,
+                  )
 
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                        {generation.description}
-                      </p>
+                return (
+                  <div
+                    key={generation.id}
+                    className="rounded-lg border bg-card p-5"
+                  >
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                      <Link
+                        to={`/historial/${generation.id}`}
+                        className="min-w-0 flex-1"
+                      >
+                        <h3 className="font-semibold hover:underline">
+                          {generation.title}
+                        </h3>
+
+                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                          {generation.description}
+                        </p>
+                      </Link>
+
+                      <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                        {generation.provider}
+                      </span>
                     </div>
 
-                    <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                      {generation.provider}
-                    </span>
-                  </div>
+                    {highlights.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Características destacadas
+                        </p>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                      {generation.language === 'es'
-                        ? 'Español'
-                        : generation.language}
-                    </span>
+                        <ul className="mt-2 space-y-1 text-sm">
+                          {highlights.map(
+                            (highlight) => (
+                              <li
+                                key={highlight}
+                                className="text-muted-foreground"
+                              >
+                                • {highlight}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      </div>
+                    )}
 
-                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                      {generation.tone}
-                    </span>
-                  </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                        {generation.language === 'es'
+                          ? 'Español'
+                          : generation.language}
+                      </span>
 
-                  <div className="mt-4 border-t pt-3">
-                    <p className="text-xs text-muted-foreground">
-                      Generado el{' '}
-                      {new Date(
-                        generation.createdAt,
-                      ).toLocaleString('es-ES')}
-                    </p>
+                      <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                        {generation.tone}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                      <p className="text-xs text-muted-foreground">
+                        Generado el{' '}
+                        {new Date(
+                          generation.createdAt,
+                        ).toLocaleString('es-ES')}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCopyGeneration(
+                            generation.id,
+                            generation.title,
+                            generation.description,
+                            generation.highlights,
+                            generation.callToAction,
+                          )
+                        }
+                        disabled={
+                          copyingGenerationId !== null
+                        }
+                        className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {copyingGenerationId ===
+                        generation.id
+                          ? 'Copiando...'
+                          : copySuccess ===
+                              generation.id
+                            ? 'Copiado'
+                            : 'Copiar anuncio'}
+                      </button>
+                    </div>
                   </div>
-                </Link>
-              ),
+                )
+              },
             )}
           </div>
         )}
