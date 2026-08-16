@@ -3,17 +3,46 @@ import type {
   GenerationRequest,
 } from '@estateforge/shared'
 
+const API_URL = 'http://localhost:3000'
+
 export interface GenerationResult {
   listing: GeneratedListing
   propertyId: string
   generationId: string
 }
 
+export interface GenerationProperty {
+  id: string
+  operation: string
+  type: string
+  price: number
+  address: string
+  city: string
+  neighborhood: string
+  area: number
+  bedrooms: number
+  bathrooms: number
+}
+
+export interface GenerationItem {
+  id: string
+  propertyId: string
+  title: string
+  description: string
+  highlights: string
+  callToAction: string
+  provider: string
+  tone: string
+  language: string
+  createdAt: string
+  property: GenerationProperty
+}
+
 export async function generateListing(
   request: GenerationRequest,
 ): Promise<GenerationResult> {
   const response = await fetch(
-    'http://localhost:3000/api/generations',
+    `${API_URL}/api/generations`,
     {
       method: 'POST',
       headers: {
@@ -30,4 +59,36 @@ export async function generateListing(
   }
 
   return response.json() as Promise<GenerationResult>
+}
+
+export async function getGenerations(): Promise<
+  GenerationItem[]
+> {
+  const response = await fetch(
+    `${API_URL}/api/generations`,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load generations: ${response.status}`,
+    )
+  }
+
+  return response.json() as Promise<GenerationItem[]>
+}
+
+export async function getGeneration(
+  id: string,
+): Promise<GenerationItem> {
+  const response = await fetch(
+    `${API_URL}/api/generations/${id}`,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load generation: ${response.status}`,
+    )
+  }
+
+  return response.json() as Promise<GenerationItem>
 }

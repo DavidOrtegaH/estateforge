@@ -1,41 +1,75 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+
 import {
-  getGenerationHistory,
-  type GenerationHistoryItem,
-} from '@/services/generationHistoryService'
+  getGenerations,
+  type GenerationItem,
+} from '@/services/generationService'
+
+function parseHighlights(
+  highlights: unknown,
+): string[] {
+  if (Array.isArray(highlights)) {
+    return highlights.filter(
+      (item): item is string =>
+        typeof item === 'string',
+    )
+  }
+
+  if (typeof highlights === 'string') {
+    try {
+      const parsed: unknown =
+        JSON.parse(highlights)
+
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (item): item is string =>
+            typeof item === 'string',
+        )
+      }
+    } catch {
+      return []
+    }
+  }
+
+  return []
+}
 
 function HistoryPage() {
-  const [generations, setGenerations] = useState<
-    GenerationHistoryItem[]
-  >([])
+  const [generations, setGenerations] =
+    useState<GenerationItem[]>([])
+
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] =
+    useState<string | null>(null)
 
   useEffect(() => {
-    async function loadHistory() {
+    async function loadGenerations() {
       try {
-        const data = await getGenerationHistory()
-        setGenerations(data)
+        const result = await getGenerations()
+
+        setGenerations(result)
       } catch {
-        setError('No se pudo cargar el historial.')
+        setError(
+          'No se ha podido cargar el historial.',
+        )
       } finally {
         setLoading(false)
       }
     }
 
-    void loadHistory()
+    void loadGenerations()
   }, [])
 
   if (loading) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-semibold">
+      <div>
+        <h1 className="text-3xl font-bold">
           Historial
         </h1>
 
-        <p className="mt-4 text-slate-500">
-          Cargando anuncios...
+        <p className="mt-4 text-muted-foreground">
+          Cargando historial...
         </p>
       </div>
     )
@@ -43,12 +77,12 @@ function HistoryPage() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-semibold">
+      <div>
+        <h1 className="text-3xl font-bold">
           Historial
         </h1>
 
-        <p className="mt-4 text-red-600">
+        <p className="mt-4 text-destructive">
           {error}
         </p>
       </div>
@@ -56,82 +90,149 @@ function HistoryPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">
-          Historial
-        </h1>
+    <div className="max-w-6xl">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <h1 className="text-3xl font-bold">
+            Historial
+          </h1>
 
-        <p className="mt-1 text-slate-500">
-          Anuncios generados anteriormente.
-        </p>
+          <p className="mt-2 text-muted-foreground">
+            Consulta todos los anuncios generados en
+            EstateForge.
+          </p>
+        </div>
+
+        <div className="rounded-md bg-muted px-3 py-2 text-sm">
+          <span className="font-semibold">
+            {generations.length}
+          </span>{' '}
+          {generations.length === 1
+            ? 'anuncio generado'
+            : 'anuncios generados'}
+        </div>
       </div>
 
       {generations.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-slate-500">
-            Todavía no hay anuncios generados.
+        <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
+          <h2 className="font-semibold">
+            Todavía no hay anuncios
+          </h2>
+
+          <p className="mt-2 text-sm text-muted-foreground">
+            Genera un anuncio desde cualquiera de tus
+            inmuebles para verlo aquí.
           </p>
+
+          <Link
+            to="/inmuebles"
+            className="mt-5 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            Ver inmuebles
+          </Link>
         </div>
       ) : (
-        <div className="space-y-4">
-          {generations.map((generation) => (
-            <Link
-              key={generation.id}
-              to={`/historial/${generation.id}`}
-              className="block rounded-lg border bg-white p-5 shadow-sm transition hover:border-primary hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold">
-                    {generation.title}
-                  </h2>
+        <div className="mt-8 space-y-4">
+          {generations.map((generation) => {
+            const highlights = parseHighlights(
+              generation.highlights,
+            )
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {generation.property.city}
-                    {generation.property.neighborhood
-                      ? ` · ${generation.property.neighborhood}`
-                      : ''}
-                  </p>
+            return (
+              <Link
+                key={generation.id}
+                to={`/historial/${generation.id}`}
+                className="block rounded-lg border bg-card p-6 transition hover:border-primary hover:shadow-md"
+              >
+                <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                        {generation.provider}
+                      </span>
+
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                        {generation.language === 'es'
+                          ? 'Español'
+                          : generation.language}
+                      </span>
+
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                        {generation.tone}
+                      </span>
+                    </div>
+
+                    <h2 className="mt-3 text-xl font-semibold">
+                      {generation.title}
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {generation.description}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 lg:w-64 lg:text-right">
+                    <p className="text-sm font-medium">
+                      {generation.property.type}
+                    </p>
+
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {generation.property.city ||
+                        'Sin ciudad'}
+                    </p>
+
+                    {generation.property
+                      .neighborhood && (
+                      <p className="text-sm text-muted-foreground">
+                        {generation.property.neighborhood}
+                      </p>
+                    )}
+
+                    <p className="mt-3 text-lg font-semibold">
+                      {generation.property.price.toLocaleString(
+                        'es-ES',
+                      )}{' '}
+                      €
+                    </p>
+                  </div>
                 </div>
 
-                <span className="text-sm font-medium">
-                  {generation.property.price.toLocaleString(
-                    'es-ES',
-                  )}{' '}
-                  €
-                </span>
-              </div>
+                {highlights.length > 0 && (
+                  <div className="mt-5 border-t pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Características destacadas
+                    </p>
 
-              <p className="mt-4 line-clamp-3 text-sm text-slate-600">
-                {generation.description}
-              </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {highlights
+                        .slice(0, 5)
+                        .map((highlight) => (
+                          <span
+                            key={highlight}
+                            className="rounded-md bg-muted px-2.5 py-1 text-xs"
+                          >
+                            {highlight}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs">
-                  {generation.property.area} m²
-                </span>
+                <div className="mt-5 flex flex-col justify-between gap-2 border-t pt-4 sm:flex-row sm:items-center">
+                  <p className="text-xs text-muted-foreground">
+                    Generado el{' '}
+                    {new Date(
+                      generation.createdAt,
+                    ).toLocaleString('es-ES')}
+                  </p>
 
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs">
-                  {generation.property.bedrooms} hab.
-                </span>
-
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs">
-                  {generation.property.bathrooms} baños
-                </span>
-
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs">
-                  {generation.property.type}
-                </span>
-              </div>
-
-              <p className="mt-4 text-xs text-slate-400">
-                {new Date(
-                  generation.createdAt,
-                ).toLocaleString('es-ES')}
-              </p>
-            </Link>
-          ))}
+                  <span className="text-sm font-medium text-primary">
+                    Ver anuncio →
+                  </span>
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>
