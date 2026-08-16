@@ -13,27 +13,27 @@ function GenerationDetailPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-  if (!id) {
-    setError('Anuncio no encontrado.')
-    setLoading(false)
-    return
-  }
-
-  const generationId = id
-
-  async function loadGeneration() {
-    try {
-      const data = await getGeneration(generationId)
-      setGeneration(data)
-    } catch {
-      setError('No se pudo cargar el anuncio.')
-    } finally {
+    if (!id) {
+      setError('Anuncio no encontrado.')
       setLoading(false)
+      return
     }
-  }
 
-  void loadGeneration()
-}, [id])
+    const generationId = id
+
+    async function loadGeneration() {
+      try {
+        const data = await getGeneration(generationId)
+        setGeneration(data)
+      } catch {
+        setError('No se pudo cargar el anuncio.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void loadGeneration()
+  }, [id])
 
   if (loading) {
     return (
@@ -88,6 +88,12 @@ function GenerationDetailPage() {
             ? ` · ${property.neighborhood}`
             : ''}
         </p>
+        <Link
+          to={`/inmuebles/${property.id}`}
+          className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
+        >
+          Ver inmueble →
+        </Link>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -212,6 +218,25 @@ function GenerationDetailPage() {
             </dd>
           </div>
         </dl>
+      </section>
+      <section className="mt-6 rounded-lg border bg-card p-6">
+        <h2 className="text-xl font-semibold">
+          Inmueble asociado
+        </h2>
+
+        <p className="mt-2 text-sm text-muted-foreground">
+          {property.city}
+          {property.neighborhood
+            ? ` · ${property.neighborhood}`
+            : ''}
+        </p>
+
+        <Link
+          to={`/inmuebles/${property.id}`}
+          className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
+        >
+          Ver inmueble →
+        </Link>
       </section>
     </div>
   )

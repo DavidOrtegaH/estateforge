@@ -13,5 +13,19 @@ export async function getGeneration(
     )
   }
 
-  return response.json() as Promise<GenerationHistoryItem>
+  const data = (await response.json()) as GenerationHistoryItem & {
+    highlights: string | string[]
+  }
+
+  const highlights =
+    typeof data.highlights === 'string'
+      ? JSON.parse(data.highlights)
+      : data.highlights
+
+  return {
+    ...data,
+    highlights: Array.isArray(highlights)
+      ? highlights
+      : [],
+  }
 }

@@ -26,14 +26,6 @@ function PropertyDetailPage() {
   const [generationError, setGenerationError] =
     useState<string | null>(null)
 
-  const [tone, setTone] =
-    useState<'professional' | 'commercial' | 'friendly'>(
-      'professional',
-    )
-
-  const [language, setLanguage] =
-    useState<'es' | 'en'>('es')
-
   useEffect(() => {
     async function loadProperty() {
       if (!id) {
@@ -44,7 +36,6 @@ function PropertyDetailPage() {
 
       try {
         const result = await getProperty(id)
-
         setProperty(result)
       } catch {
         setError(
@@ -59,7 +50,7 @@ function PropertyDetailPage() {
   }, [id])
 
   async function handleGenerateListing() {
-    if (!id || generating) {
+    if (!id) {
       return
     }
 
@@ -69,12 +60,11 @@ function PropertyDetailPage() {
     try {
       await generatePropertyListing({
         propertyId: id,
-        tone,
-        language,
+        tone: 'professional',
+        language: 'es',
       })
 
-      const updatedProperty =
-        await getProperty(id)
+      const updatedProperty = await getProperty(id)
 
       setProperty(updatedProperty)
     } catch {
@@ -115,14 +105,27 @@ function PropertyDetailPage() {
         </h1>
 
         <p className="mt-2 text-muted-foreground">
-          {error ?? 'No se ha encontrado el inmueble.'}
+          {error ??
+            'No se ha encontrado el inmueble solicitado.'}
         </p>
       </div>
     )
   }
 
+  const features = [
+    property.elevator && 'Ascensor',
+    property.terrace && 'Terraza',
+    property.balcony && 'Balcón',
+    property.garage && 'Garaje',
+    property.pool && 'Piscina',
+    property.garden && 'Jardín',
+    property.airConditioning &&
+      'Aire acondicionado',
+    property.heating && 'Calefacción',
+  ].filter(Boolean) as string[]
+
   return (
-    <div>
+    <div className="max-w-6xl">
       <Link
         to="/inmuebles"
         className="text-sm font-medium text-primary hover:underline"
@@ -130,7 +133,7 @@ function PropertyDetailPage() {
         ← Volver a inmuebles
       </Link>
 
-      <div className="mt-6 flex items-start justify-between gap-6">
+      <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             {property.operation}
@@ -141,24 +144,25 @@ function PropertyDetailPage() {
           </h1>
 
           <p className="mt-2 text-muted-foreground">
-            {property.address || 'Sin dirección'}
-
-            {property.city
-              ? ` · ${property.city}`
-              : ''}
-
+            {property.city || 'Sin ciudad'}
             {property.neighborhood
               ? ` · ${property.neighborhood}`
               : ''}
           </p>
         </div>
 
-        <p className="whitespace-nowrap text-2xl font-bold">
-          {property.price.toLocaleString('es-ES')} €
-        </p>
+        <div className="text-left sm:text-right">
+          <p className="text-3xl font-bold">
+            {property.price.toLocaleString('es-ES')} €
+          </p>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            {property.area} m²
+          </p>
+        </div>
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border bg-card p-5">
           <p className="text-sm text-muted-foreground">
             Superficie
@@ -191,187 +195,188 @@ function PropertyDetailPage() {
 
         <div className="rounded-lg border bg-card p-5">
           <p className="text-sm text-muted-foreground">
-            Estado
+            Planta
           </p>
 
           <p className="mt-1 text-xl font-semibold">
-            {property.condition}
+            {property.floor ?? '—'}
           </p>
         </div>
       </div>
 
-      <section className="mt-8">
+      <section className="mt-8 rounded-lg border bg-card p-6">
+        <h2 className="text-xl font-semibold">
+          Información del inmueble
+        </h2>
+
+        <dl className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Operación
+            </dt>
+
+            <dd className="mt-1 font-medium">
+              {property.operation}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Tipo
+            </dt>
+
+            <dd className="mt-1 font-medium">
+              {property.type}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Estado
+            </dt>
+
+            <dd className="mt-1 font-medium">
+              {property.condition}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Dirección
+            </dt>
+
+            <dd className="mt-1 font-medium">
+              {property.address || 'No indicada'}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Ciudad
+            </dt>
+
+            <dd className="mt-1 font-medium">
+              {property.city || 'No indicada'}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Barrio
+            </dt>
+
+            <dd className="mt-1 font-medium">
+              {property.neighborhood || 'No indicado'}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="mt-6 rounded-lg border bg-card p-6">
         <h2 className="text-xl font-semibold">
           Características
         </h2>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {property.floor !== null && (
-            <div className="rounded-md border p-4">
-              Planta: {property.floor}
-            </div>
-          )}
-
-          <div className="rounded-md border p-4">
-            Ascensor:{' '}
-            {property.elevator ? 'Sí' : 'No'}
+        {features.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No se han indicado características
+            adicionales.
+          </p>
+        ) : (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {features.map((feature) => (
+              <span
+                key={feature}
+                className="rounded-full bg-muted px-3 py-1.5 text-sm"
+              >
+                {feature}
+              </span>
+            ))}
           </div>
-
-          <div className="rounded-md border p-4">
-            Terraza:{' '}
-            {property.terrace ? 'Sí' : 'No'}
-          </div>
-
-          <div className="rounded-md border p-4">
-            Balcón:{' '}
-            {property.balcony ? 'Sí' : 'No'}
-          </div>
-
-          <div className="rounded-md border p-4">
-            Garaje:{' '}
-            {property.garage ? 'Sí' : 'No'}
-          </div>
-
-          <div className="rounded-md border p-4">
-            Piscina:{' '}
-            {property.pool ? 'Sí' : 'No'}
-          </div>
-
-          <div className="rounded-md border p-4">
-            Jardín:{' '}
-            {property.garden ? 'Sí' : 'No'}
-          </div>
-
-          <div className="rounded-md border p-4">
-            Aire acondicionado:{' '}
-            {property.airConditioning ? 'Sí' : 'No'}
-          </div>
-
-          <div className="rounded-md border p-4">
-            Calefacción:{' '}
-            {property.heating ? 'Sí' : 'No'}
-          </div>
-        </div>
+        )}
       </section>
 
       {property.additionalInformation && (
-        <section className="mt-8">
+        <section className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="text-xl font-semibold">
             Información adicional
           </h2>
 
-          <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
+          <p className="mt-4 whitespace-pre-line leading-7 text-muted-foreground">
             {property.additionalInformation}
           </p>
         </section>
       )}
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold">
-          Generar anuncio
-        </h2>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <section className="mt-8 rounded-lg border bg-card p-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <label
-              htmlFor="generation-language"
-              className="block text-sm font-medium"
-            >
-              Idioma
-            </label>
+            <h2 className="text-xl font-semibold">
+              Generar anuncio
+            </h2>
 
-            <select
-              id="generation-language"
-              value={language}
-              onChange={(event) => {
-                setLanguage(
-                  event.target.value as 'es' | 'en',
-                )
-              }}
-              disabled={generating}
-              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              <option value="es">
-                Español
-              </option>
-
-              <option value="en">
-                Inglés
-              </option>
-            </select>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Crea un nuevo anuncio utilizando este
+              inmueble como información de origen.
+            </p>
           </div>
 
-          <div>
-            <label
-              htmlFor="generation-tone"
-              className="block text-sm font-medium"
-            >
-              Tono
-            </label>
-
-            <select
-              id="generation-tone"
-              value={tone}
-              onChange={(event) => {
-                setTone(
-                  event.target.value as
-                    | 'professional'
-                    | 'commercial'
-                    | 'friendly',
-                )
-              }}
-              disabled={generating}
-              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              <option value="professional">
-                Profesional
-              </option>
-
-              <option value="commercial">
-                Comercial
-              </option>
-
-              <option value="friendly">
-                Cercano
-              </option>
-            </select>
-          </div>
+          <button
+            type="button"
+            onClick={handleGenerateListing}
+            disabled={generating}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {generating
+              ? 'Generando...'
+              : 'Generar anuncio'}
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            void handleGenerateListing()
-          }}
-          disabled={generating}
-          className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {generating
-            ? 'Generando...'
-            : 'Generar nuevo anuncio'}
-        </button>
-
         {generationError && (
-          <p className="mt-3 text-sm text-destructive">
+          <p className="mt-4 text-sm text-destructive">
             {generationError}
           </p>
         )}
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold">
-          Anuncios generados
-        </h2>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold">
+              Anuncios generados
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              {property.generations.length === 0
+                ? 'Todavía no hay anuncios para este inmueble.'
+                : `${property.generations.length} ${
+                    property.generations.length === 1
+                      ? 'anuncio generado'
+                      : 'anuncios generados'
+                  }.`}
+            </p>
+          </div>
+
+          {property.generations.length > 0 && (
+            <Link
+              to="/historial"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Ver historial
+            </Link>
+          )}
+        </div>
 
         {property.generations.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-dashed p-6">
+          <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Este inmueble todavía no tiene anuncios
-              generados.
+              Genera el primer anuncio para este
+              inmueble.
             </p>
           </div>
         ) : (
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-4">
             {property.generations.map(
               (generation) => (
                 <Link
@@ -379,19 +384,42 @@ function PropertyDetailPage() {
                   to={`/historial/${generation.id}`}
                   className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-sm"
                 >
-                  <h3 className="font-semibold">
-                    {generation.title}
-                  </h3>
+                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                    <div>
+                      <h3 className="font-semibold">
+                        {generation.title}
+                      </h3>
 
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {generation.description}
-                  </p>
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                        {generation.description}
+                      </p>
+                    </div>
 
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {generation.provider} ·{' '}
-                    {generation.language} ·{' '}
-                    {generation.tone}
-                  </p>
+                    <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                      {generation.provider}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                      {generation.language === 'es'
+                        ? 'Español'
+                        : generation.language}
+                    </span>
+
+                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                      {generation.tone}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 border-t pt-3">
+                    <p className="text-xs text-muted-foreground">
+                      Generado el{' '}
+                      {new Date(
+                        generation.createdAt,
+                      ).toLocaleString('es-ES')}
+                    </p>
+                  </div>
                 </Link>
               ),
             )}
