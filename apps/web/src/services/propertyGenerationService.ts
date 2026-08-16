@@ -1,4 +1,3 @@
-
 export interface PropertyGenerationRequest {
   propertyId: string
   tone: string
@@ -11,13 +10,14 @@ export interface PropertyGenerationResult {
   highlights: string[]
   callToAction: string
   propertyId: string
+  generationId: string
 }
 
 export async function generatePropertyListing(
   request: PropertyGenerationRequest,
 ): Promise<PropertyGenerationResult> {
   const response = await fetch(
-    'http://localhost:3000/api/generations',
+    'http://localhost:3000/api/generations/from-property',
     {
       method: 'POST',
       headers: {
@@ -35,7 +35,13 @@ export async function generatePropertyListing(
 
   const data = (await response.json()) as {
     listing: PropertyGenerationResult
+    propertyId: string
+    generationId: string
   }
 
-  return data.listing
+  return {
+    ...data.listing,
+    propertyId: data.propertyId,
+    generationId: data.generationId,
+  }
 }

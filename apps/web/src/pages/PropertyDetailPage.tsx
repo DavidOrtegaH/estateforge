@@ -17,11 +17,22 @@ function PropertyDetailPage() {
     useState<PropertyItem | null>(null)
 
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] =
+    useState<string | null>(null)
 
-  const [generating, setGenerating] = useState(false)
+  const [generating, setGenerating] =
+    useState(false)
+
   const [generationError, setGenerationError] =
     useState<string | null>(null)
+
+  const [tone, setTone] =
+    useState<'professional' | 'commercial' | 'friendly'>(
+      'professional',
+    )
+
+  const [language, setLanguage] =
+    useState<'es' | 'en'>('es')
 
   useEffect(() => {
     async function loadProperty() {
@@ -48,7 +59,7 @@ function PropertyDetailPage() {
   }, [id])
 
   async function handleGenerateListing() {
-    if (!id) {
+    if (!id || generating) {
       return
     }
 
@@ -58,11 +69,12 @@ function PropertyDetailPage() {
     try {
       await generatePropertyListing({
         propertyId: id,
-        tone: 'professional',
-        language: 'es',
+        tone,
+        language,
       })
 
-      const updatedProperty = await getProperty(id)
+      const updatedProperty =
+        await getProperty(id)
 
       setProperty(updatedProperty)
     } catch {
@@ -130,9 +142,11 @@ function PropertyDetailPage() {
 
           <p className="mt-2 text-muted-foreground">
             {property.address || 'Sin dirección'}
+
             {property.city
               ? ` · ${property.city}`
               : ''}
+
             {property.neighborhood
               ? ` · ${property.neighborhood}`
               : ''}
@@ -253,36 +267,101 @@ function PropertyDetailPage() {
       )}
 
       <section className="mt-8">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">
-              Anuncios generados
-            </h2>
+        <h2 className="text-xl font-semibold">
+          Generar anuncio
+        </h2>
 
-            <p className="mt-1 text-sm text-muted-foreground">
-              Anuncios creados para este inmueble.
-            </p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="generation-language"
+              className="block text-sm font-medium"
+            >
+              Idioma
+            </label>
+
+            <select
+              id="generation-language"
+              value={language}
+              onChange={(event) => {
+                setLanguage(
+                  event.target.value as 'es' | 'en',
+                )
+              }}
+              disabled={generating}
+              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              <option value="es">
+                Español
+              </option>
+
+              <option value="en">
+                Inglés
+              </option>
+            </select>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              void handleGenerateListing()
-            }}
-            disabled={generating}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {generating
-              ? 'Generando...'
-              : 'Generar nuevo anuncio'}
-          </button>
+          <div>
+            <label
+              htmlFor="generation-tone"
+              className="block text-sm font-medium"
+            >
+              Tono
+            </label>
+
+            <select
+              id="generation-tone"
+              value={tone}
+              onChange={(event) => {
+                setTone(
+                  event.target.value as
+                    | 'professional'
+                    | 'commercial'
+                    | 'friendly',
+                )
+              }}
+              disabled={generating}
+              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              <option value="professional">
+                Profesional
+              </option>
+
+              <option value="commercial">
+                Comercial
+              </option>
+
+              <option value="friendly">
+                Cercano
+              </option>
+            </select>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            void handleGenerateListing()
+          }}
+          disabled={generating}
+          className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {generating
+            ? 'Generando...'
+            : 'Generar nuevo anuncio'}
+        </button>
 
         {generationError && (
           <p className="mt-3 text-sm text-destructive">
             {generationError}
           </p>
         )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold">
+          Anuncios generados
+        </h2>
 
         {property.generations.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed p-6">
@@ -293,27 +372,29 @@ function PropertyDetailPage() {
           </div>
         ) : (
           <div className="mt-4 space-y-3">
-            {property.generations.map((generation) => (
-              <Link
-                key={generation.id}
-                to={`/historial/${generation.id}`}
-                className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-sm"
-              >
-                <h3 className="font-semibold">
-                  {generation.title}
-                </h3>
+            {property.generations.map(
+              (generation) => (
+                <Link
+                  key={generation.id}
+                  to={`/historial/${generation.id}`}
+                  className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-sm"
+                >
+                  <h3 className="font-semibold">
+                    {generation.title}
+                  </h3>
 
-                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
-                  {generation.description}
-                </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {generation.description}
+                  </p>
 
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {generation.provider} ·{' '}
-                  {generation.language} ·{' '}
-                  {generation.tone}
-                </p>
-              </Link>
-            ))}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {generation.provider} ·{' '}
+                    {generation.language} ·{' '}
+                    {generation.tone}
+                  </p>
+                </Link>
+              ),
+            )}
           </div>
         )}
       </section>
