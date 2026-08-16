@@ -17,15 +17,31 @@ export async function getGeneration(
     highlights: string | string[]
   }
 
-  const highlights =
-    typeof data.highlights === 'string'
-      ? JSON.parse(data.highlights)
-      : data.highlights
+  let highlights: string[] = []
+
+  if (Array.isArray(data.highlights)) {
+    highlights = data.highlights.filter(
+      (item): item is string =>
+        typeof item === 'string',
+    )
+  } else if (typeof data.highlights === 'string') {
+    try {
+      const parsed: unknown =
+        JSON.parse(data.highlights)
+
+      if (Array.isArray(parsed)) {
+        highlights = parsed.filter(
+          (item): item is string =>
+            typeof item === 'string',
+        )
+      }
+    } catch {
+      highlights = []
+    }
+  }
 
   return {
     ...data,
-    highlights: Array.isArray(highlights)
-      ? highlights
-      : [],
+    highlights,
   }
 }

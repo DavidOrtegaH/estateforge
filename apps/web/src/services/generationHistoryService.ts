@@ -25,7 +25,9 @@ export interface GenerationHistoryItem {
 export async function getGenerationHistory(): Promise<
   GenerationHistoryItem[]
 > {
-  const response = await fetch('http://localhost:3000/api/generations')
+  const response = await fetch(
+    'http://localhost:3000/api/generations',
+  )
 
   if (!response.ok) {
     throw new Error(
@@ -33,5 +35,7 @@ export async function getGenerationHistory(): Promise<
     )
   }
 
-  return response.json() as Promise<GenerationHistoryItem[]>
+  return response.json() as Promise<
+    GenerationHistoryItem[]
+  >
 }
