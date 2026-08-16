@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import {
+  deleteProperty,
   getProperty,
   type PropertyItem,
 } from '@/services/propertyService'
@@ -12,6 +13,7 @@ import {
 
 function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
 
   const [property, setProperty] =
     useState<PropertyItem | null>(null)
@@ -24,6 +26,10 @@ function PropertyDetailPage() {
     useState(false)
 
   const [generationError, setGenerationError] =
+    useState<string | null>(null)
+
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] =
     useState<string | null>(null)
 
   useEffect(() => {
@@ -73,6 +79,34 @@ function PropertyDetailPage() {
       )
     } finally {
       setGenerating(false)
+    }
+  }
+
+  async function handleDeleteProperty() {
+    if (!id || deleting) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      '¿Seguro que quieres eliminar este inmueble? También se eliminarán todos los anuncios generados asociados.',
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError(null)
+
+    try {
+      await deleteProperty(id)
+
+      navigate('/inmuebles')
+    } catch {
+      setDeleteError(
+        'No se ha podido eliminar el inmueble.',
+      )
+      setDeleting(false)
     }
   }
 
@@ -126,12 +160,31 @@ function PropertyDetailPage() {
 
   return (
     <div className="max-w-6xl">
-      <Link
-        to="/inmuebles"
-        className="text-sm font-medium text-primary hover:underline"
-      >
-        ← Volver a inmuebles
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Link
+          to="/inmuebles"
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          ← Volver a inmuebles
+        </Link>
+
+        <button
+          type="button"
+          onClick={handleDeleteProperty}
+          disabled={deleting}
+          className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {deleting
+            ? 'Eliminando...'
+            : 'Eliminar inmueble'}
+        </button>
+      </div>
+
+      {deleteError && (
+        <p className="mt-4 text-sm text-destructive">
+          {deleteError}
+        </p>
+      )}
 
       <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>

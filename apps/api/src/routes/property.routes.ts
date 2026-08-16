@@ -17,24 +17,63 @@ export async function propertyRoutes(
     return properties
   })
 
-  app.get('/api/properties/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
+  app.get(
+    '/api/properties/:id',
+    async (request, reply) => {
+      const { id } = request.params as {
+        id: string
+      }
 
-    const property = await prisma.property.findUnique({
-      where: {
-        id,
-      },
-      include: {
-        generations: true,
-      },
-    })
+      const property =
+        await prisma.property.findUnique({
+          where: {
+            id,
+          },
+          include: {
+            generations: true,
+          },
+        })
 
-    if (!property) {
-      return reply.code(404).send({
-        message: 'Property not found',
+      if (!property) {
+        return reply.code(404).send({
+          message: 'Property not found',
+        })
+      }
+
+      return property
+    },
+  )
+
+  app.delete(
+    '/api/properties/:id',
+    async (request, reply) => {
+      const { id } = request.params as {
+        id: string
+      }
+
+      const property =
+        await prisma.property.findUnique({
+          where: {
+            id,
+          },
+        })
+
+      if (!property) {
+        return reply.code(404).send({
+          message: 'Property not found',
+        })
+      }
+
+      await prisma.property.delete({
+        where: {
+          id,
+        },
       })
-    }
 
-    return property
-  })
+      return {
+        success: true,
+        propertyId: id,
+      }
+    },
+  )
 }

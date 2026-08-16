@@ -39,7 +39,9 @@ export interface PropertyItem {
 
 const API_URL = 'http://localhost:3000'
 
-export async function getProperties(): Promise<PropertyItem[]> {
+export async function getProperties(): Promise<
+  PropertyItem[]
+> {
   const response = await fetch(
     `${API_URL}/api/properties`,
   )
@@ -67,4 +69,21 @@ export async function getProperty(
   }
 
   return response.json() as Promise<PropertyItem>
+}
+
+export async function deleteProperty(
+  id: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/api/properties/${id}`,
+    {
+      method: 'DELETE',
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to delete property: ${response.status}`,
+    )
+  }
 }
