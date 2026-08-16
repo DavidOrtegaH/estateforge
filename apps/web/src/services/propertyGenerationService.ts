@@ -1,21 +1,23 @@
-export interface PropertyGenerationRequest {
+export interface GeneratePropertyListingRequest {
   propertyId: string
   tone: string
   language: string
 }
 
-export interface PropertyGenerationResult {
-  title: string
-  description: string
-  highlights: string[]
-  callToAction: string
-  propertyId: string
+export interface GeneratePropertyListingResult {
   generationId: string
+  propertyId: string
+  listing: {
+    title: string
+    description: string
+    highlights: string[]
+    callToAction: string
+  }
 }
 
 export async function generatePropertyListing(
-  request: PropertyGenerationRequest,
-): Promise<PropertyGenerationResult> {
+  request: GeneratePropertyListingRequest,
+): Promise<GeneratePropertyListingResult> {
   const response = await fetch(
     'http://localhost:3000/api/generations/from-property',
     {
@@ -33,15 +35,5 @@ export async function generatePropertyListing(
     )
   }
 
-  const data = (await response.json()) as {
-    listing: PropertyGenerationResult
-    propertyId: string
-    generationId: string
-  }
-
-  return {
-    ...data.listing,
-    propertyId: data.propertyId,
-    generationId: data.generationId,
-  }
+  return response.json() as Promise<GeneratePropertyListingResult>
 }

@@ -32,13 +32,37 @@ interface ExistingPropertyGenerationRequest {
   language: string
 }
 
-export async function generateListing(
-  request: GenerationRequest,
-): Promise<{
+interface GenerationResult {
   listing: GeneratedListing
   propertyId: string
   generationId: string
-}> {
+}
+
+async function createGeneration(
+  propertyId: string,
+  result: GeneratedListing,
+  tone: string,
+  language: string,
+): Promise<string> {
+  const generation = await prisma.generation.create({
+    data: {
+      propertyId,
+      title: result.title,
+      description: result.description,
+      highlights: JSON.stringify(result.highlights),
+      callToAction: result.callToAction,
+      provider: process.env.AI_PROVIDER ?? 'mock',
+      tone,
+      language,
+    },
+  })
+
+  return generation.id
+}
+
+export async function generateListing(
+  request: GenerationRequest,
+): Promise<GenerationResult> {
   const prompt = buildListingPrompt(request)
 
   const result = await aiProvider.generate(prompt)
@@ -69,33 +93,23 @@ export async function generateListing(
     },
   })
 
-  const generation = await prisma.generation.create({
-    data: {
-      propertyId: property.id,
-      title: result.title,
-      description: result.description,
-      highlights: JSON.stringify(result.highlights),
-      callToAction: result.callToAction,
-      provider: process.env.AI_PROVIDER ?? 'mock',
-      tone: request.tone,
-      language: request.language,
-    },
-  })
+  const generationId = await createGeneration(
+    property.id,
+    result,
+    request.tone,
+    request.language,
+  )
 
   return {
     listing: result,
     propertyId: property.id,
-    generationId: generation.id,
+    generationId,
   }
 }
 
 export async function generateListingForExistingProperty(
   request: ExistingPropertyGenerationRequest,
-): Promise<{
-  listing: GeneratedListing
-  propertyId: string
-  generationId: string
-}> {
+): Promise<GenerationResult> {
   const property = await prisma.property.findUnique({
     where: {
       id: request.propertyId,
@@ -138,22 +152,16 @@ export async function generateListingForExistingProperty(
 
   const result = await aiProvider.generate(prompt)
 
-  const generation = await prisma.generation.create({
-    data: {
-      propertyId: property.id,
-      title: result.title,
-      description: result.description,
-      highlights: JSON.stringify(result.highlights),
-      callToAction: result.callToAction,
-      provider: process.env.AI_PROVIDER ?? 'mock',
-      tone: request.tone,
-      language: request.language,
-    },
-  })
+  const generationId = await createGeneration(
+    property.id,
+    result,
+    request.tone,
+    request.language,
+  )
 
   return {
     listing: result,
     propertyId: property.id,
-    generationId: generation.id,
+    generationId,
   }
 }

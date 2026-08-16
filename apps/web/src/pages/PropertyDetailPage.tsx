@@ -23,7 +23,8 @@ function parseHighlights(
 
   if (typeof highlights === 'string') {
     try {
-      const parsed: unknown = JSON.parse(highlights)
+      const parsed: unknown =
+        JSON.parse(highlights)
 
       if (Array.isArray(parsed)) {
         return parsed.filter(
@@ -32,7 +33,14 @@ function parseHighlights(
         )
       }
     } catch {
-      return []
+      if (highlights.trim().length > 0) {
+        return highlights
+          .split('\n')
+          .map((item) =>
+            item.replace(/^[-•*]\s*/, '').trim(),
+          )
+          .filter(Boolean)
+      }
     }
   }
 
@@ -56,7 +64,15 @@ function PropertyDetailPage() {
   const [generationError, setGenerationError] =
     useState<string | null>(null)
 
-  const [deleting, setDeleting] = useState(false)
+  const [tone, setTone] =
+    useState('professional')
+
+  const [language, setLanguage] =
+    useState('es')
+
+  const [deleting, setDeleting] =
+    useState(false)
+
   const [deleteError, setDeleteError] =
     useState<string | null>(null)
 
@@ -65,9 +81,6 @@ function PropertyDetailPage() {
 
   const [copySuccess, setCopySuccess] =
     useState<string | null>(null)
-
-  const [tone, setTone] = useState('professional')
-  const [language, setLanguage] = useState('es')
 
   useEffect(() => {
     async function loadProperty() {
@@ -257,7 +270,7 @@ function PropertyDetailPage() {
         <button
           type="button"
           onClick={handleDeleteProperty}
-          disabled={deleting || generating}
+          disabled={deleting}
           className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {deleting
@@ -292,7 +305,10 @@ function PropertyDetailPage() {
 
         <div className="text-left sm:text-right">
           <p className="text-3xl font-bold">
-            {property.price.toLocaleString('es-ES')} €
+            {property.price.toLocaleString(
+              'es-ES',
+            )}{' '}
+            €
           </p>
 
           <p className="mt-1 text-sm text-muted-foreground">
@@ -455,34 +471,12 @@ function PropertyDetailPage() {
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Elige el idioma y el tono antes de generar
-            el anuncio.
+            Elige el tono y el idioma antes de
+            generar un nuevo anuncio.
           </p>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="generation-language"
-              className="text-sm font-medium"
-            >
-              Idioma
-            </label>
-
-            <select
-              id="generation-language"
-              value={language}
-              onChange={(event) =>
-                setLanguage(event.target.value)
-              }
-              disabled={generating}
-              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="es">Español</option>
-              <option value="en">Inglés</option>
-            </select>
-          </div>
-
           <div>
             <label
               htmlFor="generation-tone"
@@ -513,20 +507,41 @@ function PropertyDetailPage() {
               </option>
             </select>
           </div>
+
+          <div>
+            <label
+              htmlFor="generation-language"
+              className="text-sm font-medium"
+            >
+              Idioma
+            </label>
+
+            <select
+              id="generation-language"
+              value={language}
+              onChange={(event) =>
+                setLanguage(event.target.value)
+              }
+              disabled={generating}
+              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="es">
+                Español
+              </option>
+
+              <option value="en">
+                Inglés
+              </option>
+            </select>
+          </div>
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            {language === 'es'
-              ? 'El anuncio se generará en español.'
-              : 'The listing will be generated in English.'}
-          </p>
-
+        <div className="mt-6 flex justify-end">
           <button
             type="button"
             onClick={handleGenerateListing}
             disabled={generating}
-            className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {generating
               ? 'Generando...'
@@ -634,22 +649,11 @@ function PropertyDetailPage() {
                       <span className="rounded-md bg-muted px-2 py-1 text-xs">
                         {generation.language === 'es'
                           ? 'Español'
-                          : generation.language === 'en'
-                            ? 'Inglés'
-                            : generation.language}
+                          : generation.language}
                       </span>
 
                       <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                        {generation.tone ===
-                        'professional'
-                          ? 'Profesional'
-                          : generation.tone ===
-                              'friendly'
-                            ? 'Cercano'
-                            : generation.tone ===
-                                'persuasive'
-                              ? 'Persuasivo'
-                              : generation.tone}
+                        {generation.tone}
                       </span>
                     </div>
 

@@ -23,11 +23,12 @@ export async function generationRoutes(
   app.post(
     '/api/generations/from-property',
     async (request, reply) => {
-      const body = request.body as {
-        propertyId: string
-        tone: string
-        language: string
-      }
+      const body =
+        request.body as {
+          propertyId: string
+          tone: string
+          language: string
+        }
 
       if (!body.propertyId) {
         return reply.code(400).send({
