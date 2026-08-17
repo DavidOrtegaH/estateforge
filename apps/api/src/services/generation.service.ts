@@ -13,9 +13,19 @@ import { buildListingPrompt } from './prompt.service.js'
 import type { AIProvider } from '../ai/ai-provider.js'
 import { MockAIProvider } from '../ai/mock-ai.provider.js'
 import { OpenAIProvider } from '../ai/openai.provider.js'
+import { GeminiProvider } from '../ai/gemini.provider.js'
+
 
 function createAIProvider(): AIProvider {
   const provider = process.env.AI_PROVIDER ?? 'mock'
+
+  console.log(
+    `[EstateForge] Proveedor de IA seleccionado: ${provider}`,
+  )
+
+  if (provider === 'gemini') {
+    return new GeminiProvider()
+  }
 
   if (provider === 'openai') {
     return new OpenAIProvider()

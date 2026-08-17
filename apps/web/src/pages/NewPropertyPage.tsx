@@ -8,6 +8,7 @@ import type {
   PropertyOperation,
   PropertyType,
 } from '@estateforge/shared'
+
 import { Button } from '@/components/ui/button'
 import { generateListing } from '@/services/generationService'
 
@@ -34,7 +35,8 @@ const initialProperty: Property = {
 }
 
 function NewPropertyPage() {
-  const [property, setProperty] = useState<Property>(initialProperty)
+  const [property, setProperty] =
+    useState<Property>(initialProperty)
 
   const [generatedListing, setGeneratedListing] =
     useState<GeneratedListing | null>(null)
@@ -43,6 +45,12 @@ function NewPropertyPage() {
     useState<string | null>(null)
 
   const [createdGenerationId, setCreatedGenerationId] =
+    useState<string | null>(null)
+
+  const [generating, setGenerating] =
+    useState(false)
+
+  const [error, setError] =
     useState<string | null>(null)
 
   function updateProperty<K extends keyof Property>(
@@ -55,39 +63,115 @@ function NewPropertyPage() {
     }))
   }
 
+  function validateProperty(): string | null {
+    if (property.price <= 0) {
+      return 'El precio debe ser mayor que 0 €.'
+    }
+
+    if (property.area <= 0) {
+      return 'La superficie debe ser mayor que 0 m².'
+    }
+
+    if (property.bedrooms < 0) {
+      return 'El número de habitaciones no puede ser negativo.'
+    }
+
+    if (property.bathrooms < 0) {
+      return 'El número de baños no puede ser negativo.'
+    }
+
+    if (!property.address.trim()) {
+      return 'La dirección es obligatoria.'
+    }
+
+    if (!property.city.trim()) {
+      return 'La ciudad es obligatoria.'
+    }
+
+    if (!property.neighborhood.trim()) {
+      return 'La zona es obligatoria.'
+    }
+
+    if (
+      property.floor !== undefined &&
+      property.floor < 0
+    ) {
+      return 'La planta no puede ser negativa.'
+    }
+
+    return null
+  }
+
   async function handleSubmit(
     event: React.SubmitEvent<HTMLFormElement>,
   ) {
     event.preventDefault()
 
-    const result = await generateListing({
-      property,
-      tone: 'professional',
-      language: 'es',
-    })
+    if (generating) {
+      return
+    }
 
-    setGeneratedListing(result.listing)
-    setCreatedPropertyId(result.propertyId)
-    setCreatedGenerationId(result.generationId)
+    const validationError =
+      validateProperty()
+
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    setGenerating(true)
+    setError(null)
+
+    try {
+      const result = await generateListing({
+        property,
+        tone: 'professional',
+        language: 'es',
+      })
+
+      setGeneratedListing(result.listing)
+      setCreatedPropertyId(result.propertyId)
+      setCreatedGenerationId(result.generationId)
+    } catch {
+      setGeneratedListing(null)
+      setCreatedPropertyId(null)
+      setCreatedGenerationId(null)
+
+      setError(
+        'No se ha podido generar el anuncio. Comprueba que la API está funcionando e inténtalo de nuevo.',
+      )
+    } finally {
+      setGenerating(false)
+    }
   }
 
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Crear inmueble</h1>
+        <h1 className="text-3xl font-bold">
+          Crear inmueble
+        </h1>
+
         <p className="mt-2 text-muted-foreground">
           Introduce los datos del inmueble para generar posteriormente su
           anuncio con IA.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-8"
+      >
         <section className="rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold">Información básica</h2>
+          <h2 className="text-lg font-semibold">
+            Información básica
+          </h2>
 
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Operación</span>
+              <span className="text-sm font-medium">
+                Operación
+              </span>
 
               <select
                 value={property.operation}
@@ -99,8 +183,13 @@ function NewPropertyPage() {
                 }
                 className="h-10 rounded-md border bg-background px-3"
               >
-                <option value="sale">Venta</option>
-                <option value="rent">Alquiler</option>
+                <option value="sale">
+                  Venta
+                </option>
+
+                <option value="rent">
+                  Alquiler
+                </option>
               </select>
             </label>
 
@@ -119,16 +208,32 @@ function NewPropertyPage() {
                 }
                 className="h-10 rounded-md border bg-background px-3"
               >
-                <option value="apartment">Piso</option>
-                <option value="house">Casa</option>
-                <option value="villa">Chalet</option>
-                <option value="penthouse">Ático</option>
-                <option value="commercial">Local</option>
+                <option value="apartment">
+                  Piso
+                </option>
+
+                <option value="house">
+                  Casa
+                </option>
+
+                <option value="villa">
+                  Chalet
+                </option>
+
+                <option value="penthouse">
+                  Ático
+                </option>
+
+                <option value="commercial">
+                  Local
+                </option>
               </select>
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Precio (€)</span>
+              <span className="text-sm font-medium">
+                Precio (€)
+              </span>
 
               <input
                 type="number"
@@ -183,7 +288,9 @@ function NewPropertyPage() {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Baños</span>
+              <span className="text-sm font-medium">
+                Baños
+              </span>
 
               <input
                 type="number"
@@ -202,11 +309,15 @@ function NewPropertyPage() {
         </section>
 
         <section className="rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold">Ubicación</h2>
+          <h2 className="text-lg font-semibold">
+            Ubicación
+          </h2>
 
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <label className="grid gap-2 md:col-span-2">
-              <span className="text-sm font-medium">Dirección</span>
+              <span className="text-sm font-medium">
+                Dirección
+              </span>
 
               <input
                 type="text"
@@ -222,7 +333,9 @@ function NewPropertyPage() {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Ciudad</span>
+              <span className="text-sm font-medium">
+                Ciudad
+              </span>
 
               <input
                 type="text"
@@ -238,7 +351,9 @@ function NewPropertyPage() {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Zona</span>
+              <span className="text-sm font-medium">
+                Zona
+              </span>
 
               <input
                 type="text"
@@ -254,7 +369,9 @@ function NewPropertyPage() {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Planta</span>
+              <span className="text-sm font-medium">
+                Planta
+              </span>
 
               <input
                 type="number"
@@ -273,7 +390,9 @@ function NewPropertyPage() {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium">Estado</span>
+              <span className="text-sm font-medium">
+                Estado
+              </span>
 
               <select
                 value={property.condition}
@@ -285,9 +404,18 @@ function NewPropertyPage() {
                 }
                 className="h-10 rounded-md border bg-background px-3"
               >
-                <option value="new">Obra nueva</option>
-                <option value="good">Buen estado</option>
-                <option value="renovated">Reformado</option>
+                <option value="new">
+                  Obra nueva
+                </option>
+
+                <option value="good">
+                  Buen estado
+                </option>
+
+                <option value="renovated">
+                  Reformado
+                </option>
+
                 <option value="needs-renovation">
                   Necesita reforma
                 </option>
@@ -297,7 +425,9 @@ function NewPropertyPage() {
         </section>
 
         <section className="rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold">Características</h2>
+          <h2 className="text-lg font-semibold">
+            Características
+          </h2>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3">
             {(
@@ -308,7 +438,10 @@ function NewPropertyPage() {
                 ['garage', 'Garaje'],
                 ['pool', 'Piscina'],
                 ['garden', 'Jardín'],
-                ['airConditioning', 'Aire acondicionado'],
+                [
+                  'airConditioning',
+                  'Aire acondicionado',
+                ],
                 ['heating', 'Calefacción'],
               ] as const
             ).map(([field, label]) => (
@@ -327,7 +460,9 @@ function NewPropertyPage() {
                   }
                 />
 
-                <span className="text-sm">{label}</span>
+                <span className="text-sm">
+                  {label}
+                </span>
               </label>
             ))}
           </div>
@@ -352,9 +487,21 @@ function NewPropertyPage() {
           />
         </section>
 
-        <div className="flex justify-end">
-          <Button type="submit" size="lg">
-            Generar anuncio con IA
+        <div className="flex flex-col items-end gap-3">
+          {error && (
+            <p className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            size="lg"
+            disabled={generating}
+          >
+            {generating
+              ? 'Generando anuncio...'
+              : 'Generar anuncio con IA'}
           </Button>
         </div>
       </form>
@@ -392,9 +539,13 @@ function NewPropertyPage() {
               </p>
 
               <ul className="mt-2 list-disc pl-5">
-                {generatedListing.highlights.map((highlight) => (
-                  <li key={highlight}>{highlight}</li>
-                ))}
+                {generatedListing.highlights.map(
+                  (highlight) => (
+                    <li key={highlight}>
+                      {highlight}
+                    </li>
+                  ),
+                )}
               </ul>
             </div>
 
