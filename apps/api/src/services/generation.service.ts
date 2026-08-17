@@ -15,9 +15,12 @@ import { MockAIProvider } from '../ai/mock-ai.provider.js'
 import { OpenAIProvider } from '../ai/openai.provider.js'
 import { GeminiProvider } from '../ai/gemini.provider.js'
 
+function getAIProviderName(): string {
+  return process.env.AI_PROVIDER ?? 'mock'
+}
 
 function createAIProvider(): AIProvider {
-  const provider = process.env.AI_PROVIDER ?? 'mock'
+  const provider = getAIProviderName()
 
   console.log(
     `[EstateForge] Proveedor de IA seleccionado: ${provider}`,
@@ -61,7 +64,7 @@ async function createGeneration(
       description: result.description,
       highlights: JSON.stringify(result.highlights),
       callToAction: result.callToAction,
-      provider: process.env.AI_PROVIDER ?? 'mock',
+      provider: getAIProviderName(),
       tone,
       language,
     },

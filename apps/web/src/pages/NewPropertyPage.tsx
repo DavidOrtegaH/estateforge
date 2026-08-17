@@ -47,7 +47,7 @@ function NewPropertyPage() {
   const [createdGenerationId, setCreatedGenerationId] =
     useState<string | null>(null)
 
-  const [generating, setGenerating] =
+  const [isGenerating, setIsGenerating] =
     useState(false)
 
   const [error, setError] =
@@ -65,19 +65,19 @@ function NewPropertyPage() {
 
   function validateProperty(): string | null {
     if (property.price <= 0) {
-      return 'El precio debe ser mayor que 0 €.'
+      return 'El precio debe ser mayor que 0.'
     }
 
     if (property.area <= 0) {
-      return 'La superficie debe ser mayor que 0 m².'
+      return 'La superficie debe ser mayor que 0.'
     }
 
     if (property.bedrooms < 0) {
-      return 'El número de habitaciones no puede ser negativo.'
+      return 'Las habitaciones no pueden ser negativas.'
     }
 
     if (property.bathrooms < 0) {
-      return 'El número de baños no puede ser negativo.'
+      return 'Los baños no pueden ser negativos.'
     }
 
     if (!property.address.trim()) {
@@ -88,17 +88,6 @@ function NewPropertyPage() {
       return 'La ciudad es obligatoria.'
     }
 
-    if (!property.neighborhood.trim()) {
-      return 'La zona es obligatoria.'
-    }
-
-    if (
-      property.floor !== undefined &&
-      property.floor < 0
-    ) {
-      return 'La planta no puede ser negativa.'
-    }
-
     return null
   }
 
@@ -107,9 +96,11 @@ function NewPropertyPage() {
   ) {
     event.preventDefault()
 
-    if (generating) {
+    if (isGenerating) {
       return
     }
+
+    setError(null)
 
     const validationError =
       validateProperty()
@@ -119,8 +110,10 @@ function NewPropertyPage() {
       return
     }
 
-    setGenerating(true)
-    setError(null)
+    setIsGenerating(true)
+    setGeneratedListing(null)
+    setCreatedPropertyId(null)
+    setCreatedGenerationId(null)
 
     try {
       const result = await generateListing({
@@ -132,17 +125,25 @@ function NewPropertyPage() {
       setGeneratedListing(result.listing)
       setCreatedPropertyId(result.propertyId)
       setCreatedGenerationId(result.generationId)
-    } catch {
-      setGeneratedListing(null)
-      setCreatedPropertyId(null)
-      setCreatedGenerationId(null)
+    } catch (generationError) {
+      console.error(
+        'Error generando anuncio:',
+        generationError,
+      )
 
       setError(
-        'No se ha podido generar el anuncio. Comprueba que la API está funcionando e inténtalo de nuevo.',
+        'No se ha podido generar el anuncio. Comprueba que la API esté disponible y que el proveedor de IA esté correctamente configurado.',
       )
     } finally {
-      setGenerating(false)
+      setIsGenerating(false)
     }
+  }
+
+  function handleResetGeneration() {
+    setGeneratedListing(null)
+    setCreatedPropertyId(null)
+    setCreatedGenerationId(null)
+    setError(null)
   }
 
   return (
@@ -153,10 +154,21 @@ function NewPropertyPage() {
         </h1>
 
         <p className="mt-2 text-muted-foreground">
-          Introduce los datos del inmueble para generar posteriormente su
-          anuncio con IA.
+          Introduce los datos del inmueble para
+          generar posteriormente su anuncio con IA.
         </p>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-8 rounded-lg border border-destructive/30 bg-destructive/10 p-4"
+        >
+          <p className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}
@@ -178,7 +190,8 @@ function NewPropertyPage() {
                 onChange={(event) =>
                   updateProperty(
                     'operation',
-                    event.target.value as PropertyOperation,
+                    event.target
+                      .value as PropertyOperation,
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -382,7 +395,9 @@ function NewPropertyPage() {
                     'floor',
                     event.target.value === ''
                       ? undefined
-                      : Number(event.target.value),
+                      : Number(
+                          event.target.value,
+                        ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -399,7 +414,8 @@ function NewPropertyPage() {
                 onChange={(event) =>
                   updateProperty(
                     'condition',
-                    event.target.value as PropertyCondition,
+                    event.target
+                      .value as PropertyCondition,
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -485,21 +501,20 @@ function NewPropertyPage() {
             rows={6}
             className="mt-6 w-full resize-y rounded-md border bg-background p-3"
           />
+
+          <p className="mt-2 text-xs text-muted-foreground">
+            Esta información se proporciona a la IA
+            como parte de los datos del inmueble.
+          </p>
         </section>
 
-        <div className="flex flex-col items-end gap-3">
-          {error && (
-            <p className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
+        <div className="flex justify-end">
           <Button
             type="submit"
             size="lg"
-            disabled={generating}
+            disabled={isGenerating}
           >
-            {generating
+            {isGenerating
               ? 'Generando anuncio...'
               : 'Generar anuncio con IA'}
           </Button>
@@ -508,9 +523,26 @@ function NewPropertyPage() {
 
       {generatedListing && (
         <section className="mt-8 rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold">
-            Anuncio generado
-          </h2>
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+            <div>
+              <h2 className="text-lg font-semibold">
+                Anuncio generado
+              </h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                El anuncio ha sido generado y guardado
+                correctamente.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleResetGeneration}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Generar otro
+            </button>
+          </div>
 
           <div className="mt-6 space-y-6">
             <div>
@@ -528,7 +560,7 @@ function NewPropertyPage() {
                 Descripción
               </p>
 
-              <p className="mt-2 whitespace-pre-line">
+              <p className="mt-2 whitespace-pre-line leading-7">
                 {generatedListing.description}
               </p>
             </div>
@@ -538,15 +570,23 @@ function NewPropertyPage() {
                 Características destacadas
               </p>
 
-              <ul className="mt-2 list-disc pl-5">
-                {generatedListing.highlights.map(
-                  (highlight) => (
-                    <li key={highlight}>
-                      {highlight}
-                    </li>
-                  ),
-                )}
-              </ul>
+              {generatedListing.highlights.length ===
+              0 ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No se han indicado características
+                  destacadas.
+                </p>
+              ) : (
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {generatedListing.highlights.map(
+                    (highlight) => (
+                      <li key={highlight}>
+                        {highlight}
+                      </li>
+                    ),
+                  )}
+                </ul>
+              )}
             </div>
 
             <div>

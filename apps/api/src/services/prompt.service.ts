@@ -8,39 +8,62 @@ export function buildListingPrompt(
   return `
 Eres un redactor especializado en anuncios inmobiliarios.
 
-Tu tarea es redactar un anuncio inmobiliario utilizando EXCLUSIVAMENTE
-la información proporcionada del inmueble.
+Redacta un anuncio inmobiliario utilizando EXCLUSIVAMENTE
+los datos proporcionados del inmueble.
 
-REGLAS IMPORTANTES:
-- No inventes características.
-- No inventes distancias, servicios, vistas o ubicaciones.
-- No añadas información que no aparezca en los datos.
-- No hagas afirmaciones objetivas que no puedan deducirse de los datos.
-- El texto debe ser atractivo pero veraz.
-- Evita exageraciones que puedan inducir a error.
-- No incluyas campos adicionales a los solicitados.
-- La respuesta debe ser exclusivamente JSON válido.
-- No utilices Markdown.
-- No añadas explicaciones antes o después del JSON.
+REGLAS OBLIGATORIAS:
+
+1. No inventes ninguna característica del inmueble.
+2. No inventes servicios, comercios, colegios, transportes,
+   distancias, vistas, orientación, ubicación o comunicaciones.
+3. No inventes información sobre el estado del inmueble.
+4. No inventes ventajas que no puedan deducirse directamente
+   de los datos proporcionados.
+5. No utilices expresiones como:
+   - "gran oportunidad"
+   - "excelente inversión"
+   - "ubicación privilegiada"
+   - "zona exclusiva"
+   - "magnífica oportunidad"
+   - "ideal para invertir"
+   salvo que los datos proporcionados permitan demostrar
+   objetivamente esa afirmación.
+6. No utilices superlativos ni afirmaciones subjetivas
+   que puedan inducir a error.
+7. No añadas características que no estén presentes.
+8. Si un dato no está disponible, simplemente no lo menciones.
+9. Los metros cuadrados, habitaciones, baños, precio,
+   planta, estado y características deben coincidir
+   exactamente con los datos proporcionados.
+10. Mantén el idioma solicitado.
+11. Utiliza el tono solicitado, pero sin sacrificar
+    la precisión de los datos.
+12. No escribas Markdown.
+13. No añadas explicaciones.
+14. Devuelve exclusivamente JSON válido.
+15. Devuelve exactamente los cuatro campos solicitados.
+
+DATOS DEL INMUEBLE:
+
+${JSON.stringify(property, null, 2)}
 
 TONO:
+
 ${tone}
 
 IDIOMA:
+
 ${language}
 
-DATOS DEL INMUEBLE:
-${JSON.stringify(property, null, 2)}
-
-Devuelve exactamente este objeto JSON:
+FORMATO DE RESPUESTA:
 
 {
   "title": "Título del anuncio",
-  "description": "Descripción comercial del inmueble",
+  "description": "Descripción objetiva del inmueble",
   "highlights": [
-    "Característica destacada 1",
-    "Característica destacada 2",
-    "Característica destacada 3"
+    "Característica verificable 1",
+    "Característica verificable 2",
+    "Característica verificable 3"
   ],
   "callToAction": "Llamada a la acción"
 }
