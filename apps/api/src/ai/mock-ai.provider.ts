@@ -1,10 +1,8 @@
-import type {
-  AIProvider,
-} from './ai-provider.js'
-
-import type {
-  GeneratedListing,
+import {
+  GeneratedListingSchema,
+  type GeneratedListing,
 } from '@estateforge/shared'
+import type { AIProvider } from './ai-provider.js'
 
 interface PromptProperty {
   operation: string
@@ -133,9 +131,7 @@ function buildHighlights(
   const highlights: string[] = []
 
   if (property.area > 0) {
-    highlights.push(
-      `${property.area} m²`,
-    )
+    highlights.push(`${property.area} m²`)
   }
 
   if (property.bedrooms > 0) {
@@ -381,7 +377,7 @@ export class MockAIProvider
       .filter(Boolean)
       .join(' ')
 
-    return {
+    const result = {
       title,
       description:
         buildDescription(property),
@@ -390,5 +386,16 @@ export class MockAIProvider
       callToAction:
         'Contacta con nosotros para concertar una visita.',
     }
+
+    const validation =
+      GeneratedListingSchema.safeParse(result)
+
+    if (!validation.success) {
+      throw new Error(
+        'El proveedor Mock generó un anuncio con un formato inválido.',
+      )
+    }
+
+    return validation.data
   }
 }

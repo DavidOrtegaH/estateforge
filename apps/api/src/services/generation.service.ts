@@ -1,3 +1,7 @@
+import {
+  GeneratedListingSchema,
+} from '@estateforge/shared'
+
 import type {
   GeneratedListing,
   GenerationRequest,
@@ -10,31 +14,10 @@ import type {
 
 import { prisma } from '../db/prisma.js'
 import { buildListingPrompt } from './prompt.service.js'
-import type { AIProvider } from '../ai/ai-provider.js'
-import { MockAIProvider } from '../ai/mock-ai.provider.js'
-import { OpenAIProvider } from '../ai/openai.provider.js'
-import { GeminiProvider } from '../ai/gemini.provider.js'
+import { createAIProvider } from '../ai/ai-provider.factory.js'
 
 function getAIProviderName(): string {
   return process.env.AI_PROVIDER ?? 'mock'
-}
-
-function createAIProvider(): AIProvider {
-  const provider = getAIProviderName()
-
-  console.log(
-    `[EstateForge] Proveedor de IA seleccionado: ${provider}`,
-  )
-
-  if (provider === 'gemini') {
-    return new GeminiProvider()
-  }
-
-  if (provider === 'openai') {
-    return new OpenAIProvider()
-  }
-
-  return new MockAIProvider()
 }
 
 const aiProvider = createAIProvider()
@@ -73,13 +56,30 @@ async function createGeneration(
   return generation.id
 }
 
+function validateGeneratedListing(
+  result: unknown,
+): GeneratedListing {
+  const parsed =
+    GeneratedListingSchema.safeParse(result)
+
+  if (!parsed.success) {
+    throw new Error(
+      'La IA devolvió un anuncio con un formato inválido.',
+    )
+  }
+
+  return parsed.data
+}
+
 export async function generateListing(
   request: GenerationRequest,
 ): Promise<GenerationResult> {
   const prompt = buildListingPrompt(request)
 
-  const result = await aiProvider.generate(prompt)
+  const rawResult = await aiProvider.generate(prompt)
 
+  const result =
+    validateGeneratedListing(rawResult)
   const property = await prisma.property.create({
     data: {
       operation: request.property.operation,
@@ -163,7 +163,10 @@ export async function generateListingForExistingProperty(
 
   const prompt = buildListingPrompt(generationRequest)
 
-  const result = await aiProvider.generate(prompt)
+  const rawResult = await aiProvider.generate(prompt)
+
+  const result =
+    validateGeneratedListing(rawResult)
 
   const generationId = await createGeneration(
     property.id,

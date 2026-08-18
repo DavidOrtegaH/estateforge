@@ -1,31 +1,9 @@
 import { GoogleGenAI } from '@google/genai'
-import type { GeneratedListing } from '@estateforge/shared'
+import {
+  GeneratedListingSchema,
+  type GeneratedListing,
+} from '@estateforge/shared'
 import type { AIProvider } from './ai-provider.js'
-
-function isGeneratedListing(
-  value: unknown,
-): value is GeneratedListing {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-
-  const listing = value as Record<string, unknown>
-
-  return (
-    typeof listing.title === 'string' &&
-    listing.title.trim().length > 0 &&
-    typeof listing.description === 'string' &&
-    listing.description.trim().length > 0 &&
-    Array.isArray(listing.highlights) &&
-    listing.highlights.every(
-      (highlight) =>
-        typeof highlight === 'string' &&
-        highlight.trim().length > 0,
-    ) &&
-    typeof listing.callToAction === 'string' &&
-    listing.callToAction.trim().length > 0
-  )
-}
 
 export class GeminiProvider implements AIProvider {
   private readonly client: GoogleGenAI
@@ -101,13 +79,16 @@ export class GeminiProvider implements AIProvider {
         )
       }
 
-      if (!isGeneratedListing(parsed)) {
+      const validation =
+        GeneratedListingSchema.safeParse(parsed)
+
+      if (!validation.success) {
         throw new Error(
           'Gemini devolvió un anuncio con un formato inválido.',
         )
       }
 
-      return parsed
+      return validation.data
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(
