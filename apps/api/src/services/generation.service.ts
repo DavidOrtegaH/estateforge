@@ -11,37 +11,34 @@ import type {
 
 import { prisma } from '../db/prisma.js'
 import { buildListingPrompt } from './prompt.service.js'
-
 import type { AIProvider } from '../ai/ai-provider.js'
 import { MockAIProvider } from '../ai/mock-ai.provider.js'
 import { OpenAIProvider } from '../ai/openai.provider.js'
 import { GeminiProvider } from '../ai/gemini.provider.js'
 
 function createAIProvider(
-  provider: AIProviderType,
+  provider: AIProviderType | string,
 ): AIProvider {
   console.log(
-    `[EstateForge] Proveedor de IA seleccionado para esta generación: ${provider}`,
+    `[EstateForge] Proveedor de IA solicitado: ${provider}`,
   )
 
   if (provider === 'gemini') {
     return new GeminiProvider()
   }
 
-  if (provider === 'mock') {
-    return new MockAIProvider()
+  if (provider === 'openai') {
+    return new OpenAIProvider()
   }
 
-  throw new Error(
-    `Proveedor de IA no soportado: ${provider}`,
-  )
+  return new MockAIProvider()
 }
 
 interface ExistingPropertyGenerationRequest {
   propertyId: string
   tone: string
   language: string
-  provider: AIProviderType
+  provider: string
 }
 
 interface GenerationResult {
@@ -55,16 +52,14 @@ async function createGeneration(
   result: GeneratedListing,
   tone: string,
   language: string,
-  provider: AIProviderType,
+  provider: string,
 ): Promise<string> {
   const generation = await prisma.generation.create({
     data: {
       propertyId,
       title: result.title,
       description: result.description,
-      highlights: JSON.stringify(
-        result.highlights,
-      ),
+      highlights: JSON.stringify(result.highlights),
       callToAction: result.callToAction,
       provider,
       tone,
@@ -84,8 +79,7 @@ export async function generateListing(
 
   const prompt = buildListingPrompt(request)
 
-  const result =
-    await aiProvider.generate(prompt)
+  const result = await aiProvider.generate(prompt)
 
   const property = await prisma.property.create({
     data: {
@@ -94,8 +88,7 @@ export async function generateListing(
       price: request.property.price,
       address: request.property.address,
       city: request.property.city,
-      neighborhood:
-        request.property.neighborhood,
+      neighborhood: request.property.neighborhood,
       area: request.property.area,
       bedrooms: request.property.bedrooms,
       bathrooms: request.property.bathrooms,
@@ -115,14 +108,13 @@ export async function generateListing(
     },
   })
 
-  const generationId =
-    await createGeneration(
-      property.id,
-      result,
-      request.tone,
-      request.language,
-      request.provider,
-    )
+  const generationId = await createGeneration(
+    property.id,
+    result,
+    request.tone,
+    request.language,
+    request.provider,
+  )
 
   return {
     listing: result,
@@ -134,12 +126,11 @@ export async function generateListing(
 export async function generateListingForExistingProperty(
   request: ExistingPropertyGenerationRequest,
 ): Promise<GenerationResult> {
-  const property =
-    await prisma.property.findUnique({
-      where: {
-        id: request.propertyId,
-      },
-    })
+  const property = await prisma.property.findUnique({
+    where: {
+      id: request.propertyId,
+    },
+  })
 
   if (!property) {
     throw new Error('Property not found')
@@ -153,13 +144,11 @@ export async function generateListingForExistingProperty(
       price: property.price,
       address: property.address,
       city: property.city,
-      neighborhood:
-        property.neighborhood,
+      neighborhood: property.neighborhood,
       area: property.area,
       bedrooms: property.bedrooms,
       bathrooms: property.bathrooms,
-      floor:
-        property.floor ?? undefined,
+      floor: property.floor ?? undefined,
       condition:
         property.condition as PropertyCondition,
       elevator: property.elevator,
@@ -174,11 +163,9 @@ export async function generateListingForExistingProperty(
       additionalInformation:
         property.additionalInformation,
     },
-    tone:
-      request.tone as ListingTone,
-    language:
-      request.language as ListingLanguage,
-    provider: request.provider,
+    tone: request.tone as ListingTone,
+    language: request.language as ListingLanguage,
+    provider: request.provider as AIProviderType,
   }
 
   const aiProvider = createAIProvider(
@@ -186,21 +173,17 @@ export async function generateListingForExistingProperty(
   )
 
   const prompt =
-    buildListingPrompt(
-      generationRequest,
-    )
+    buildListingPrompt(generationRequest)
 
-  const result =
-    await aiProvider.generate(prompt)
+  const result = await aiProvider.generate(prompt)
 
-  const generationId =
-    await createGeneration(
-      property.id,
-      result,
-      request.tone,
-      request.language,
-      request.provider,
-    )
+  const generationId = await createGeneration(
+    property.id,
+    result,
+    request.tone,
+    request.language,
+    generationRequest.provider,
+  )
 
   return {
     listing: result,

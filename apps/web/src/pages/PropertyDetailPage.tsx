@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
+import type {
+  AIProviderType,
+  ListingLanguage,
+  ListingTone,
+} from '@estateforge/shared'
+
 import {
   deleteProperty,
   getProperty,
@@ -55,6 +61,7 @@ function PropertyDetailPage() {
     useState<PropertyItem | null>(null)
 
   const [loading, setLoading] = useState(true)
+
   const [error, setError] =
     useState<string | null>(null)
 
@@ -64,11 +71,14 @@ function PropertyDetailPage() {
   const [generationError, setGenerationError] =
     useState<string | null>(null)
 
+  const [provider, setProvider] =
+    useState<AIProviderType>('gemini')
+
   const [tone, setTone] =
-    useState('professional')
+    useState<ListingTone>('professional')
 
   const [language, setLanguage] =
-    useState('es')
+    useState<ListingLanguage>('es')
 
   const [deleting, setDeleting] =
     useState(false)
@@ -92,6 +102,7 @@ function PropertyDetailPage() {
 
       try {
         const result = await getProperty(id)
+
         setProperty(result)
       } catch {
         setError(
@@ -117,16 +128,23 @@ function PropertyDetailPage() {
     try {
       await generatePropertyListing({
         propertyId: id,
+        provider,
         tone,
         language,
       })
 
-      const updatedProperty = await getProperty(id)
+      const updatedProperty =
+        await getProperty(id)
 
       setProperty(updatedProperty)
-    } catch {
+    } catch (error) {
+      console.error(
+        'Error generando anuncio:',
+        error,
+      )
+
       setGenerationError(
-        'No se ha podido generar el anuncio.',
+        'No se ha podido generar el anuncio. Comprueba que la API esté disponible y que el proveedor seleccionado esté correctamente configurado.',
       )
     } finally {
       setGenerating(false)
@@ -151,11 +169,13 @@ function PropertyDetailPage() {
 
     try {
       await deleteProperty(id)
+
       navigate('/inmuebles')
     } catch {
       setDeleteError(
         'No se ha podido eliminar el inmueble.',
       )
+
       setDeleting(false)
     }
   }
@@ -471,12 +491,46 @@ function PropertyDetailPage() {
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Elige el tono y el idioma antes de
-            generar un nuevo anuncio.
+            Elige el proveedor, tono y el idioma antes
+            de generar un nuevo anuncio.
           </p>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div>
+            <label
+              htmlFor="generation-provider"
+              className="text-sm font-medium"
+            >
+              Proveedor de IA
+            </label>
+
+            <select
+              id="generation-provider"
+              value={provider}
+              onChange={(event) =>
+                setProvider(
+                  event.target.value as AIProviderType,
+                )
+              }
+              disabled={generating}
+              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="gemini">
+                Gemini
+              </option>
+
+              <option value="mock">
+                Mock
+              </option>
+            </select>
+
+            <p className="mt-2 text-xs text-muted-foreground">
+              Gemini utiliza la API configurada en el
+              servidor. Mock no consume ninguna API.
+            </p>
+          </div>
+
           <div>
             <label
               htmlFor="generation-tone"
@@ -489,7 +543,9 @@ function PropertyDetailPage() {
               id="generation-tone"
               value={tone}
               onChange={(event) =>
-                setTone(event.target.value)
+                setTone(
+                  event.target.value as ListingTone,
+                )
               }
               disabled={generating}
               className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
@@ -498,12 +554,12 @@ function PropertyDetailPage() {
                 Profesional
               </option>
 
-              <option value="friendly">
-                Cercano
+              <option value="premium">
+                Premium
               </option>
 
-              <option value="persuasive">
-                Persuasivo
+              <option value="friendly">
+                Cercano
               </option>
             </select>
           </div>
@@ -520,7 +576,9 @@ function PropertyDetailPage() {
               id="generation-language"
               value={language}
               onChange={(event) =>
-                setLanguage(event.target.value)
+                setLanguage(
+                  event.target.value as ListingLanguage,
+                )
               }
               disabled={generating}
               className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"

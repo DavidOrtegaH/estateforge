@@ -1,5 +1,10 @@
 import type { Property } from './property.js'
 
+export type AIProviderType =
+  | 'mock'
+  | 'gemini'
+  | 'openai'
+
 export type ListingTone =
   | 'professional'
   | 'premium'
@@ -8,10 +13,6 @@ export type ListingTone =
 export type ListingLanguage =
   | 'es'
   | 'en'
-
-export type AIProviderType =
-  | 'mock'
-  | 'gemini'
 
 export interface GenerationRequest {
   property: Property

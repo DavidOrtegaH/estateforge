@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type {
-  AIProviderType,
   GenerationRequest,
+  AIProviderType,
 } from '@estateforge/shared'
 
 import {
@@ -17,12 +17,6 @@ export async function generationRoutes(
   app.post('/api/generations', async (request, reply) => {
     const body =
       request.body as GenerationRequest
-
-    if (!body.property) {
-      return reply.code(400).send({
-        message: 'property is required',
-      })
-    }
 
     if (!body.provider) {
       return reply.code(400).send({
@@ -40,33 +34,9 @@ export async function generationRoutes(
       })
     }
 
-    if (!body.tone) {
-      return reply.code(400).send({
-        message: 'tone is required',
-      })
-    }
+    const result = await generateListing(body)
 
-    if (!body.language) {
-      return reply.code(400).send({
-        message: 'language is required',
-      })
-    }
-
-    try {
-      const result =
-        await generateListing(body)
-
-      return result
-    } catch (error) {
-      request.log.error(error)
-
-      return reply.code(500).send({
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Error generating listing',
-      })
-    }
+    return result
   })
 
   app.post(
@@ -77,7 +47,7 @@ export async function generationRoutes(
           propertyId: string
           tone: string
           language: string
-          provider: AIProviderType
+          provider: string
         }
 
       if (!body.propertyId) {
@@ -114,33 +84,16 @@ export async function generationRoutes(
         })
       }
 
-      try {
-        const result =
-          await generateListingForExistingProperty(
-            body,
-          )
-
-        return result
-      } catch (error) {
-        request.log.error(error)
-
-        if (
-          error instanceof Error &&
-          error.message ===
-            'Property not found'
-        ) {
-          return reply.code(404).send({
-            message: 'Property not found',
-          })
-        }
-
-        return reply.code(500).send({
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Error generating listing',
+      const result =
+        await generateListingForExistingProperty({
+          propertyId: body.propertyId,
+          tone: body.tone,
+          language: body.language,
+          provider:
+            body.provider as AIProviderType,
         })
-      }
+
+      return result
     },
   )
 

@@ -6,9 +6,9 @@ import type {
 
 export interface GeneratePropertyListingRequest {
   propertyId: string
+  provider: AIProviderType
   tone: ListingTone
   language: ListingLanguage
-  provider: AIProviderType
 }
 
 export interface GeneratePropertyListingResult {
@@ -37,24 +37,13 @@ export async function generatePropertyListing(
   )
 
   if (!response.ok) {
-    let message = `Generation failed: ${response.status}`
+    const errorText = await response.text()
 
-    try {
-      const data = (await response.json()) as {
-        message?: string
-      }
-
-      if (data.message) {
-        message = data.message
-      }
-    } catch {
-      // Mantener el mensaje genérico.
-    }
-
-    throw new Error(message)
+    throw new Error(
+      errorText ||
+        `Generation failed: ${response.status}`,
+    )
   }
 
-  return response.json() as Promise<
-    GeneratePropertyListingResult
-  >
+  return response.json() as Promise<GeneratePropertyListingResult>
 }

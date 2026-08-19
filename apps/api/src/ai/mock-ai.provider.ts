@@ -47,10 +47,21 @@ function extractPropertyFromPrompt(
     )
   }
 
-  const jsonEnd = prompt.indexOf(
-    '}\n\nDevuelve exactamente',
-    jsonStart,
-  )
+  // Buscamos la última llave de cierre del JSON a partir de jsonStart
+  let braceCount = 0
+  let jsonEnd = -1
+
+  for (let i = jsonStart; i < prompt.length; i++) {
+    if (prompt[i] === '{') {
+      braceCount++
+    } else if (prompt[i] === '}') {
+      braceCount--
+      if (braceCount === 0) {
+        jsonEnd = i
+        break
+      }
+    }
+  }
 
   if (jsonEnd === -1) {
     throw new Error(
@@ -282,19 +293,7 @@ function buildDescription(
 function getFloorText(
   floor: number,
 ): string {
-  if (floor === 1) {
-    return 'primera'
-  }
-
-  if (floor === 2) {
-    return 'segunda'
-  }
-
-  if (floor === 3) {
-    return 'tercera'
-  }
-
-  return `${floor}`
+  return `${floor}`+ 'ª'
 }
 
 function buildFeatureSentence(
