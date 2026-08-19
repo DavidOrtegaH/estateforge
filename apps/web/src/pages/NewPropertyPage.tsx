@@ -7,6 +7,9 @@ import type {
   PropertyCondition,
   PropertyOperation,
   PropertyType,
+  ListingTone,
+  ListingLanguage,
+  AIProviderType,
 } from '@estateforge/shared'
 
 import { Button } from '@/components/ui/button'
@@ -37,6 +40,15 @@ const initialProperty: Property = {
 function NewPropertyPage() {
   const [property, setProperty] =
     useState<Property>(initialProperty)
+
+  const [provider, setProvider] =
+    useState<AIProviderType>('gemini')
+
+  const [tone, setTone] =
+    useState<ListingTone>('professional')
+
+  const [language, setLanguage] =
+    useState<ListingLanguage>('es')
 
   const [generatedListing, setGeneratedListing] =
     useState<GeneratedListing | null>(null)
@@ -116,15 +128,21 @@ function NewPropertyPage() {
     setCreatedGenerationId(null)
 
     try {
-      const result = await generateListing({
-        property,
-        tone: 'professional',
-        language: 'es',
-      })
+      const result =
+        await generateListing({
+          property,
+          provider,
+          tone,
+          language,
+        })
 
       setGeneratedListing(result.listing)
-      setCreatedPropertyId(result.propertyId)
-      setCreatedGenerationId(result.generationId)
+      setCreatedPropertyId(
+        result.propertyId,
+      )
+      setCreatedGenerationId(
+        result.generationId,
+      )
     } catch (generationError) {
       console.error(
         'Error generando anuncio:',
@@ -216,7 +234,8 @@ function NewPropertyPage() {
                 onChange={(event) =>
                   updateProperty(
                     'type',
-                    event.target.value as PropertyType,
+                    event.target
+                      .value as PropertyType,
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -255,7 +274,9 @@ function NewPropertyPage() {
                 onChange={(event) =>
                   updateProperty(
                     'price',
-                    Number(event.target.value),
+                    Number(
+                      event.target.value,
+                    ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -274,7 +295,9 @@ function NewPropertyPage() {
                 onChange={(event) =>
                   updateProperty(
                     'area',
-                    Number(event.target.value),
+                    Number(
+                      event.target.value,
+                    ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -293,7 +316,9 @@ function NewPropertyPage() {
                 onChange={(event) =>
                   updateProperty(
                     'bedrooms',
-                    Number(event.target.value),
+                    Number(
+                      event.target.value,
+                    ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -312,7 +337,9 @@ function NewPropertyPage() {
                 onChange={(event) =>
                   updateProperty(
                     'bathrooms',
-                    Number(event.target.value),
+                    Number(
+                      event.target.value,
+                    ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -490,7 +517,9 @@ function NewPropertyPage() {
           </h2>
 
           <textarea
-            value={property.additionalInformation}
+            value={
+              property.additionalInformation
+            }
             onChange={(event) =>
               updateProperty(
                 'additionalInformation',
@@ -506,6 +535,103 @@ function NewPropertyPage() {
             Esta información se proporciona a la IA
             como parte de los datos del inmueble.
           </p>
+        </section>
+
+        <section className="rounded-lg border bg-card p-6">
+          <div>
+            <h2 className="text-lg font-semibold">
+              Configuración de generación
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Elige qué proveedor y qué estilo quieres
+              utilizar para generar el anuncio.
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-6 md:grid-cols-3">
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">
+                Proveedor de IA
+              </span>
+
+              <select
+                value={provider}
+                onChange={(event) =>
+                  setProvider(
+                    event.target
+                      .value as AIProviderType,
+                  )
+                }
+                disabled={isGenerating}
+                className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="gemini">
+                  Gemini
+                </option>
+
+                <option value="mock">
+                  Mock
+                </option>
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">
+                Tono
+              </span>
+
+              <select
+                value={tone}
+                onChange={(event) =>
+                  setTone(
+                    event.target
+                      .value as ListingTone,
+                  )
+                }
+                disabled={isGenerating}
+                className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="professional">
+                  Profesional
+                </option>
+
+                <option value="premium">
+                  Premium
+                </option>
+
+                <option value="friendly">
+                  Cercano
+                </option>
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">
+                Idioma
+              </span>
+
+              <select
+                value={language}
+                onChange={(event) =>
+                  setLanguage(
+                    event.target
+                      .value as ListingLanguage,
+                  )
+                }
+                disabled={isGenerating}
+                className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="es">
+                  Español
+                </option>
+
+                <option value="en">
+                  Inglés
+                </option>
+              </select>
+            </label>
+          </div>
         </section>
 
         <div className="flex justify-end">
@@ -537,7 +663,9 @@ function NewPropertyPage() {
 
             <button
               type="button"
-              onClick={handleResetGeneration}
+              onClick={
+                handleResetGeneration
+              }
               className="text-sm font-medium text-primary hover:underline"
             >
               Generar otro
@@ -561,7 +689,9 @@ function NewPropertyPage() {
               </p>
 
               <p className="mt-2 whitespace-pre-line leading-7">
-                {generatedListing.description}
+                {
+                  generatedListing.description
+                }
               </p>
             </div>
 
@@ -570,8 +700,8 @@ function NewPropertyPage() {
                 Características destacadas
               </p>
 
-              {generatedListing.highlights.length ===
-              0 ? (
+              {generatedListing.highlights
+                .length === 0 ? (
                 <p className="mt-2 text-sm text-muted-foreground">
                   No se han indicado características
                   destacadas.
@@ -595,7 +725,9 @@ function NewPropertyPage() {
               </p>
 
               <p className="mt-2">
-                {generatedListing.callToAction}
+                {
+                  generatedListing.callToAction
+                }
               </p>
             </div>
           </div>

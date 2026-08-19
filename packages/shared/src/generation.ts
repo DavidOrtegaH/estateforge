@@ -9,8 +9,13 @@ export type ListingLanguage =
   | 'es'
   | 'en'
 
+export type AIProviderType =
+  | 'mock'
+  | 'gemini'
+
 export interface GenerationRequest {
   property: Property
   tone: ListingTone
   language: ListingLanguage
+  provider: AIProviderType
 }

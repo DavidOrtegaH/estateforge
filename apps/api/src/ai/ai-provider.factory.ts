@@ -2,30 +2,25 @@ import type { AIProvider } from './ai-provider.js'
 import { MockAIProvider } from './mock-ai.provider.js'
 import { GeminiProvider } from './gemini.provider.js'
 import { OpenAIProvider } from './openai.provider.js'
+import type { AIProviderType } from '@estateforge/shared'
 
-export function createAIProvider(): AIProvider {
-  const provider = (
-    process.env.AI_PROVIDER ?? 'mock'
-  ).toLowerCase()
-
+export function createAIProvider(
+  provider: AIProviderType,
+): AIProvider {
   console.log(
-    `[EstateForge] Proveedor de IA seleccionado: ${provider}`,
+    `[EstateForge] Generando anuncio con proveedor: ${provider}`,
   )
 
   switch (provider) {
-    case 'gemini':
-      return new GeminiProvider()
-
-    case 'openai':
-      return new OpenAIProvider()
-
     case 'mock':
       return new MockAIProvider()
 
+    case 'gemini':
+      return new GeminiProvider()
+
     default:
       throw new Error(
-        `Proveedor de IA no soportado: ${provider}. ` +
-          `Usa "mock", "gemini" u "openai".`,
+        `Proveedor de IA no soportado: ${provider}`,
       )
   }
 }

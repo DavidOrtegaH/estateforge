@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify'
-import type { GenerationRequest } from '@estateforge/shared'
+import type {
+  AIProviderType,
+  GenerationRequest,
+} from '@estateforge/shared'
 
 import {
   generateListing,
@@ -11,13 +14,59 @@ import { prisma } from '../db/prisma.js'
 export async function generationRoutes(
   app: FastifyInstance,
 ) {
-  app.post('/api/generations', async (request) => {
+  app.post('/api/generations', async (request, reply) => {
     const body =
       request.body as GenerationRequest
 
-    const result = await generateListing(body)
+    if (!body.property) {
+      return reply.code(400).send({
+        message: 'property is required',
+      })
+    }
 
-    return result
+    if (!body.provider) {
+      return reply.code(400).send({
+        message: 'provider is required',
+      })
+    }
+
+    if (
+      body.provider !== 'mock' &&
+      body.provider !== 'gemini'
+    ) {
+      return reply.code(400).send({
+        message:
+          'provider must be mock or gemini',
+      })
+    }
+
+    if (!body.tone) {
+      return reply.code(400).send({
+        message: 'tone is required',
+      })
+    }
+
+    if (!body.language) {
+      return reply.code(400).send({
+        message: 'language is required',
+      })
+    }
+
+    try {
+      const result =
+        await generateListing(body)
+
+      return result
+    } catch (error) {
+      request.log.error(error)
+
+      return reply.code(500).send({
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Error generating listing',
+      })
+    }
   })
 
   app.post(
@@ -28,6 +77,7 @@ export async function generationRoutes(
           propertyId: string
           tone: string
           language: string
+          provider: AIProviderType
         }
 
       if (!body.propertyId) {
@@ -48,12 +98,49 @@ export async function generationRoutes(
         })
       }
 
-      const result =
-        await generateListingForExistingProperty(
-          body,
-        )
+      if (!body.provider) {
+        return reply.code(400).send({
+          message: 'provider is required',
+        })
+      }
 
-      return result
+      if (
+        body.provider !== 'mock' &&
+        body.provider !== 'gemini'
+      ) {
+        return reply.code(400).send({
+          message:
+            'provider must be mock or gemini',
+        })
+      }
+
+      try {
+        const result =
+          await generateListingForExistingProperty(
+            body,
+          )
+
+        return result
+      } catch (error) {
+        request.log.error(error)
+
+        if (
+          error instanceof Error &&
+          error.message ===
+            'Property not found'
+        ) {
+          return reply.code(404).send({
+            message: 'Property not found',
+          })
+        }
+
+        return reply.code(500).send({
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Error generating listing',
+        })
+      }
     },
   )
 

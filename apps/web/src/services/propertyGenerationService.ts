@@ -1,7 +1,14 @@
+import type {
+  AIProviderType,
+  ListingLanguage,
+  ListingTone,
+} from '@estateforge/shared'
+
 export interface GeneratePropertyListingRequest {
   propertyId: string
-  tone: string
-  language: string
+  tone: ListingTone
+  language: ListingLanguage
+  provider: AIProviderType
 }
 
 export interface GeneratePropertyListingResult {
@@ -30,10 +37,24 @@ export async function generatePropertyListing(
   )
 
   if (!response.ok) {
-    throw new Error(
-      `Generation failed: ${response.status}`,
-    )
+    let message = `Generation failed: ${response.status}`
+
+    try {
+      const data = (await response.json()) as {
+        message?: string
+      }
+
+      if (data.message) {
+        message = data.message
+      }
+    } catch {
+      // Mantener el mensaje genérico.
+    }
+
+    throw new Error(message)
   }
 
-  return response.json() as Promise<GeneratePropertyListingResult>
+  return response.json() as Promise<
+    GeneratePropertyListingResult
+  >
 }
