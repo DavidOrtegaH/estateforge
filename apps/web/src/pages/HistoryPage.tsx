@@ -181,15 +181,13 @@ function HistoryPage() {
                         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                           {generation.provider}
                         </span>
-
+                        
                         <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                          {generation.language === 'es'
-                            ? 'Español'
-                            : generation.language}
+                          {generation.tone}
                         </span>
 
                         <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                          {generation.tone}
+                          {generation.language}
                         </span>
                       </div>
 

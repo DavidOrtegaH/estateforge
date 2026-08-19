@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import type {
-  GenerationRequest,
   AIProviderType,
+  GenerationRequest,
+  ListingLanguage,
+  ListingTone,
 } from '@estateforge/shared'
 
 import {
@@ -11,43 +13,115 @@ import {
 
 import { prisma } from '../db/prisma.js'
 
+const validProviders: AIProviderType[] = [
+  'mock',
+  'gemini',
+  'openai',
+]
+
+const validTones: ListingTone[] = [
+  'professional',
+  'premium',
+  'friendly',
+]
+
+const validLanguages: ListingLanguage[] = [
+  'español',
+  'english',
+]
+
+function isAIProviderType(
+  value: unknown,
+): value is AIProviderType {
+  return (
+    typeof value === 'string' &&
+    validProviders.includes(
+      value as AIProviderType,
+    )
+  )
+}
+
+function isListingTone(
+  value: unknown,
+): value is ListingTone {
+  return (
+    typeof value === 'string' &&
+    validTones.includes(value as ListingTone)
+  )
+}
+
+function isListingLanguage(
+  value: unknown,
+): value is ListingLanguage {
+  return (
+    typeof value === 'string' &&
+    validLanguages.includes(
+      value as ListingLanguage,
+    )
+  )
+}
+
 export async function generationRoutes(
   app: FastifyInstance,
 ) {
-  app.post('/api/generations', async (request, reply) => {
-    const body =
-      request.body as GenerationRequest
+  app.post(
+    '/api/generations',
+    async (request, reply) => {
+      const body =
+        request.body as Partial<GenerationRequest>
 
-    if (!body.provider) {
-      return reply.code(400).send({
-        message: 'provider is required',
-      })
-    }
+      if (!body.property) {
+        return reply.code(400).send({
+          message: 'property is required',
+        })
+      }
 
-    if (
-      body.provider !== 'mock' &&
-      body.provider !== 'gemini'
-    ) {
-      return reply.code(400).send({
-        message:
-          'provider must be mock or gemini',
-      })
-    }
+      if (!isAIProviderType(body.provider)) {
+        return reply.code(400).send({
+          message:
+            'provider must be mock, gemini or openai',
+        })
+      }
 
-    const result = await generateListing(body)
+      if (!isListingTone(body.tone)) {
+        return reply.code(400).send({
+          message:
+            'tone must be profesional, premium or amistoso',
+        })
+      }
 
-    return result
-  })
+      if (!isListingLanguage(body.language)) {
+        return reply.code(400).send({
+          message:
+            'language must be español or english',
+        })
+      }
+
+      const generationRequest: GenerationRequest = {
+        property: body.property,
+        provider: body.provider,
+        tone: body.tone,
+        language: body.language,
+      }
+
+      const result =
+        await generateListing(
+          generationRequest,
+        )
+
+      return result
+    },
+  )
 
   app.post(
     '/api/generations/from-property',
     async (request, reply) => {
       const body =
         request.body as {
-          propertyId: string
-          tone: string
-          language: string
-          provider: string
+          propertyId?: string
+          provider?: AIProviderType
+          tone?: ListingTone
+          language?: ListingLanguage
         }
 
       if (!body.propertyId) {
@@ -56,60 +130,57 @@ export async function generationRoutes(
         })
       }
 
-      if (!body.tone) {
-        return reply.code(400).send({
-          message: 'tone is required',
-        })
-      }
-
-      if (!body.language) {
-        return reply.code(400).send({
-          message: 'language is required',
-        })
-      }
-
-      if (!body.provider) {
-        return reply.code(400).send({
-          message: 'provider is required',
-        })
-      }
-
-      if (
-        body.provider !== 'mock' &&
-        body.provider !== 'gemini'
-      ) {
+      if (!isAIProviderType(body.provider)) {
         return reply.code(400).send({
           message:
-            'provider must be mock or gemini',
+            'provider must be mock, gemini or openai',
+        })
+      }
+
+      if (!isListingTone(body.tone)) {
+        return reply.code(400).send({
+          message:
+            'tone must be profesional, premium or amistoso',
+        })
+      }
+
+      if (!isListingLanguage(body.language)) {
+        return reply.code(400).send({
+          message:
+            'language must be español or english',
         })
       }
 
       const result =
-        await generateListingForExistingProperty({
-          propertyId: body.propertyId,
-          tone: body.tone,
-          language: body.language,
-          provider:
-            body.provider as AIProviderType,
-        })
+        await generateListingForExistingProperty(
+          {
+            propertyId: body.propertyId,
+            provider: body.provider,
+            tone: body.tone,
+            language: body.language,
+          },
+        )
 
       return result
     },
   )
 
-  app.get('/api/generations', async () => {
-    const generations =
-      await prisma.generation.findMany({
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          property: true,
-        },
-      })
+  app.get(
+    '/api/generations',
+    async () => {
+      const generations =
+        await prisma.generation.findMany({
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: {
+            property: true,
+          },
+        })
 
-    return generations
-  })
+      return generations
+    },
+  )
 
   app.get(
     '/api/generations/:id',

@@ -78,7 +78,7 @@ function PropertyDetailPage() {
     useState<ListingTone>('professional')
 
   const [language, setLanguage] =
-    useState<ListingLanguage>('es')
+    useState<ListingLanguage>('español')
 
   const [deleting, setDeleting] =
     useState(false)
@@ -91,6 +91,10 @@ function PropertyDetailPage() {
 
   const [copySuccess, setCopySuccess] =
     useState<string | null>(null)
+
+  // Estados para la paginación de anuncios
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 3
 
   useEffect(() => {
     async function loadProperty() {
@@ -116,6 +120,14 @@ function PropertyDetailPage() {
     void loadProperty()
   }, [id])
 
+  // Scroll instantáneo al cambiar de página (igual que en HistoryPage)
+  useEffect(() => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'instant',
+    })
+  }, [currentPage])
+
   async function handleGenerateListing() {
     if (!id || generating) {
       return
@@ -137,6 +149,7 @@ function PropertyDetailPage() {
         await getProperty(id)
 
       setProperty(updatedProperty)
+      setCurrentPage(1)
     } catch (error) {
       console.error(
         'Error generando anuncio:',
@@ -276,6 +289,25 @@ function PropertyDetailPage() {
       'Aire acondicionado',
     property.heating && 'Calefacción',
   ].filter(Boolean) as string[]
+
+  // Cálculos para la paginación de anuncios
+  const totalGenerations = property.generations.length
+  const totalPages = Math.ceil(totalGenerations / itemsPerPage)
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentGenerations = property.generations.slice(indexOfFirstItem, indexOfLastItem)
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage((prev) => prev + 1)
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage((prev) => prev - 1)
+    }
+  }
 
   return (
     <div className="max-w-6xl">
@@ -583,11 +615,11 @@ function PropertyDetailPage() {
               disabled={generating}
               className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <option value="es">
+              <option value="español">
                 Español
               </option>
 
-              <option value="en">
+              <option value="english">
                 Inglés
               </option>
             </select>
@@ -622,17 +654,17 @@ function PropertyDetailPage() {
             </h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              {property.generations.length === 0
+              {totalGenerations === 0
                 ? 'Todavía no hay anuncios para este inmueble.'
-                : `${property.generations.length} ${
-                    property.generations.length === 1
+                : `${totalGenerations} ${
+                    totalGenerations === 1
                       ? 'anuncio generado'
                       : 'anuncios generados'
                   }.`}
             </p>
           </div>
 
-          {property.generations.length > 0 && (
+          {totalGenerations > 0 && (
             <Link
               to="/historial"
               className="text-sm font-medium text-primary hover:underline"
@@ -642,7 +674,7 @@ function PropertyDetailPage() {
           )}
         </div>
 
-        {property.generations.length === 0 ? (
+        {totalGenerations === 0 ? (
           <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
               Genera el primer anuncio para este
@@ -650,107 +682,134 @@ function PropertyDetailPage() {
             </p>
           </div>
         ) : (
-          <div className="mt-5 space-y-4">
-            {property.generations.map(
-              (generation) => {
-                const highlights =
-                  parseHighlights(
-                    generation.highlights,
-                  )
+          <div>
+            <div className="mt-5 space-y-4">
+              {currentGenerations.map(
+                (generation) => {
+                  const highlights =
+                    parseHighlights(
+                      generation.highlights,
+                    )
 
-                return (
-                  <div
-                    key={generation.id}
-                    className="rounded-lg border bg-card p-5"
-                  >
-                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                      <Link
-                        to={`/historial/${generation.id}`}
-                        className="min-w-0 flex-1"
-                      >
-                        <h3 className="font-semibold hover:underline">
-                          {generation.title}
-                        </h3>
+                  return (
+                    <div
+                      key={generation.id}
+                      className="rounded-lg border bg-card p-5"
+                    >
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                          {generation.provider}
+                        </span>
 
-                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                          {generation.description}
-                        </p>
-                      </Link>
+                        <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                          {generation.tone}
+                        </span>
 
-                      <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                        {generation.provider}
-                      </span>
-                    </div>
-
-                    {highlights.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Características destacadas
-                        </p>
-
-                        <ul className="mt-2 space-y-1 text-sm">
-                          {highlights.map(
-                            (highlight) => (
-                              <li
-                                key={highlight}
-                                className="text-muted-foreground"
-                              >
-                                • {highlight}
-                              </li>
-                            ),
-                          )}
-                        </ul>
+                        <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                          {generation.language}
+                        </span>
                       </div>
-                    )}
+                      <div className="flex flex-col justify-between gap-4 sm:flex-row mt-8">
+                        <Link
+                          to={`/historial/${generation.id}`}
+                          className="min-w-0 flex-1"
+                        >
+                          <h3 className="font-semibold hover:underline">
+                            {generation.title}
+                          </h3>
 
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                        {generation.language === 'es'
-                          ? 'Español'
-                          : generation.language}
-                      </span>
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                            {generation.description}
+                          </p>
+                        </Link>
+                      </div>
 
-                      <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                        {generation.tone}
-                      </span>
+                      {highlights.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Características destacadas
+                          </p>
+
+                          <ul className="mt-2 space-y-1 text-sm">
+                            {highlights.map(
+                              (highlight) => (
+                                <li
+                                  key={highlight}
+                                  className="text-muted-foreground"
+                                >
+                                  • {highlight}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                      
+
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                        <p className="text-xs text-muted-foreground">
+                          Generado el{' '}
+                          {new Date(
+                            generation.createdAt,
+                          ).toLocaleString('es-ES')}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyGeneration(
+                              generation.id,
+                              generation.title,
+                              generation.description,
+                              generation.highlights,
+                              generation.callToAction,
+                            )
+                          }
+                          disabled={
+                            copyingGenerationId !== null
+                          }
+                          className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {copyingGenerationId ===
+                          generation.id
+                            ? 'Copiando...'
+                            : copySuccess ===
+                                generation.id
+                              ? 'Copiado'
+                              : 'Copiar anuncio'}
+                        </button>
+                      </div>
                     </div>
+                  )
+                },
+              )}
+            </div>
 
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-                      <p className="text-xs text-muted-foreground">
-                        Generado el{' '}
-                        {new Date(
-                          generation.createdAt,
-                        ).toLocaleString('es-ES')}
-                      </p>
+            {/* Controles de Paginación */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-between border-t pt-4">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
+                  className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                >
+                  Anterior
+                </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleCopyGeneration(
-                            generation.id,
-                            generation.title,
-                            generation.description,
-                            generation.highlights,
-                            generation.callToAction,
-                          )
-                        }
-                        disabled={
-                          copyingGenerationId !== null
-                        }
-                        className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {copyingGenerationId ===
-                        generation.id
-                          ? 'Copiando...'
-                          : copySuccess ===
-                              generation.id
-                            ? 'Copiado'
-                            : 'Copiar anuncio'}
-                      </button>
-                    </div>
-                  </div>
-                )
-              },
+                <span className="text-sm text-muted-foreground">
+                  Página <span className="font-semibold">{currentPage}</span> de{' '}
+                  <span className="font-semibold">{totalPages}</span>
+                </span>
+
+                <button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                >
+                  Siguiente
+                </button>
+              </div>
             )}
           </div>
         )}

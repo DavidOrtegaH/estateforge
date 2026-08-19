@@ -11,6 +11,10 @@ function PropertiesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Estados para la paginación (igual que en HistoryPage)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 6
+
   useEffect(() => {
     async function loadProperties() {
       try {
@@ -25,6 +29,32 @@ function PropertiesPage() {
 
     void loadProperties()
   }, [])
+
+  // Scroll instantáneo hacia abajo cada vez que cambia la página (sin animación suave)
+  useEffect(() => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'instant',
+    })
+  }, [currentPage])
+
+  // Cálculos de paginación
+  const totalPages = Math.ceil(properties.length / itemsPerPage)
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentProperties = properties.slice(indexOfFirstItem, indexOfLastItem)
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage((prev) => prev + 1)
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage((prev) => prev - 1)
+    }
+  }
 
   if (loading) {
     return (
@@ -55,7 +85,7 @@ function PropertiesPage() {
   }
 
   return (
-    <div>
+    <div className="max-w-6xl">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-3xl font-bold">
@@ -94,81 +124,109 @@ function PropertiesPage() {
           </Link>
         </div>
       ) : (
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {properties.map((property) => {
-            const generationCount =
-              property.generations.length
+        <div>
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {currentProperties.map((property) => {
+              const generationCount =
+                property.generations.length
 
-            return (
-              <Link
-                key={property.id}
-                to={`/inmuebles/${property.id}`}
-                className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {property.operation}
+              return (
+                <Link
+                  key={property.id}
+                  to={`/inmuebles/${property.id}`}
+                  className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {property.operation}
+                      </p>
+
+                      <h2 className="mt-1 text-lg font-semibold">
+                        {property.type}
+                      </h2>
+                    </div>
+
+                    <p className="whitespace-nowrap text-lg font-bold">
+                      {property.price.toLocaleString('es-ES')}{' '}
+                      €
                     </p>
-
-                    <h2 className="mt-1 text-lg font-semibold">
-                      {property.type}
-                    </h2>
                   </div>
 
-                  <p className="whitespace-nowrap text-lg font-bold">
-                    {property.price.toLocaleString('es-ES')}{' '}
-                    €
-                  </p>
-                </div>
-
-                <div className="mt-4">
-                  <p className="text-sm">
-                    {property.city || 'Sin ciudad'}
-                  </p>
-
-                  {property.neighborhood && (
-                    <p className="text-sm text-muted-foreground">
-                      {property.neighborhood}
+                  <div className="mt-4">
+                    <p className="text-sm">
+                      {property.city || 'Sin ciudad'}
                     </p>
-                  )}
-                </div>
 
-                <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span className="rounded-md bg-muted px-2 py-1">
-                    {property.area} m²
-                  </span>
+                    {property.neighborhood && (
+                      <p className="text-sm text-muted-foreground">
+                        {property.neighborhood}
+                      </p>
+                    )}
+                  </div>
 
-                  <span className="rounded-md bg-muted px-2 py-1">
-                    {property.bedrooms}{' '}
-                    {property.bedrooms === 1
-                      ? 'habitación'
-                      : 'habitaciones'}
-                  </span>
+                  <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span className="rounded-md bg-muted px-2 py-1">
+                      {property.area} m²
+                    </span>
 
-                  <span className="rounded-md bg-muted px-2 py-1">
-                    {property.bathrooms}{' '}
-                    {property.bathrooms === 1
-                      ? 'baño'
-                      : 'baños'}
-                  </span>
-                </div>
+                    <span className="rounded-md bg-muted px-2 py-1">
+                      {property.bedrooms}{' '}
+                      {property.bedrooms === 1
+                        ? 'habitación'
+                        : 'habitaciones'}
+                    </span>
 
-                <div className="mt-5 border-t pt-4">
-                  <p className="text-xs text-muted-foreground">
-                    Anuncios generados
-                  </p>
+                    <span className="rounded-md bg-muted px-2 py-1">
+                      {property.bathrooms}{' '}
+                      {property.bathrooms === 1
+                        ? 'baño'
+                        : 'baños'}
+                    </span>
+                  </div>
 
-                  <p className="mt-1 text-sm font-medium">
-                    {generationCount}{' '}
-                    {generationCount === 1
-                      ? 'anuncio'
-                      : 'anuncios'}
-                  </p>
-                </div>
-              </Link>
-            )
-          })}
+                  <div className="mt-5 border-t pt-4">
+                    <p className="text-xs text-muted-foreground">
+                      Anuncios generados
+                    </p>
+
+                    <p className="mt-1 text-sm font-medium">
+                      {generationCount}{' '}
+                      {generationCount === 1
+                        ? 'anuncio'
+                        : 'anuncios'}
+                    </p>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* Controles de Paginación */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-between border-t pt-4">
+              <button
+                onClick={handlePrevPage}
+                disabled={currentPage === 1}
+                className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+              >
+                Anterior
+              </button>
+
+              <span className="text-sm text-muted-foreground">
+                Página <span className="font-semibold">{currentPage}</span> de{' '}
+                <span className="font-semibold">{totalPages}</span>
+              </span>
+
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

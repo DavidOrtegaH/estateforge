@@ -65,7 +65,7 @@ function DashboardPage() {
         new Date(b.createdAt).getTime() -
         new Date(a.createdAt).getTime(),
     )
-    .slice(0, 5)
+    .slice(0, 6)
 
   if (loading) {
     return (
@@ -313,10 +313,6 @@ function DashboardPage() {
                         : ''}
                     </p>
                   </div>
-
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">
-                    {generation.provider}
-                  </span>
                 </div>
 
                 <p className="mt-4 line-clamp-3 text-sm leading-6 text-muted-foreground">
@@ -324,15 +320,17 @@ function DashboardPage() {
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                    {generation.language === 'es'
-                      ? 'Español'
-                      : generation.language}
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">
+                    {generation.provider}
                   </span>
 
                   <span className="rounded-md bg-muted px-2 py-1 text-xs">
                     {generation.tone}
                   </span>
+
+                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                    {generation.language}
+                </span>
                 </div>
 
                 <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">

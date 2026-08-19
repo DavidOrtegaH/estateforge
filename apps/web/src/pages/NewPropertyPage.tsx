@@ -48,7 +48,7 @@ function NewPropertyPage() {
     useState<ListingTone>('professional')
 
   const [language, setLanguage] =
-    useState<ListingLanguage>('es')
+    useState<ListingLanguage>('español')
 
   const [generatedListing, setGeneratedListing] =
     useState<GeneratedListing | null>(null)
@@ -622,11 +622,11 @@ function NewPropertyPage() {
                 disabled={isGenerating}
                 className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="es">
+                <option value="español">
                   Español
                 </option>
 
-                <option value="en">
+                <option value="english">
                   Inglés
                 </option>
               </select>

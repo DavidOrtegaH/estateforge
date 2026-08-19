@@ -17,10 +17,10 @@ import { OpenAIProvider } from '../ai/openai.provider.js'
 import { GeminiProvider } from '../ai/gemini.provider.js'
 
 function createAIProvider(
-  provider: AIProviderType | string,
+  provider: AIProviderType,
 ): AIProvider {
   console.log(
-    `[EstateForge] Proveedor de IA solicitado: ${provider}`,
+    `[EstateForge] Proveedor de IA para esta generación: ${provider}`,
   )
 
   if (provider === 'gemini') {
@@ -36,9 +36,9 @@ function createAIProvider(
 
 interface ExistingPropertyGenerationRequest {
   propertyId: string
-  tone: string
-  language: string
-  provider: string
+  provider: AIProviderType
+  tone: ListingTone
+  language: ListingLanguage
 }
 
 interface GenerationResult {
@@ -50,9 +50,9 @@ interface GenerationResult {
 async function createGeneration(
   propertyId: string,
   result: GeneratedListing,
+  provider: AIProviderType,
   tone: string,
   language: string,
-  provider: string,
 ): Promise<string> {
   const generation = await prisma.generation.create({
     data: {
@@ -111,9 +111,9 @@ export async function generateListing(
   const generationId = await createGeneration(
     property.id,
     result,
+    request.provider,
     request.tone,
     request.language,
-    request.provider,
   )
 
   return {
@@ -163,13 +163,13 @@ export async function generateListingForExistingProperty(
       additionalInformation:
         property.additionalInformation,
     },
-    tone: request.tone as ListingTone,
-    language: request.language as ListingLanguage,
-    provider: request.provider as AIProviderType,
+    provider: request.provider,
+    tone: request.tone,
+    language: request.language,
   }
 
   const aiProvider = createAIProvider(
-    generationRequest.provider,
+    request.provider,
   )
 
   const prompt =
@@ -180,9 +180,9 @@ export async function generateListingForExistingProperty(
   const generationId = await createGeneration(
     property.id,
     result,
+    request.provider,
     request.tone,
     request.language,
-    generationRequest.provider,
   )
 
   return {

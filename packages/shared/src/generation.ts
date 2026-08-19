@@ -11,12 +11,12 @@ export type ListingTone =
   | 'friendly'
 
 export type ListingLanguage =
-  | 'es'
-  | 'en'
+  | 'español'
+  | 'english'
 
 export interface GenerationRequest {
   property: Property
+  provider: AIProviderType
   tone: ListingTone
   language: ListingLanguage
-  provider: AIProviderType
 }

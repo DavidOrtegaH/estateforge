@@ -37,13 +37,24 @@ export async function generatePropertyListing(
   )
 
   if (!response.ok) {
-    const errorText = await response.text()
+    let message = `Generation failed: ${response.status}`
 
-    throw new Error(
-      errorText ||
-        `Generation failed: ${response.status}`,
-    )
+    try {
+      const error = (await response.json()) as {
+        message?: string
+      }
+
+      if (error.message) {
+        message = error.message
+      }
+    } catch {
+      // Mantener el mensaje genérico si la respuesta no es JSON.
+    }
+
+    throw new Error(message)
   }
 
-  return response.json() as Promise<GeneratePropertyListingResult>
+  return response.json() as Promise<
+    GeneratePropertyListingResult
+  >
 }
