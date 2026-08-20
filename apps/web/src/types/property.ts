@@ -16,6 +16,8 @@ export type PropertyCondition =
 export interface Property {
   id?: string
 
+  title: string
+
   operation: PropertyOperation
   type: PropertyType
 

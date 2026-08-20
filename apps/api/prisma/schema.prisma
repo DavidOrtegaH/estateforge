@@ -8,32 +8,33 @@ datasource db {
 }
 
 model Property {
-  id                 String       @id @default(cuid())
-  operation          String
-  type               String
-  price              Float
-  address            String
-  city               String
-  neighborhood       String
-  area               Float
-  bedrooms           Int
-  bathrooms          Int
-  floor              Int?
-  condition          String
-  elevator           Boolean
-  terrace            Boolean
-  balcony            Boolean
-  garage             Boolean
-  pool               Boolean
-  garden             Boolean
-  airConditioning    Boolean
-  heating            Boolean
+  id                   String       @id @default(cuid())
+  title                String
+  operation            String
+  type                 String
+  price                Float
+  address              String
+  city                 String
+  neighborhood         String
+  area                 Float
+  bedrooms             Int
+  bathrooms            Int
+  floor                Int?
+  condition            String
+  elevator             Boolean
+  terrace              Boolean
+  balcony              Boolean
+  garage               Boolean
+  pool                 Boolean
+  garden               Boolean
+  airConditioning      Boolean
+  heating              Boolean
   additionalInformation String
 
-  generations        Generation[]
+  generations          Generation[]
 
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 }
 
 model Generation {

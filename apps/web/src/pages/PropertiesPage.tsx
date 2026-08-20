@@ -94,7 +94,7 @@ function PropertiesPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-      currentPageIds.length
+    currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -163,10 +163,9 @@ function PropertiesPage() {
     const count = selectedIds.size
 
     const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${
-        count === 1
-          ? 'inmueble'
-          : 'inmuebles'
+      `¿Seguro que quieres eliminar ${count} ${count === 1
+        ? 'inmueble'
+        : 'inmuebles'
       } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
     )
 
@@ -345,7 +344,7 @@ function PropertiesPage() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-8 grid gap-1 md:grid-cols-2 xl:grid-cols-3">
             {currentProperties.map(
               (property) => {
                 const generationCount =
@@ -359,14 +358,13 @@ function PropertiesPage() {
                 return (
                   <div
                     key={property.id}
-                    className={`relative rounded-lg border bg-card transition ${
-                      isSelected
-                        ? 'border-primary ring-2 ring-primary/20'
-                        : 'hover:border-primary hover:shadow-md'
-                    }`}
+                    className={`relative rounded-lg border bg-card transition ${isSelected
+                      ? 'border-primary ring-2 ring-primary/20'
+                      : 'hover:border-primary hover:shadow-md'
+                      }`}
                   >
                     {/* Checkbox */}
-                    <div className="absolute left-4 top-4 z-10">
+                    <div className="relative w-full overflow-hidden rounded-t-lg">
                       <input
                         type="checkbox"
                         aria-label={`Seleccionar ${property.type} en ${property.city || 'Sin ciudad'}`}
@@ -377,8 +375,11 @@ function PropertiesPage() {
                           )
                         }
                         disabled={deleting}
-                        className="h-4 w-4 cursor-pointer"
+                        className="block h-7 w-full appearance-none border-0 bg-accent cursor-pointer checked:bg-primary focus:outline-none"
                       />
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground">
+                        {isSelected ? '✓ Seleccionado' : 'Seleccionar'}
+                      </div>
                     </div>
 
                     {/* Contenido navegable */}
@@ -386,15 +387,15 @@ function PropertiesPage() {
                       to={`/inmuebles/${property.id}`}
                       className="block p-5"
                     >
-                      <div className="flex items-start justify-between gap-4 pl-7">
+                      <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            {property.operation}
-                          </p>
-
                           <h2 className="mt-1 text-lg font-semibold">
-                            {property.type}
+                            {property.title || property.type}
                           </h2>
+
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {property.type}
+                          </p>
                         </div>
 
                         <p className="whitespace-nowrap text-lg font-bold">
@@ -428,7 +429,7 @@ function PropertiesPage() {
                         <span className="rounded-md bg-muted px-2 py-1">
                           {property.bedrooms}{' '}
                           {property.bedrooms ===
-                          1
+                            1
                             ? 'habitación'
                             : 'habitaciones'}
                         </span>
@@ -436,7 +437,7 @@ function PropertiesPage() {
                         <span className="rounded-md bg-muted px-2 py-1">
                           {property.bathrooms}{' '}
                           {property.bathrooms ===
-                          1
+                            1
                             ? 'baño'
                             : 'baños'}
                         </span>
@@ -450,7 +451,7 @@ function PropertiesPage() {
                         <p className="mt-1 text-sm font-medium">
                           {generationCount}{' '}
                           {generationCount ===
-                          1
+                            1
                             ? 'anuncio'
                             : 'anuncios'}
                         </p>
@@ -491,7 +492,7 @@ function PropertiesPage() {
                 onClick={handleNextPage}
                 disabled={
                   currentPage ===
-                    totalPages ||
+                  totalPages ||
                   deleting
                 }
                 className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"

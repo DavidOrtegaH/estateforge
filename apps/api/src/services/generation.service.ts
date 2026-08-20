@@ -83,6 +83,7 @@ export async function generateListing(
 
   const property = await prisma.property.create({
     data: {
+      title: result.title || "Inmueble en " + request.property.city, // Campo title añadido
       operation: request.property.operation,
       type: request.property.type,
       price: request.property.price,
@@ -138,9 +139,9 @@ export async function generateListingForExistingProperty(
 
   const generationRequest: GenerationRequest = {
     property: {
-      operation:
-        property.operation as PropertyOperation,
+      operation: property.operation as PropertyOperation,
       type: property.type as PropertyType,
+      title: property.title,
       price: property.price,
       address: property.address,
       city: property.city,
@@ -149,19 +150,16 @@ export async function generateListingForExistingProperty(
       bedrooms: property.bedrooms,
       bathrooms: property.bathrooms,
       floor: property.floor ?? undefined,
-      condition:
-        property.condition as PropertyCondition,
+      condition: property.condition as PropertyCondition,
       elevator: property.elevator,
       terrace: property.terrace,
       balcony: property.balcony,
       garage: property.garage,
       pool: property.pool,
       garden: property.garden,
-      airConditioning:
-        property.airConditioning,
+      airConditioning: property.airConditioning,
       heating: property.heating,
-      additionalInformation:
-        property.additionalInformation,
+      additionalInformation: property.additionalInformation,
     },
     provider: request.provider,
     tone: request.tone,

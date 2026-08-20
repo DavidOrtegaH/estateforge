@@ -12,6 +12,7 @@ export interface PropertyGeneration {
 
 export interface PropertyItem {
   id: string
+  title: string
   operation: string
   type: string
   price: number
@@ -87,10 +88,9 @@ export async function deleteProperty(
     )
   }
 }
-
 export async function deleteProperties(
   ids: string[],
-): Promise<{ success: boolean; deletedCount: number }> {
+): Promise<void> {
   const response = await fetch(
     `${API_URL}/api/properties`,
     {
@@ -109,9 +109,4 @@ export async function deleteProperties(
       `Failed to delete properties: ${response.status}`,
     )
   }
-
-  return response.json() as Promise<{
-    success: boolean
-    deletedCount: number
-  }>
 }

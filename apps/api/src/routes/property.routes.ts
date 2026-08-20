@@ -50,6 +50,7 @@ export async function propertyRoutes(
         request.params as { id: string }
 
       const body = request.body as {
+        title?: string
         operation?: string
         type?: string
         price?: number
@@ -93,6 +94,10 @@ export async function propertyRoutes(
           data: {
             ...(body.operation !== undefined && {
               operation: body.operation,
+            }),
+
+            ...(body.title !== undefined && {
+              title: body.title,
             }),
 
             ...(body.type !== undefined && {
@@ -185,55 +190,53 @@ export async function propertyRoutes(
     },
   )
 
-  app.delete(
-    '/api/properties',
-    async (request, reply) => {
-      const body = request.body as {
-        ids?: string[]
-      }
+ app.delete(
+  '/api/properties',
+  async (request, reply) => {
+    const body = request.body as {
+      ids?: string[]
+    }
 
-      if (
-        !Array.isArray(body.ids) ||
-        body.ids.length === 0
-      ) {
-        return reply.code(400).send({
-          message:
-            'ids must be a non-empty array',
-        })
-      }
+    if (
+      !Array.isArray(body.ids) ||
+      body.ids.length === 0
+    ) {
+      return reply.code(400).send({
+        message: 'ids must be a non-empty array',
+      })
+    }
 
-      const ids = [
-        ...new Set(
-          body.ids.filter(
-            (id): id is string =>
-              typeof id === 'string' &&
-              id.trim().length > 0,
-          ),
+    const ids = [
+      ...new Set(
+        body.ids.filter(
+          (id): id is string =>
+            typeof id === 'string' &&
+            id.trim().length > 0,
         ),
-      ]
+      ),
+    ]
 
-      if (ids.length === 0) {
-        return reply.code(400).send({
-          message:
-            'ids must contain at least one valid id',
-        })
-      }
+    if (ids.length === 0) {
+      return reply.code(400).send({
+        message: 'ids must contain valid property ids',
+      })
+    }
 
-      const result =
-        await prisma.property.deleteMany({
-          where: {
-            id: {
-              in: ids,
-            },
+    const result =
+      await prisma.property.deleteMany({
+        where: {
+          id: {
+            in: ids,
           },
-        })
+        },
+      })
 
-      return {
-        success: true,
-        deletedCount: result.count,
-      }
-    },
-  )
+    return {
+      success: true,
+      deletedCount: result.count,
+    }
+  },
+)
 
   app.delete(
     '/api/properties/:id',

@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { generateListing } from '@/services/generationService'
 
 const initialProperty: Property = {
+  title: '',
   operation: 'sale',
   type: 'apartment',
   price: 0,
@@ -195,6 +196,30 @@ function NewPropertyPage() {
         <section className="rounded-lg border bg-card p-6">
           <h2 className="text-lg font-semibold">
             Información básica
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className="text-sm font-medium">
+                Título del inmueble
+              </span>
+
+              <input
+                type="text"
+                value={property.title}
+                onChange={(event) =>
+                  updateProperty(
+                    'title',
+                    event.target.value,
+                  )
+                }
+                placeholder="Ej. Piso luminoso en Parla Centro"
+                className="h-10 rounded-md border bg-background px-3"
+              />
+
+              <span className="text-xs text-muted-foreground">
+                Este nombre se utilizará para identificar el inmueble
+                en EstateForge.
+              </span>
+            </label>
           </h2>
 
           <div className="mt-6 grid gap-6 md:grid-cols-2">
@@ -423,8 +448,8 @@ function NewPropertyPage() {
                     event.target.value === ''
                       ? undefined
                       : Number(
-                          event.target.value,
-                        ),
+                        event.target.value,
+                      ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"

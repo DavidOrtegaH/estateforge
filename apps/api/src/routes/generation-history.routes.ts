@@ -7,7 +7,7 @@ export async function generationHistoryRoutes(
   app.get('/api/generations', async () => {
     const generations = await prisma.generation.findMany({
       orderBy: {
-        createdAt: 'desc',
+        createdAt: 'asc',
       },
       include: {
         property: true,

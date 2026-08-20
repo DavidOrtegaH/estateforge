@@ -171,7 +171,7 @@ export async function generationRoutes(
       const generations =
         await prisma.generation.findMany({
           orderBy: {
-            createdAt: 'desc',
+            createdAt: 'asc',
           },
           include: {
             property: true,

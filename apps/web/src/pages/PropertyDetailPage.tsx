@@ -218,11 +218,11 @@ function PropertyDetailPage() {
         '',
         parsedHighlights.length > 0
           ? [
-              'Características destacadas:',
-              ...parsedHighlights.map(
-                (highlight) => `• ${highlight}`,
-              ),
-            ].join('\n')
+            'Características destacadas:',
+            ...parsedHighlights.map(
+              (highlight) => `• ${highlight}`,
+            ),
+          ].join('\n')
           : '',
         '',
         callToAction,
@@ -286,7 +286,7 @@ function PropertyDetailPage() {
     property.pool && 'Piscina',
     property.garden && 'Jardín',
     property.airConditioning &&
-      'Aire acondicionado',
+    'Aire acondicionado',
     property.heating && 'Calefacción',
   ].filter(Boolean) as string[]
 
@@ -344,8 +344,12 @@ function PropertyDetailPage() {
           </p>
 
           <h1 className="mt-1 text-3xl font-bold">
-            {property.type}
+            {property.title || 'Inmueble sin título'}
           </h1>
+
+          <p className="mt-2 text-sm text-muted-foreground">
+            {property.type}
+          </p>
 
           <p className="mt-2 text-muted-foreground">
             {property.city || 'Sin ciudad'}
@@ -656,11 +660,10 @@ function PropertyDetailPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {totalGenerations === 0
                 ? 'Todavía no hay anuncios para este inmueble.'
-                : `${totalGenerations} ${
-                    totalGenerations === 1
-                      ? 'anuncio generado'
-                      : 'anuncios generados'
-                  }.`}
+                : `${totalGenerations} ${totalGenerations === 1
+                  ? 'anuncio generado'
+                  : 'anuncios generados'
+                }.`}
             </p>
           </div>
 
@@ -745,7 +748,7 @@ function PropertyDetailPage() {
                         </div>
                       )}
 
-                      
+
 
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
                         <p className="text-xs text-muted-foreground">
@@ -772,10 +775,10 @@ function PropertyDetailPage() {
                           className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {copyingGenerationId ===
-                          generation.id
+                            generation.id
                             ? 'Copiando...'
                             : copySuccess ===
-                                generation.id
+                              generation.id
                               ? 'Copiado'
                               : 'Copiar anuncio'}
                         </button>

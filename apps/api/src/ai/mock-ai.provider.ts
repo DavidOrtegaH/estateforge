@@ -5,6 +5,7 @@ import {
 import type { AIProvider } from './ai-provider.js'
 
 interface PromptProperty {
+  title: string
   operation: string
   type: string
   price: number
@@ -369,9 +370,7 @@ export class MockAIProvider
       getConditionLabel(property.condition)
 
     const title = [
-      propertyLabel,
-      conditionLabel,
-      operationLabel,
+      property.title
     ]
       .filter(Boolean)
       .join(' ')

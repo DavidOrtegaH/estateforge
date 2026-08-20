@@ -14,6 +14,8 @@ export type PropertyCondition =
   | 'needs-renovation'
 
 export interface Property {
+  title: string
+
   operation: PropertyOperation
   type: PropertyType
 
@@ -30,7 +32,6 @@ export interface Property {
   floor?: number
 
   condition: PropertyCondition
-
   elevator: boolean
   terrace: boolean
   balcony: boolean
