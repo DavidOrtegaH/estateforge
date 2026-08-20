@@ -41,12 +41,12 @@ function getLanguageInstructions(
   language: ListingLanguage,
 ): string {
   switch (language) {
-    case 'es':
+    case 'español':
       return `
 Escribe todo el anuncio en español.
 `.trim()
 
-    case 'en':
+    case 'english':
       return `
 Write the entire listing in English.
 `.trim()

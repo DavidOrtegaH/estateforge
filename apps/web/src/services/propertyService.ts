@@ -87,3 +87,31 @@ export async function deleteProperty(
     )
   }
 }
+
+export async function deleteProperties(
+  ids: string[],
+): Promise<{ success: boolean; deletedCount: number }> {
+  const response = await fetch(
+    `${API_URL}/api/properties`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ids,
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to delete properties: ${response.status}`,
+    )
+  }
+
+  return response.json() as Promise<{
+    success: boolean
+    deletedCount: number
+  }>
+}

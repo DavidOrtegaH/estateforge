@@ -17,164 +17,229 @@ export async function propertyRoutes(
     return properties
   })
 
-  app.get('/api/properties/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
+  app.get(
+    '/api/properties/:id',
+    async (request, reply) => {
+      const { id } =
+        request.params as { id: string }
 
-    const property = await prisma.property.findUnique({
-      where: {
-        id,
-      },
-      include: {
-        generations: true,
-      },
-    })
+      const property =
+        await prisma.property.findUnique({
+          where: {
+            id,
+          },
+          include: {
+            generations: true,
+          },
+        })
 
-    if (!property) {
-      return reply.code(404).send({
-        message: 'Property not found',
-      })
-    }
+      if (!property) {
+        return reply.code(404).send({
+          message: 'Property not found',
+        })
+      }
 
-    return property
-  })
+      return property
+    },
+  )
 
-  app.put('/api/properties/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
+  app.put(
+    '/api/properties/:id',
+    async (request, reply) => {
+      const { id } =
+        request.params as { id: string }
 
-    const body = request.body as {
-      operation?: string
-      type?: string
-      price?: number
-      address?: string
-      city?: string
-      neighborhood?: string
-      area?: number
-      bedrooms?: number
-      bathrooms?: number
-      floor?: number | null
-      condition?: string
-      elevator?: boolean
-      terrace?: boolean
-      balcony?: boolean
-      garage?: boolean
-      pool?: boolean
-      garden?: boolean
-      airConditioning?: boolean
-      heating?: boolean
-      additionalInformation?: string
-    }
+      const body = request.body as {
+        operation?: string
+        type?: string
+        price?: number
+        address?: string
+        city?: string
+        neighborhood?: string
+        area?: number
+        bedrooms?: number
+        bathrooms?: number
+        floor?: number | null
+        condition?: string
+        elevator?: boolean
+        terrace?: boolean
+        balcony?: boolean
+        garage?: boolean
+        pool?: boolean
+        garden?: boolean
+        airConditioning?: boolean
+        heating?: boolean
+        additionalInformation?: string
+      }
 
-    const existingProperty =
-      await prisma.property.findUnique({
-        where: {
-          id,
-        },
-      })
+      const existingProperty =
+        await prisma.property.findUnique({
+          where: {
+            id,
+          },
+        })
 
-    if (!existingProperty) {
-      return reply.code(404).send({
-        message: 'Property not found',
-      })
-    }
+      if (!existingProperty) {
+        return reply.code(404).send({
+          message: 'Property not found',
+        })
+      }
 
-    const property = await prisma.property.update({
-      where: {
-        id,
-      },
-      data: {
-        ...(body.operation !== undefined && {
-          operation: body.operation,
-        }),
+      const property =
+        await prisma.property.update({
+          where: {
+            id,
+          },
+          data: {
+            ...(body.operation !== undefined && {
+              operation: body.operation,
+            }),
 
-        ...(body.type !== undefined && {
-          type: body.type,
-        }),
+            ...(body.type !== undefined && {
+              type: body.type,
+            }),
 
-        ...(body.price !== undefined && {
-          price: body.price,
-        }),
+            ...(body.price !== undefined && {
+              price: body.price,
+            }),
 
-        ...(body.address !== undefined && {
-          address: body.address,
-        }),
+            ...(body.address !== undefined && {
+              address: body.address,
+            }),
 
-        ...(body.city !== undefined && {
-          city: body.city,
-        }),
+            ...(body.city !== undefined && {
+              city: body.city,
+            }),
 
-        ...(body.neighborhood !== undefined && {
-          neighborhood: body.neighborhood,
-        }),
+            ...(body.neighborhood !==
+              undefined && {
+              neighborhood: body.neighborhood,
+            }),
 
-        ...(body.area !== undefined && {
-          area: body.area,
-        }),
+            ...(body.area !== undefined && {
+              area: body.area,
+            }),
 
-        ...(body.bedrooms !== undefined && {
-          bedrooms: body.bedrooms,
-        }),
+            ...(body.bedrooms !== undefined && {
+              bedrooms: body.bedrooms,
+            }),
 
-        ...(body.bathrooms !== undefined && {
-          bathrooms: body.bathrooms,
-        }),
+            ...(body.bathrooms !== undefined && {
+              bathrooms: body.bathrooms,
+            }),
 
-        ...(body.floor !== undefined && {
-          floor: body.floor,
-        }),
+            ...(body.floor !== undefined && {
+              floor: body.floor,
+            }),
 
-        ...(body.condition !== undefined && {
-          condition: body.condition,
-        }),
+            ...(body.condition !== undefined && {
+              condition: body.condition,
+            }),
 
-        ...(body.elevator !== undefined && {
-          elevator: body.elevator,
-        }),
+            ...(body.elevator !== undefined && {
+              elevator: body.elevator,
+            }),
 
-        ...(body.terrace !== undefined && {
-          terrace: body.terrace,
-        }),
+            ...(body.terrace !== undefined && {
+              terrace: body.terrace,
+            }),
 
-        ...(body.balcony !== undefined && {
-          balcony: body.balcony,
-        }),
+            ...(body.balcony !== undefined && {
+              balcony: body.balcony,
+            }),
 
-        ...(body.garage !== undefined && {
-          garage: body.garage,
-        }),
+            ...(body.garage !== undefined && {
+              garage: body.garage,
+            }),
 
-        ...(body.pool !== undefined && {
-          pool: body.pool,
-        }),
+            ...(body.pool !== undefined && {
+              pool: body.pool,
+            }),
 
-        ...(body.garden !== undefined && {
-          garden: body.garden,
-        }),
+            ...(body.garden !== undefined && {
+              garden: body.garden,
+            }),
 
-        ...(body.airConditioning !== undefined && {
-          airConditioning: body.airConditioning,
-        }),
+            ...(body.airConditioning !==
+              undefined && {
+              airConditioning:
+                body.airConditioning,
+            }),
 
-        ...(body.heating !== undefined && {
-          heating: body.heating,
-        }),
+            ...(body.heating !== undefined && {
+              heating: body.heating,
+            }),
 
-        ...(body.additionalInformation !== undefined && {
-          additionalInformation:
-            body.additionalInformation,
-        }),
-      },
-      include: {
-        generations: true,
-      },
-    })
+            ...(body.additionalInformation !==
+              undefined && {
+              additionalInformation:
+                body.additionalInformation,
+            }),
+          },
+          include: {
+            generations: true,
+          },
+        })
 
-    return property
-  })
+      return property
+    },
+  )
+
+  app.delete(
+    '/api/properties',
+    async (request, reply) => {
+      const body = request.body as {
+        ids?: string[]
+      }
+
+      if (
+        !Array.isArray(body.ids) ||
+        body.ids.length === 0
+      ) {
+        return reply.code(400).send({
+          message:
+            'ids must be a non-empty array',
+        })
+      }
+
+      const ids = [
+        ...new Set(
+          body.ids.filter(
+            (id): id is string =>
+              typeof id === 'string' &&
+              id.trim().length > 0,
+          ),
+        ),
+      ]
+
+      if (ids.length === 0) {
+        return reply.code(400).send({
+          message:
+            'ids must contain at least one valid id',
+        })
+      }
+
+      const result =
+        await prisma.property.deleteMany({
+          where: {
+            id: {
+              in: ids,
+            },
+          },
+        })
+
+      return {
+        success: true,
+        deletedCount: result.count,
+      }
+    },
+  )
 
   app.delete(
     '/api/properties/:id',
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } =
+        request.params as { id: string }
 
       const existingProperty =
         await prisma.property.findUnique({

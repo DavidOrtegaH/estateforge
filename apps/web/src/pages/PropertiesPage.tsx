@@ -1,27 +1,49 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import {
+  deleteProperties,
   getProperties,
   type PropertyItem,
 } from '@/services/propertyService'
 
 function PropertiesPage() {
-  const [properties, setProperties] = useState<PropertyItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [properties, setProperties] =
+    useState<PropertyItem[]>([])
 
-  // Estados para la paginación (igual que en HistoryPage)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [loading, setLoading] =
+    useState(true)
+
+  const [error, setError] =
+    useState<string | null>(null)
+
+  const [deleting, setDeleting] =
+    useState(false)
+
+  const [deleteError, setDeleteError] =
+    useState<string | null>(null)
+
+  // IDs seleccionados.
+  // Se mantienen aunque cambiemos de página.
+  const [selectedIds, setSelectedIds] =
+    useState<Set<string>>(new Set())
+
+  // Estados para la paginación
+  const [currentPage, setCurrentPage] =
+    useState(1)
+
   const itemsPerPage = 6
 
   useEffect(() => {
     async function loadProperties() {
       try {
         const result = await getProperties()
+
         setProperties(result)
       } catch {
-        setError('No se han podido cargar los inmuebles.')
+        setError(
+          'No se han podido cargar los inmuebles.',
+        )
       } finally {
         setLoading(false)
       }
@@ -30,7 +52,7 @@ function PropertiesPage() {
     void loadProperties()
   }, [])
 
-  // Scroll instantáneo hacia abajo cada vez que cambia la página (sin animación suave)
+  // Scroll instantáneo al cambiar de página
   useEffect(() => {
     window.scrollTo({
       top: document.documentElement.scrollHeight,
@@ -39,10 +61,84 @@ function PropertiesPage() {
   }, [currentPage])
 
   // Cálculos de paginación
-  const totalPages = Math.ceil(properties.length / itemsPerPage)
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentProperties = properties.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(
+    properties.length / itemsPerPage,
+  )
+
+  const indexOfLastItem =
+    currentPage * itemsPerPage
+
+  const indexOfFirstItem =
+    indexOfLastItem - itemsPerPage
+
+  const currentProperties =
+    properties.slice(
+      indexOfFirstItem,
+      indexOfLastItem,
+    )
+
+  // IDs seleccionados que pertenecen a la página actual
+  const currentPageIds = useMemo(
+    () =>
+      currentProperties.map(
+        (property) => property.id,
+      ),
+    [currentProperties],
+  )
+
+  const selectedOnCurrentPage =
+    currentPageIds.filter((id) =>
+      selectedIds.has(id),
+    ).length
+
+  const allCurrentPageSelected =
+    currentPageIds.length > 0 &&
+    selectedOnCurrentPage ===
+      currentPageIds.length
+
+  const someCurrentPageSelected =
+    selectedOnCurrentPage > 0 &&
+    !allCurrentPageSelected
+
+  const selectedCount = selectedIds.size
+
+  const handleToggleProperty = (
+    propertyId: string,
+  ) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+
+      if (next.has(propertyId)) {
+        next.delete(propertyId)
+      } else {
+        next.add(propertyId)
+      }
+
+      return next
+    })
+
+    setDeleteError(null)
+  }
+
+  const handleToggleCurrentPage = () => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+
+      if (allCurrentPageSelected) {
+        currentPageIds.forEach((id) => {
+          next.delete(id)
+        })
+      } else {
+        currentPageIds.forEach((id) => {
+          next.add(id)
+        })
+      }
+
+      return next
+    })
+
+    setDeleteError(null)
+  }
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -53,6 +149,68 @@ function PropertiesPage() {
   const handlePrevPage = () => {
     if (currentPage > 1) {
       setCurrentPage((prev) => prev - 1)
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (
+      selectedIds.size === 0 ||
+      deleting
+    ) {
+      return
+    }
+
+    const count = selectedIds.size
+
+    const confirmed = window.confirm(
+      `¿Seguro que quieres eliminar ${count} ${
+        count === 1
+          ? 'inmueble'
+          : 'inmuebles'
+      } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError(null)
+
+    try {
+      await deleteProperties(
+        Array.from(selectedIds),
+      )
+
+      const result = await getProperties()
+
+      setProperties(result)
+      setSelectedIds(new Set())
+
+      const newTotalPages = Math.max(
+        1,
+        Math.ceil(
+          result.length / itemsPerPage,
+        ),
+      )
+
+      setCurrentPage((previousPage) =>
+        Math.min(
+          previousPage,
+          newTotalPages,
+        ),
+      )
+    } catch (error) {
+      console.error(
+        'Error eliminando inmuebles:',
+        error,
+      )
+
+      setDeleteError(
+        'No se han podido eliminar los inmuebles seleccionados.',
+      )
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -93,7 +251,8 @@ function PropertiesPage() {
           </h1>
 
           <p className="mt-2 text-muted-foreground">
-            Gestiona los inmuebles y sus anuncios generados.
+            Gestiona los inmuebles y sus anuncios
+            generados.
           </p>
         </div>
 
@@ -105,6 +264,14 @@ function PropertiesPage() {
         </Link>
       </div>
 
+      {deleteError && (
+        <div className="mt-5 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <p className="text-sm text-destructive">
+            {deleteError}
+          </p>
+        </div>
+      )}
+
       {properties.length === 0 ? (
         <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
           <h2 className="font-semibold">
@@ -112,8 +279,8 @@ function PropertiesPage() {
           </h2>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Crea tu primer inmueble para empezar a generar
-            anuncios.
+            Crea tu primer inmueble para empezar
+            a generar anuncios.
           </p>
 
           <Link
@@ -125,102 +292,208 @@ function PropertiesPage() {
         </div>
       ) : (
         <div>
-          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {currentProperties.map((property) => {
-              const generationCount =
-                property.generations.length
+          {/* Barra de selección */}
+          <div className="mt-8 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="select-current-page"
+                checked={allCurrentPageSelected}
+                ref={(element) => {
+                  if (element) {
+                    element.indeterminate =
+                      someCurrentPageSelected
+                  }
+                }}
+                onChange={
+                  handleToggleCurrentPage
+                }
+                disabled={deleting}
+                className="h-4 w-4 cursor-pointer"
+              />
 
-              return (
-                <Link
-                  key={property.id}
-                  to={`/inmuebles/${property.id}`}
-                  className="block rounded-lg border bg-card p-5 transition hover:border-primary hover:shadow-md"
+              <label
+                htmlFor="select-current-page"
+                className="cursor-pointer text-sm font-medium"
+              >
+                Seleccionar todos los de esta página
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                {selectedCount}{' '}
+                {selectedCount === 1
+                  ? 'inmueble seleccionado'
+                  : 'inmuebles seleccionados'}
+              </span>
+
+              {selectedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={
+                    handleDeleteSelected
+                  }
+                  disabled={deleting}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {property.operation}
-                      </p>
-
-                      <h2 className="mt-1 text-lg font-semibold">
-                        {property.type}
-                      </h2>
-                    </div>
-
-                    <p className="whitespace-nowrap text-lg font-bold">
-                      {property.price.toLocaleString('es-ES')}{' '}
-                      €
-                    </p>
-                  </div>
-
-                  <div className="mt-4">
-                    <p className="text-sm">
-                      {property.city || 'Sin ciudad'}
-                    </p>
-
-                    {property.neighborhood && (
-                      <p className="text-sm text-muted-foreground">
-                        {property.neighborhood}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="rounded-md bg-muted px-2 py-1">
-                      {property.area} m²
-                    </span>
-
-                    <span className="rounded-md bg-muted px-2 py-1">
-                      {property.bedrooms}{' '}
-                      {property.bedrooms === 1
-                        ? 'habitación'
-                        : 'habitaciones'}
-                    </span>
-
-                    <span className="rounded-md bg-muted px-2 py-1">
-                      {property.bathrooms}{' '}
-                      {property.bathrooms === 1
-                        ? 'baño'
-                        : 'baños'}
-                    </span>
-                  </div>
-
-                  <div className="mt-5 border-t pt-4">
-                    <p className="text-xs text-muted-foreground">
-                      Anuncios generados
-                    </p>
-
-                    <p className="mt-1 text-sm font-medium">
-                      {generationCount}{' '}
-                      {generationCount === 1
-                        ? 'anuncio'
-                        : 'anuncios'}
-                    </p>
-                  </div>
-                </Link>
-              )
-            })}
+                  {deleting
+                    ? 'Eliminando...'
+                    : `Eliminar seleccionados (${selectedCount})`}
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Controles de Paginación */}
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {currentProperties.map(
+              (property) => {
+                const generationCount =
+                  property.generations.length
+
+                const isSelected =
+                  selectedIds.has(
+                    property.id,
+                  )
+
+                return (
+                  <div
+                    key={property.id}
+                    className={`relative rounded-lg border bg-card transition ${
+                      isSelected
+                        ? 'border-primary ring-2 ring-primary/20'
+                        : 'hover:border-primary hover:shadow-md'
+                    }`}
+                  >
+                    {/* Checkbox */}
+                    <div className="absolute left-4 top-4 z-10">
+                      <input
+                        type="checkbox"
+                        aria-label={`Seleccionar ${property.type} en ${property.city || 'Sin ciudad'}`}
+                        checked={isSelected}
+                        onChange={() =>
+                          handleToggleProperty(
+                            property.id,
+                          )
+                        }
+                        disabled={deleting}
+                        className="h-4 w-4 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Contenido navegable */}
+                    <Link
+                      to={`/inmuebles/${property.id}`}
+                      className="block p-5"
+                    >
+                      <div className="flex items-start justify-between gap-4 pl-7">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {property.operation}
+                          </p>
+
+                          <h2 className="mt-1 text-lg font-semibold">
+                            {property.type}
+                          </h2>
+                        </div>
+
+                        <p className="whitespace-nowrap text-lg font-bold">
+                          {property.price.toLocaleString(
+                            'es-ES',
+                          )}{' '}
+                          €
+                        </p>
+                      </div>
+
+                      <div className="mt-4">
+                        <p className="text-sm">
+                          {property.city ||
+                            'Sin ciudad'}
+                        </p>
+
+                        {property.neighborhood && (
+                          <p className="text-sm text-muted-foreground">
+                            {
+                              property.neighborhood
+                            }
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span className="rounded-md bg-muted px-2 py-1">
+                          {property.area} m²
+                        </span>
+
+                        <span className="rounded-md bg-muted px-2 py-1">
+                          {property.bedrooms}{' '}
+                          {property.bedrooms ===
+                          1
+                            ? 'habitación'
+                            : 'habitaciones'}
+                        </span>
+
+                        <span className="rounded-md bg-muted px-2 py-1">
+                          {property.bathrooms}{' '}
+                          {property.bathrooms ===
+                          1
+                            ? 'baño'
+                            : 'baños'}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 border-t pt-4">
+                        <p className="text-xs text-muted-foreground">
+                          Anuncios generados
+                        </p>
+
+                        <p className="mt-1 text-sm font-medium">
+                          {generationCount}{' '}
+                          {generationCount ===
+                          1
+                            ? 'anuncio'
+                            : 'anuncios'}
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
+                )
+              },
+            )}
+          </div>
+
+          {/* Controles de paginación */}
           {totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between border-t pt-4">
               <button
                 onClick={handlePrevPage}
-                disabled={currentPage === 1}
+                disabled={
+                  currentPage === 1 ||
+                  deleting
+                }
                 className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
               >
                 Anterior
               </button>
 
               <span className="text-sm text-muted-foreground">
-                Página <span className="font-semibold">{currentPage}</span> de{' '}
-                <span className="font-semibold">{totalPages}</span>
+                Página{' '}
+                <span className="font-semibold">
+                  {currentPage}
+                </span>{' '}
+                de{' '}
+                <span className="font-semibold">
+                  {totalPages}
+                </span>
               </span>
 
               <button
                 onClick={handleNextPage}
-                disabled={currentPage === totalPages}
+                disabled={
+                  currentPage ===
+                    totalPages ||
+                  deleting
+                }
                 className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
               >
                 Siguiente
