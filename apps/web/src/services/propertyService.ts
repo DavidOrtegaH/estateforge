@@ -1,112 +1,119 @@
-export interface PropertyGeneration {
-  id: string
-  title: string
-  description: string
-  highlights: string[]
-  callToAction: string
-  provider: string
-  tone: string
-  language: string
-  createdAt: string
-}
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 export interface PropertyItem {
   id: string
   title: string
+  price: number
+  area: number
+  city: string
+  neighborhood?: string
+  address?: string
   operation: string
   type: string
-  price: number
-  address: string
-  city: string
-  neighborhood: string
-  area: number
+  condition: string
   bedrooms: number
   bathrooms: number
-  floor: number | null
-  condition: string
-  elevator: boolean
-  terrace: boolean
-  balcony: boolean
-  garage: boolean
-  pool: boolean
-  garden: boolean
-  airConditioning: boolean
-  heating: boolean
-  additionalInformation: string
+  floor?: string
+  additionalInformation?: string
+  elevator?: boolean
+  terrace?: boolean
+  balcony?: boolean
+  garage?: boolean
+  pool?: boolean
+  garden?: boolean
+  airConditioning?: boolean
+  heating?: boolean
+  generations: any[]
   createdAt: string
-  updatedAt: string
-  generations: PropertyGeneration[]
 }
 
-const API_URL = 'http://localhost:3000'
-
-export async function getProperties(): Promise<
-  PropertyItem[]
-> {
-  const response = await fetch(
-    `${API_URL}/api/properties`,
-  )
+/**
+ * Obtiene la lista completa de propiedades
+ */
+export async function getProperties(): Promise<PropertyItem[]> {
+  const response = await fetch(`${API_URL}/api/properties`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to load properties: ${response.status}`,
-    )
+    throw new Error(`Failed to fetch properties: ${response.status}`)
   }
 
   return response.json() as Promise<PropertyItem[]>
 }
 
-export async function getProperty(
-  id: string,
-): Promise<PropertyItem> {
-  const response = await fetch(
-    `${API_URL}/api/properties/${id}`,
-  )
+/**
+ * Obtiene una propiedad por su ID
+ */
+export async function getProperty(id: string): Promise<PropertyItem> {
+  const response = await fetch(`${API_URL}/api/properties/${id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to load property: ${response.status}`,
-    )
+    throw new Error(`Failed to fetch property: ${response.status}`)
   }
 
   return response.json() as Promise<PropertyItem>
 }
 
-export async function deleteProperty(
+/**
+ * Actualiza parcialmente una propiedad
+ */
+export async function updateProperty(
   id: string,
-): Promise<void> {
-  const response = await fetch(
-    `${API_URL}/api/properties/${id}`,
-    {
-      method: 'DELETE',
+  data: Partial<PropertyItem>,
+): Promise<PropertyItem> {
+  const response = await fetch(`${API_URL}/api/properties/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
     },
-  )
+    body: JSON.stringify(data),
+  })
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to delete property: ${response.status}`,
-    )
+    throw new Error(`Failed to update property: ${response.status}`)
+  }
+
+  return response.json() as Promise<PropertyItem>
+}
+
+/**
+ * Elimina una propiedad individual por su ID
+ */
+export async function deleteProperty(id: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/properties/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete property: ${response.status}`)
   }
 }
-export async function deleteProperties(
-  ids: string[],
-): Promise<void> {
-  const response = await fetch(
-    `${API_URL}/api/properties`,
-    {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ids,
-      }),
+
+/**
+ * Elimina múltiples propiedades (en lote / plural)
+ */
+export async function deleteProperties(ids: string[]): Promise<void> {
+  const response = await fetch(`${API_URL}/api/properties`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
     },
-  )
+    body: JSON.stringify({ ids }),
+  })
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to delete properties: ${response.status}`,
-    )
+    throw new Error(`Failed to delete properties: ${response.status}`)
   }
 }

@@ -7,6 +7,24 @@ import {
   type PropertyItem,
 } from '@/services/propertyService'
 
+// Diccionario de traducción para los tipos de inmueble
+const propertyTypeLabels: Record<string, string> = {
+  flat: 'Piso',
+  house: 'Casa',
+  chalet: 'Chalet',
+  penthouse: 'Ático',
+  duplex: 'Dúplex',
+  studio: 'Estudio',
+  commercial: 'Local comercial',
+  office: 'Oficina',
+  land: 'Terreno',
+}
+
+function getPropertyTypeLabel(type: string | undefined): string {
+  if (!type) return 'No indicado'
+  return propertyTypeLabels[type.toLowerCase()] || type
+}
+
 function PropertiesPage() {
   const [properties, setProperties] =
     useState<PropertyItem[]>([])
@@ -367,7 +385,7 @@ function PropertiesPage() {
                     <div className="relative w-full overflow-hidden rounded-t-lg">
                       <input
                         type="checkbox"
-                        aria-label={`Seleccionar ${property.type} en ${property.city || 'Sin ciudad'}`}
+                        aria-label={`Seleccionar ${getPropertyTypeLabel(property.type)} en ${property.city || 'Sin ciudad'}`}
                         checked={isSelected}
                         onChange={() =>
                           handleToggleProperty(
@@ -390,11 +408,11 @@ function PropertiesPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <h2 className="mt-1 text-lg font-semibold">
-                            {property.title || property.type}
+                            {property.title || getPropertyTypeLabel(property.type)}
                           </h2>
 
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {property.type}
+                            {getPropertyTypeLabel(property.type)}
                           </p>
                         </div>
 
@@ -467,6 +485,7 @@ function PropertiesPage() {
           {totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between border-t pt-4">
               <button
+                type="button"
                 onClick={handlePrevPage}
                 disabled={
                   currentPage === 1 ||
@@ -489,6 +508,7 @@ function PropertiesPage() {
               </span>
 
               <button
+                type="button"
                 onClick={handleNextPage}
                 disabled={
                   currentPage ===

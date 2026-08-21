@@ -11,6 +11,52 @@ import {
   type DashboardStats,
 } from '@/services/dashboardService'
 
+// Diccionario de traducción para los tipos de inmueble
+const propertyTypeLabels: Record<string, string> = {
+  flat: 'Piso',
+  house: 'Casa',
+  chalet: 'Chalet',
+  penthouse: 'Ático',
+  duplex: 'Dúplex',
+  studio: 'Estudio',
+  commercial: 'Local comercial',
+  office: 'Oficina',
+  land: 'Terreno',
+}
+
+// Diccionario de traducción para las operaciones
+const operationLabels: Record<string, string> = {
+  sale: 'Venta',
+  rent: 'Alquiler',
+  transfer: 'Traspaso',
+}
+
+// Diccionario de traducción para los tonos
+const toneLabels: Record<string, string> = {
+  professional: 'Profesional',
+  friendly: 'Amigable',
+  commercial: 'Comercial',
+  luxurious: 'De lujo',
+  casual: 'Casual',
+  persuasive: 'Persuasivo',
+  direct: 'Directo',
+}
+
+function getPropertyTypeLabel(type: string | undefined): string {
+  if (!type) return 'No indicado'
+  return propertyTypeLabels[type.toLowerCase()] || type
+}
+
+function getOperationLabel(operation: string | undefined): string {
+  if (!operation) return 'No indicada'
+  return operationLabels[operation.toLowerCase()] || operation
+}
+
+function getToneLabel(tone: string | undefined): string {
+  if (!tone) return 'No indicado'
+  return toneLabels[tone.toLowerCase()] || tone
+}
+
 function DashboardPage() {
   const [properties, setProperties] = useState<PropertyItem[]>([])
   const [stats, setStats] =
@@ -195,20 +241,35 @@ function DashboardPage() {
               >
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {property.operation}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {getOperationLabel(property.operation)}
+                      </span>
 
-                    <h3 className="mt-1 font-medium">
-                      {property.type}
+                      <span className="text-xs text-muted-foreground">
+                        ·
+                      </span>
+
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {getPropertyTypeLabel(property.type)}
+                      </span>
+
+                      <span className="text-xs text-muted-foreground">
+                        ·
+                      </span>
+
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {property.city || 'Sin ciudad'}
+                        {property.neighborhood
+                          ? ` (${property.neighborhood})`
+                          : ''}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-1.5 text-lg font-semibold">
+                      {property.title ||
+                        `${getPropertyTypeLabel(property.type)} en ${getOperationLabel(property.operation).toLowerCase()}`}
                     </h3>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {property.city || 'Sin ciudad'}
-                      {property.neighborhood
-                        ? ` · ${property.neighborhood}`
-                        : ''}
-                    </p>
                   </div>
 
                   <div className="sm:text-right">
@@ -320,17 +381,19 @@ function DashboardPage() {
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">
+                  <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
                     {generation.provider}
                   </span>
 
                   <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                    {generation.tone}
+                    {getToneLabel(generation.tone)}
                   </span>
 
-                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                    {generation.language}
-                </span>
+                  <span className="rounded-md bg-muted px-2 py-1 text-xs capitalize">
+                    {generation.language === 'es'
+                      ? 'Español'
+                      : generation.language}
+                  </span>
                 </div>
 
                 <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">

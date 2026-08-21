@@ -10,12 +10,55 @@ import type {
 import {
   deleteProperty,
   getProperty,
+  updateProperty,
   type PropertyItem,
 } from '@/services/propertyService'
 
 import {
   generatePropertyListing,
 } from '@/services/propertyGenerationService'
+
+// Diccionarios de traducción
+const propertyTypeLabels: Record<string, string> = {
+  flat: 'Piso',
+  house: 'Casa',
+  chalet: 'Chalet',
+  penthouse: 'Ático',
+  duplex: 'Dúplex',
+  studio: 'Estudio',
+  commercial: 'Local comercial',
+  office: 'Oficina',
+  land: 'Terreno',
+}
+
+const operationLabels: Record<string, string> = {
+  sale: 'Venta',
+  rent: 'Alquiler',
+  transfer: 'Traspaso',
+}
+
+const conditionLabels: Record<string, string> = {
+  new: 'Nuevo',
+  good: 'Buen estado',
+  renovated: 'Reformado',
+  to_renovate: 'A reformar',
+}
+
+// Funciones auxiliares para obtener las etiquetas traducidas
+function getPropertyTypeLabel(type: string | undefined): string {
+  if (!type) return 'No indicado'
+  return propertyTypeLabels[type.toLowerCase()] || type
+}
+
+function getOperationLabel(operation: string | undefined): string {
+  if (!operation) return 'No indicada'
+  return operationLabels[operation.toLowerCase()] || operation
+}
+
+function getConditionLabel(condition: string | undefined): string {
+  if (!condition) return 'No indicado'
+  return conditionLabels[condition.toLowerCase()] || condition
+}
 
 function parseHighlights(
   highlights: unknown,
@@ -65,6 +108,12 @@ function PropertyDetailPage() {
   const [error, setError] =
     useState<string | null>(null)
 
+  // Estados de edición del inmueble
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState<Partial<PropertyItem>>({})
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
   const [generating, setGenerating] =
     useState(false)
 
@@ -106,8 +155,8 @@ function PropertyDetailPage() {
 
       try {
         const result = await getProperty(id)
-
         setProperty(result)
+        setEditForm(result)
       } catch {
         setError(
           'No se ha podido cargar el inmueble.',
@@ -120,13 +169,47 @@ function PropertyDetailPage() {
     void loadProperty()
   }, [id])
 
-  // Scroll instantáneo al cambiar de página (igual que en HistoryPage)
+  // Scroll instantáneo al cambiar de página
   useEffect(() => {
     window.scrollTo({
       top: document.documentElement.scrollHeight,
       behavior: 'instant',
     })
   }, [currentPage])
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!id || savingEdit || !property) return
+
+    setSavingEdit(true)
+    setEditError(null)
+
+    try {
+      const payload: Partial<PropertyItem> = {
+        title: editForm.title,
+        price: editForm.price,
+        area: editForm.area,
+        city: editForm.city,
+        neighborhood: editForm.neighborhood,
+        address: editForm.address,
+        operation: editForm.operation,
+        type: editForm.type,
+        condition: editForm.condition,
+        bedrooms: editForm.bedrooms,
+        bathrooms: editForm.bathrooms,
+        floor: editForm.floor,
+        additionalInformation: editForm.additionalInformation,
+      }
+
+      const updated = await updateProperty(id, payload)
+      setProperty({ ...property, ...updated })
+      setIsEditing(false)
+    } catch {
+      setEditError('No se han podido guardar los cambios del inmueble.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
 
   async function handleGenerateListing() {
     if (!id || generating) {
@@ -218,11 +301,11 @@ function PropertyDetailPage() {
         '',
         parsedHighlights.length > 0
           ? [
-            'Características destacadas:',
-            ...parsedHighlights.map(
-              (highlight) => `• ${highlight}`,
-            ),
-          ].join('\n')
+              'Características destacadas:',
+              ...parsedHighlights.map(
+                (highlight) => `• ${highlight}`,
+              ),
+            ].join('\n')
           : '',
         '',
         callToAction,
@@ -290,7 +373,6 @@ function PropertyDetailPage() {
     property.heating && 'Calefacción',
   ].filter(Boolean) as string[]
 
-  // Cálculos para la paginación de anuncios
   const totalGenerations = property.generations.length
   const totalPages = Math.ceil(totalGenerations / itemsPerPage)
   const indexOfLastItem = currentPage * itemsPerPage
@@ -319,16 +401,26 @@ function PropertyDetailPage() {
           ← Volver a inmuebles
         </Link>
 
-        <button
-          type="button"
-          onClick={handleDeleteProperty}
-          disabled={deleting}
-          className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {deleting
-            ? 'Eliminando...'
-            : 'Eliminar inmueble'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsEditing(!isEditing)}
+            className="rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          >
+            {isEditing ? 'Cancelar edición' : 'Editar inmueble'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteProperty}
+            disabled={deleting}
+            className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {deleting
+              ? 'Eliminando...'
+              : 'Eliminar inmueble'}
+          </button>
+        </div>
       </div>
 
       {deleteError && (
@@ -337,41 +429,101 @@ function PropertyDetailPage() {
         </p>
       )}
 
-      <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            {property.operation}
-          </p>
+      {/* Formulario de Edición o Vista normal de los datos básicos */}
+      {isEditing ? (
+        <form onSubmit={handleSaveEdit} className="mt-6 rounded-lg border bg-card p-6 space-y-4">
+          <h2 className="text-xl font-semibold">Editar detalles del inmueble</h2>
 
-          <h1 className="mt-1 text-3xl font-bold">
-            {property.title || 'Inmueble sin título'}
-          </h1>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium">Título</label>
+              <input
+                type="text"
+                value={editForm.title ?? ''}
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Precio (€)</label>
+              <input
+                type="number"
+                value={editForm.price ?? 0}
+                onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Superficie (m²)</label>
+              <input
+                type="number"
+                value={editForm.area ?? 0}
+                onChange={(e) => setEditForm({ ...editForm, area: Number(e.target.value) })}
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Ciudad</label>
+              <input
+                type="text"
+                value={editForm.city ?? ''}
+                onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            {property.type}
-          </p>
+          {editError && (
+            <p className="text-sm text-destructive">{editError}</p>
+          )}
 
-          <p className="mt-2 text-muted-foreground">
-            {property.city || 'Sin ciudad'}
-            {property.neighborhood
-              ? ` · ${property.neighborhood}`
-              : ''}
-          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={savingEdit}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {savingEdit ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              {getOperationLabel(property.operation)}
+            </p>
+
+            <h1 className="mt-1 text-3xl font-bold">
+              {property.title || 'Inmueble sin título'}
+            </h1>
+
+            <p className="mt-2 text-sm text-muted-foreground">
+              {getPropertyTypeLabel(property.type)}
+            </p>
+
+            <p className="mt-2 text-muted-foreground">
+              {property.city || 'Sin ciudad'}
+              {property.neighborhood
+                ? ` · ${property.neighborhood}`
+                : ''}
+            </p>
+          </div>
+
+          <div className="text-left sm:text-right">
+            <p className="text-3xl font-bold">
+              {property.price.toLocaleString(
+                'es-ES',
+              )}{' '}
+              €
+            </p>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              {property.area} m²
+            </p>
+          </div>
         </div>
-
-        <div className="text-left sm:text-right">
-          <p className="text-3xl font-bold">
-            {property.price.toLocaleString(
-              'es-ES',
-            )}{' '}
-            €
-          </p>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            {property.area} m²
-          </p>
-        </div>
-      </div>
+      )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border bg-card p-5">
@@ -427,7 +579,7 @@ function PropertyDetailPage() {
             </dt>
 
             <dd className="mt-1 font-medium">
-              {property.operation}
+              {getOperationLabel(property.operation)}
             </dd>
           </div>
 
@@ -437,7 +589,7 @@ function PropertyDetailPage() {
             </dt>
 
             <dd className="mt-1 font-medium">
-              {property.type}
+              {getPropertyTypeLabel(property.type)}
             </dd>
           </div>
 
@@ -447,7 +599,7 @@ function PropertyDetailPage() {
             </dt>
 
             <dd className="mt-1 font-medium">
-              {property.condition}
+              {getConditionLabel(property.condition)}
             </dd>
           </div>
 
@@ -748,8 +900,6 @@ function PropertyDetailPage() {
                         </div>
                       )}
 
-
-
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
                         <p className="text-xs text-muted-foreground">
                           Generado el{' '}
@@ -793,6 +943,7 @@ function PropertyDetailPage() {
             {totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between border-t pt-4">
                 <button
+                  type="button"
                   onClick={handlePrevPage}
                   disabled={currentPage === 1}
                   className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
@@ -806,6 +957,7 @@ function PropertyDetailPage() {
                 </span>
 
                 <button
+                  type="button"
                   onClick={handleNextPage}
                   disabled={currentPage === totalPages}
                   className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"

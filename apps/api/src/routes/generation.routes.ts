@@ -1,10 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import type {
-  AIProviderType,
-  GenerationRequest,
-  ListingLanguage,
-  ListingTone,
-} from '@estateforge/shared'
+import type { GenerationRequest, AIProviderType } from '@estateforge/shared'
 
 import {
   generateListing,
@@ -13,115 +8,33 @@ import {
 
 import { prisma } from '../db/prisma.js'
 
-const validProviders: AIProviderType[] = [
-  'mock',
-  'gemini',
-  'openai',
-]
-
-const validTones: ListingTone[] = [
-  'professional',
-  'premium',
-  'friendly',
-]
-
-const validLanguages: ListingLanguage[] = [
-  'español',
-  'english',
-]
-
-function isAIProviderType(
-  value: unknown,
-): value is AIProviderType {
-  return (
-    typeof value === 'string' &&
-    validProviders.includes(
-      value as AIProviderType,
-    )
-  )
-}
-
-function isListingTone(
-  value: unknown,
-): value is ListingTone {
-  return (
-    typeof value === 'string' &&
-    validTones.includes(value as ListingTone)
-  )
-}
-
-function isListingLanguage(
-  value: unknown,
-): value is ListingLanguage {
-  return (
-    typeof value === 'string' &&
-    validLanguages.includes(
-      value as ListingLanguage,
-    )
-  )
-}
-
 export async function generationRoutes(
   app: FastifyInstance,
 ) {
-  app.post(
-    '/api/generations',
-    async (request, reply) => {
-      const body =
-        request.body as Partial<GenerationRequest>
+  /*
+   * Generar anuncio a partir de una petición completa
+   */
+  app.post('/api/generations', async (request) => {
+    const body =
+      request.body as GenerationRequest
 
-      if (!body.property) {
-        return reply.code(400).send({
-          message: 'property is required',
-        })
-      }
+    const result = await generateListing(body)
 
-      if (!isAIProviderType(body.provider)) {
-        return reply.code(400).send({
-          message:
-            'provider must be mock, gemini or openai',
-        })
-      }
+    return result
+  })
 
-      if (!isListingTone(body.tone)) {
-        return reply.code(400).send({
-          message:
-            'tone must be profesional, premium or amistoso',
-        })
-      }
-
-      if (!isListingLanguage(body.language)) {
-        return reply.code(400).send({
-          message:
-            'language must be español or english',
-        })
-      }
-
-      const generationRequest: GenerationRequest = {
-        property: body.property,
-        provider: body.provider,
-        tone: body.tone,
-        language: body.language,
-      }
-
-      const result =
-        await generateListing(
-          generationRequest,
-        )
-
-      return result
-    },
-  )
-
+  /*
+   * Generar anuncio a partir de un inmueble existente
+   */
   app.post(
     '/api/generations/from-property',
     async (request, reply) => {
       const body =
         request.body as {
-          propertyId?: string
+          propertyId: string
           provider?: AIProviderType
-          tone?: ListingTone
-          language?: ListingLanguage
+          tone: string
+          language: string
         }
 
       if (!body.propertyId) {
@@ -130,58 +43,52 @@ export async function generationRoutes(
         })
       }
 
-      if (!isAIProviderType(body.provider)) {
+      if (!body.tone) {
         return reply.code(400).send({
-          message:
-            'provider must be mock, gemini or openai',
+          message: 'tone is required',
         })
       }
 
-      if (!isListingTone(body.tone)) {
+      if (!body.language) {
         return reply.code(400).send({
-          message:
-            'tone must be profesional, premium or amistoso',
-        })
-      }
-
-      if (!isListingLanguage(body.language)) {
-        return reply.code(400).send({
-          message:
-            'language must be español or english',
+          message: 'language is required',
         })
       }
 
       const result =
-        await generateListingForExistingProperty(
-          {
-            propertyId: body.propertyId,
-            provider: body.provider,
-            tone: body.tone,
-            language: body.language,
-          },
-        )
+        await generateListingForExistingProperty({
+          propertyId: body.propertyId,
+          // Si body.provider es undefined, pasamos undefined explícitamente solo si el tipo lo permite,
+          // o aseguramos el tipado correcto mediante un cast de objeto.
+          ...(body.provider && { provider: body.provider }),
+          tone: body.tone,
+          language: body.language,
+        } as Parameters<typeof generateListingForExistingProperty>[0])
 
       return result
     },
   )
 
-  app.get(
-    '/api/generations',
-    async () => {
-      const generations =
-        await prisma.generation.findMany({
-          orderBy: {
-            createdAt: 'asc',
-          },
-          include: {
-            property: true,
-          },
-        })
+  /*
+   * Obtener todos los anuncios generados
+   */
+  app.get('/api/generations', async () => {
+    const generations =
+      await prisma.generation.findMany({
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          property: true,
+        },
+      })
 
-      return generations
-    },
-  )
+    return generations
+  })
 
+  /*
+   * Obtener un anuncio concreto
+   */
   app.get(
     '/api/generations/:id',
     async (request, reply) => {
@@ -205,6 +112,129 @@ export async function generationRoutes(
       }
 
       return generation
+    },
+  )
+
+  /*
+   * Editar un anuncio generado
+   */
+  app.put(
+    '/api/generations/:id',
+    async (request, reply) => {
+      const { id } =
+        request.params as { id: string }
+
+      const body = request.body as {
+        title?: string
+        description?: string
+        highlights?: string[] | string
+        callToAction?: string
+        provider?: AIProviderType
+        tone?: string
+        language?: string
+      }
+
+      const existingGeneration =
+        await prisma.generation.findUnique({
+          where: {
+            id,
+          },
+        })
+
+      if (!existingGeneration) {
+        return reply.code(404).send({
+          message: 'Generation not found',
+        })
+      }
+
+      let highlights: string | undefined
+
+      if (body.highlights !== undefined) {
+        if (Array.isArray(body.highlights)) {
+          highlights = JSON.stringify(
+            body.highlights,
+          )
+        } else {
+          highlights = body.highlights
+        }
+      }
+
+      const generation =
+        await prisma.generation.update({
+          where: {
+            id,
+          },
+          data: {
+            ...(body.title !== undefined && {
+              title: body.title,
+            }),
+
+            ...(body.description !==
+              undefined && {
+              description: body.description,
+            }),
+
+            ...(highlights !== undefined && {
+              highlights,
+            }),
+
+            ...(body.callToAction !==
+              undefined && {
+              callToAction: body.callToAction,
+            }),
+
+            ...(body.provider !== undefined && {
+              provider: body.provider as AIProviderType,
+            }),
+
+            ...(body.tone !== undefined && {
+              tone: body.tone,
+            }),
+
+            ...(body.language !== undefined && {
+              language: body.language,
+            }),
+          },
+          include: {
+            property: true,
+          },
+        })
+
+      return generation
+    },
+  )
+
+  /*
+   * Eliminar un anuncio generado
+   */
+  app.delete(
+    '/api/generations/:id',
+    async (request, reply) => {
+      const { id } =
+        request.params as { id: string }
+
+      const existingGeneration =
+        await prisma.generation.findUnique({
+          where: {
+            id,
+          },
+        })
+
+      if (!existingGeneration) {
+        return reply.code(404).send({
+          message: 'Generation not found',
+        })
+      }
+
+      await prisma.generation.delete({
+        where: {
+          id,
+        },
+      })
+
+      return {
+        success: true,
+      }
     },
   )
 }

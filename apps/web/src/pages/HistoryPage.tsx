@@ -6,6 +6,24 @@ import {
   type GenerationItem,
 } from '@/services/generationService'
 
+// Diccionario de traducción para los tipos de inmueble
+const propertyTypeLabels: Record<string, string> = {
+  flat: 'Piso',
+  house: 'Casa',
+  chalet: 'Chalet',
+  penthouse: 'Ático',
+  duplex: 'Dúplex',
+  studio: 'Estudio',
+  commercial: 'Local comercial',
+  office: 'Oficina',
+  land: 'Terreno',
+}
+
+function getPropertyTypeLabel(type: string | undefined): string {
+  if (!type) return 'No indicado'
+  return propertyTypeLabels[type.toLowerCase()] || type
+}
+
 function parseHighlights(
   highlights: unknown,
 ): string[] {
@@ -202,7 +220,7 @@ function HistoryPage() {
 
                     <div className="shrink-0 lg:w-64 lg:text-right">
                       <p className="text-sm font-medium">
-                        {generation.property.type}
+                        {getPropertyTypeLabel(generation.property.type)}
                       </p>
 
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -268,6 +286,7 @@ function HistoryPage() {
           {totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between border-t pt-4">
               <button
+                type="button"
                 onClick={handlePrevPage}
                 disabled={currentPage === 1}
                 className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
@@ -281,6 +300,7 @@ function HistoryPage() {
               </span>
 
               <button
+                type="button"
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages}
                 className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"

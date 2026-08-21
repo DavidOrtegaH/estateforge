@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import type {
+  AIProviderType,
   GeneratedListing,
+  ListingLanguage,
+  ListingTone,
   Property,
   PropertyCondition,
   PropertyOperation,
   PropertyType,
-  ListingTone,
-  ListingLanguage,
-  AIProviderType,
 } from '@estateforge/shared'
 
 import { Button } from '@/components/ui/button'
@@ -105,7 +105,7 @@ function NewPropertyPage() {
   }
 
   async function handleSubmit(
-    event: React.SubmitEvent<HTMLFormElement>,
+    event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault()
 
@@ -196,7 +196,9 @@ function NewPropertyPage() {
         <section className="rounded-lg border bg-card p-6">
           <h2 className="text-lg font-semibold">
             Información básica
+          </h2>
 
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
             <label className="grid gap-2 md:col-span-2">
               <span className="text-sm font-medium">
                 Título del inmueble
@@ -220,9 +222,7 @@ function NewPropertyPage() {
                 en EstateForge.
               </span>
             </label>
-          </h2>
 
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
             <label className="grid gap-2">
               <span className="text-sm font-medium">
                 Operación
@@ -448,8 +448,8 @@ function NewPropertyPage() {
                     event.target.value === ''
                       ? undefined
                       : Number(
-                        event.target.value,
-                      ),
+                          event.target.value,
+                        ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"

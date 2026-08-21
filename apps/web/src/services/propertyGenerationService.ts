@@ -11,6 +11,16 @@ export interface GeneratePropertyListingRequest {
   language: ListingLanguage
 }
 
+export interface UpdatePropertyListingRequest {
+  title?: string
+  description?: string
+  highlights?: string[] | string
+  callToAction?: string
+  provider?: AIProviderType
+  tone?: string
+  language?: string
+}
+
 export interface GeneratePropertyListingResult {
   generationId: string
   propertyId: string
@@ -57,4 +67,73 @@ export async function generatePropertyListing(
   return response.json() as Promise<
     GeneratePropertyListingResult
   >
+}
+
+export async function updateGeneration(
+  id: string,
+  request: UpdatePropertyListingRequest,
+): Promise<GeneratePropertyListingResult> {
+  const response = await fetch(
+    `http://localhost:3000/api/generations/${id}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    },
+  )
+
+  if (!response.ok) {
+    let message = `Update failed: ${response.status}`
+
+    try {
+      const error = (await response.json()) as {
+        message?: string
+      }
+
+      if (error.message) {
+        message = error.message
+      }
+    } catch {
+      // Mantener el mensaje genérico si la respuesta no es JSON.
+    }
+
+    throw new Error(message)
+  }
+
+  return response.json() as Promise<
+    GeneratePropertyListingResult
+  >
+}
+
+export async function deleteGeneration(
+  id: string,
+): Promise<{ success: boolean }> {
+  const response = await fetch(
+    `http://localhost:3000/api/generations/${id}`,
+    {
+      method: 'DELETE',
+    },
+  )
+
+  if (!response.ok) {
+    let message = `Deletion failed: ${response.status}`
+
+    try {
+      const error = (await response.json()) as {
+        message?: string
+      }
+
+      if (error.message) {
+        message = error.message
+      }
+    } catch {
+      // Mantener el mensaje genérico si la respuesta no es JSON.
+    }
+
+    throw new Error(message)
+  }
+
+  return response.json() as Promise<{ success: boolean }>
 }
