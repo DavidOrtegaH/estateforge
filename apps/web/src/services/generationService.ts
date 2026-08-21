@@ -92,3 +92,34 @@ export async function getGeneration(
 
   return response.json() as Promise<GenerationItem>
 }
+
+export async function updateGeneration(
+  id: string,
+  data: Partial<
+    Pick<GenerationItem, 'title' | 'description' | 'highlights' | 'callToAction'>
+  >,
+): Promise<GenerationItem> {
+  const response = await fetch(`${API_URL}/api/generations/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to update generation: ${response.status}`)
+  }
+
+  return response.json() as Promise<GenerationItem>
+}
+
+export async function deleteGeneration(id: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/generations/${id}`, {
+    method: 'DELETE',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete generation: ${response.status}`)
+  }
+}

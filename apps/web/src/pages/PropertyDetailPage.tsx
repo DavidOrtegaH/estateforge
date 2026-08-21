@@ -15,7 +15,9 @@ import {
 } from '@/services/propertyService'
 
 import {
+  deleteGeneration,
   generatePropertyListing,
+  updateGeneration,
 } from '@/services/propertyGenerationService'
 
 // Diccionarios de traducción
@@ -139,6 +141,34 @@ function PropertyDetailPage() {
     useState<string | null>(null)
 
   const [copySuccess, setCopySuccess] =
+    useState<string | null>(null)
+
+  const [editingGenerationId, setEditingGenerationId] =
+    useState<string | null>(null)
+
+  const [generationEditForm, setGenerationEditForm] =
+    useState<{
+      title: string
+      description: string
+      highlights: string
+      callToAction: string
+    }>({
+      title: '',
+      description: '',
+      highlights: '',
+      callToAction: '',
+    })
+
+  const [savingGeneration, setSavingGeneration] =
+    useState(false)
+
+  const [generationEditError, setGenerationEditError] =
+    useState<string | null>(null)
+
+  const [deletingGenerationId, setDeletingGenerationId] =
+    useState<string | null>(null)
+
+  const [generationDeleteError, setGenerationDeleteError] =
     useState<string | null>(null)
 
   // Estados para la paginación de anuncios
@@ -276,6 +306,192 @@ function PropertyDetailPage() {
     }
   }
 
+  function handleStartEditGeneration(
+  generation: PropertyItem['generations'][number],
+) {
+  const highlights = parseHighlights(
+    generation.highlights,
+  )
+
+  setEditingGenerationId(generation.id)
+
+  setGenerationEditForm({
+    title: generation.title,
+    description: generation.description,
+    highlights: highlights.join('\n'),
+    callToAction: generation.callToAction,
+  })
+
+  setGenerationEditError(null)
+  setGenerationDeleteError(null)
+}
+
+function handleCancelEditGeneration() {
+  if (savingGeneration) {
+    return
+  }
+
+  setEditingGenerationId(null)
+
+  setGenerationEditForm({
+    title: '',
+    description: '',
+    highlights: '',
+    callToAction: '',
+  })
+
+  setGenerationEditError(null)
+}
+
+async function handleSaveGeneration() {
+  if (
+    !editingGenerationId ||
+    savingGeneration
+  ) {
+    return
+  }
+
+  if (!generationEditForm.title.trim()) {
+    setGenerationEditError(
+      'El título del anuncio es obligatorio.',
+    )
+    return
+  }
+
+  if (!generationEditForm.description.trim()) {
+    setGenerationEditError(
+      'La descripción del anuncio es obligatoria.',
+    )
+    return
+  }
+
+  setSavingGeneration(true)
+  setGenerationEditError(null)
+
+  try {
+    const highlights =
+      generationEditForm.highlights
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean)
+
+    await updateGeneration(
+      editingGenerationId,
+      {
+        title: generationEditForm.title.trim(),
+        description:
+          generationEditForm.description.trim(),
+        highlights,
+        callToAction:
+          generationEditForm.callToAction.trim(),
+      },
+    )
+
+    if (!id) {
+      return
+    }
+
+    const updatedProperty =
+      await getProperty(id)
+
+    setProperty(updatedProperty)
+
+    setEditingGenerationId(null)
+
+    setGenerationEditForm({
+      title: '',
+      description: '',
+      highlights: '',
+      callToAction: '',
+    })
+  } catch (error) {
+    console.error(
+      'Error editando anuncio:',
+      error,
+    )
+
+    setGenerationEditError(
+      error instanceof Error
+        ? error.message
+        : 'No se ha podido guardar el anuncio.',
+    )
+  } finally {
+    setSavingGeneration(false)
+  }
+}
+
+async function handleDeleteGeneration(
+  generationId: string,
+) {
+  if (
+    deletingGenerationId ||
+    savingGeneration
+  ) {
+    return
+  }
+
+  const confirmed = window.confirm(
+    '¿Seguro que quieres eliminar este anuncio? Esta acción no se puede deshacer.',
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  setDeletingGenerationId(generationId)
+  setGenerationDeleteError(null)
+
+  try {
+    await deleteGeneration(generationId)
+
+    if (!id) {
+      return
+    }
+
+    const updatedProperty =
+      await getProperty(id)
+
+    setProperty(updatedProperty)
+
+    /*
+     * Si al eliminar el anuncio nos hemos quedado
+     * fuera de la última página, retrocedemos.
+     */
+    const remainingGenerations =
+      updatedProperty.generations.length
+
+    const newTotalPages = Math.max(
+      1,
+      Math.ceil(
+        remainingGenerations / itemsPerPage,
+      ),
+    )
+
+    setCurrentPage((previousPage) =>
+      Math.min(previousPage, newTotalPages),
+    )
+
+    if (
+      editingGenerationId === generationId
+    ) {
+      handleCancelEditGeneration()
+    }
+  } catch (error) {
+    console.error(
+      'Error eliminando anuncio:',
+      error,
+    )
+
+    setGenerationDeleteError(
+      error instanceof Error
+        ? error.message
+        : 'No se ha podido eliminar el anuncio.',
+    )
+  } finally {
+    setDeletingGenerationId(null)
+  }
+}
+
   async function handleCopyGeneration(
     generationId: string,
     title: string,
@@ -301,11 +517,11 @@ function PropertyDetailPage() {
         '',
         parsedHighlights.length > 0
           ? [
-              'Características destacadas:',
-              ...parsedHighlights.map(
-                (highlight) => `• ${highlight}`,
-              ),
-            ].join('\n')
+            'Características destacadas:',
+            ...parsedHighlights.map(
+              (highlight) => `• ${highlight}`,
+            ),
+          ].join('\n')
           : '',
         '',
         callToAction,
@@ -802,7 +1018,7 @@ function PropertyDetailPage() {
         )}
       </section>
 
-      <section className="mt-8">
+ <section className="mt-8">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold">
@@ -812,10 +1028,11 @@ function PropertyDetailPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {totalGenerations === 0
                 ? 'Todavía no hay anuncios para este inmueble.'
-                : `${totalGenerations} ${totalGenerations === 1
-                  ? 'anuncio generado'
-                  : 'anuncios generados'
-                }.`}
+                : `${totalGenerations} ${
+                    totalGenerations === 1
+                      ? 'anuncio generado'
+                      : 'anuncios generados'
+                  }.`}
             </p>
           </div>
 
@@ -832,111 +1049,279 @@ function PropertyDetailPage() {
         {totalGenerations === 0 ? (
           <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Genera el primer anuncio para este
-              inmueble.
+              Genera el primer anuncio para este inmueble.
             </p>
           </div>
         ) : (
           <div>
             <div className="mt-5 space-y-4">
-              {currentGenerations.map(
-                (generation) => {
-                  const highlights =
-                    parseHighlights(
-                      generation.highlights,
-                    )
+              {currentGenerations.map((generation) => {
+                const highlights = parseHighlights(generation.highlights);
 
-                  return (
-                    <div
-                      key={generation.id}
-                      className="rounded-lg border bg-card p-5"
-                    >
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                          {generation.provider}
-                        </span>
-
-                        <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                          {generation.tone}
-                        </span>
-
-                        <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                          {generation.language}
-                        </span>
-                      </div>
-                      <div className="flex flex-col justify-between gap-4 sm:flex-row mt-8">
-                        <Link
-                          to={`/historial/${generation.id}`}
-                          className="min-w-0 flex-1"
-                        >
-                          <h3 className="font-semibold hover:underline">
-                            {generation.title}
+                return (
+                  <div
+                    key={generation.id}
+                    className="rounded-lg border bg-card p-5"
+                  >
+                    {editingGenerationId === generation.id ? (
+                      <div>
+                        <div className="flex items-center justify-between gap-4">
+                          <h3 className="text-lg font-semibold">
+                            Editar anuncio
                           </h3>
 
-                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                            {generation.description}
-                          </p>
-                        </Link>
+                          <button
+                            type="button"
+                            onClick={handleCancelEditGeneration}
+                            disabled={savingGeneration}
+                            className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+
+                        <div className="mt-5 space-y-5">
+                          <div>
+                            <label
+                              htmlFor={`generation-title-${generation.id}`}
+                              className="text-sm font-medium"
+                            >
+                              Título
+                            </label>
+
+                            <input
+                              id={`generation-title-${generation.id}`}
+                              type="text"
+                              value={generationEditForm.title}
+                              onChange={(event) =>
+                                setGenerationEditForm({
+                                  ...generationEditForm,
+                                  title: event.target.value,
+                                })
+                              }
+                              disabled={savingGeneration}
+                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                            />
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`generation-description-${generation.id}`}
+                              className="text-sm font-medium"
+                            >
+                              Descripción
+                            </label>
+
+                            <textarea
+                              id={`generation-description-${generation.id}`}
+                              value={generationEditForm.description}
+                              onChange={(event) =>
+                                setGenerationEditForm({
+                                  ...generationEditForm,
+                                  description: event.target.value,
+                                })
+                              }
+                              disabled={savingGeneration}
+                              rows={8}
+                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                            />
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`generation-highlights-${generation.id}`}
+                              className="text-sm font-medium"
+                            >
+                              Características destacadas
+                            </label>
+
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Escribe una característica por línea.
+                            </p>
+
+                            <textarea
+                              id={`generation-highlights-${generation.id}`}
+                              value={generationEditForm.highlights}
+                              onChange={(event) =>
+                                setGenerationEditForm({
+                                  ...generationEditForm,
+                                  highlights: event.target.value,
+                                })
+                              }
+                              disabled={savingGeneration}
+                              rows={5}
+                              placeholder={
+                                '133 m²\n3 habitaciones\n2 baños\nBalcón'
+                              }
+                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                            />
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`generation-cta-${generation.id}`}
+                              className="text-sm font-medium"
+                            >
+                              Llamada a la acción
+                            </label>
+
+                            <textarea
+                              id={`generation-cta-${generation.id}`}
+                              value={generationEditForm.callToAction}
+                              onChange={(event) =>
+                                setGenerationEditForm({
+                                  ...generationEditForm,
+                                  callToAction: event.target.value,
+                                })
+                              }
+                              disabled={savingGeneration}
+                              rows={3}
+                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                            />
+                          </div>
+
+                          {generationEditError && (
+                            <p className="text-sm text-destructive">
+                              {generationEditError}
+                            </p>
+                          )}
+
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => void handleSaveGeneration()}
+                              disabled={savingGeneration}
+                              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {savingGeneration
+                                ? 'Guardando...'
+                                : 'Guardar cambios'}
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                            {generation.provider}
+                          </span>
 
-                      {highlights.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Características destacadas
-                          </p>
+                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                            {generation.tone}
+                          </span>
 
-                          <ul className="mt-2 space-y-1 text-sm">
-                            {highlights.map(
-                              (highlight) => (
+                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                            {generation.language}
+                          </span>
+                        </div>
+
+                        <div className="mt-8 flex flex-col justify-between gap-4 sm:flex-row">
+                          <Link
+                            to={`/historial/${generation.id}`}
+                            className="min-w-0 flex-1"
+                          >
+                            <h3 className="font-semibold hover:underline">
+                              {generation.title}
+                            </h3>
+
+                            <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                              {generation.description}
+                            </p>
+                          </Link>
+                        </div>
+
+                        {highlights.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Características destacadas
+                            </p>
+
+                            <ul className="mt-2 space-y-1 text-sm">
+                              {highlights.map((highlight) => (
                                 <li
                                   key={highlight}
                                   className="text-muted-foreground"
                                 >
                                   • {highlight}
                                 </li>
-                              ),
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {generationDeleteError && (
+                          <p className="mt-4 text-sm text-destructive">
+                            {generationDeleteError}
+                          </p>
+                        )}
+
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                          <p className="text-xs text-muted-foreground">
+                            Generado el{' '}
+                            {new Date(generation.createdAt).toLocaleString(
+                              'es-ES',
                             )}
-                          </ul>
+                          </p>
+
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleStartEditGeneration(generation)
+                              }
+                              disabled={deletingGenerationId !== null}
+                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Editar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleCopyGeneration(
+                                  generation.id,
+                                  generation.title,
+                                  generation.description,
+                                  generation.highlights,
+                                  generation.callToAction,
+                                )
+                              }
+                              disabled={
+                                copyingGenerationId !== null ||
+                                deletingGenerationId !== null
+                              }
+                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {copyingGenerationId === generation.id
+                                ? 'Copiando...'
+                                : copySuccess === generation.id
+                                  ? 'Copiado'
+                                  : 'Copiar anuncio'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleDeleteGeneration(generation.id)
+                              }
+                              disabled={
+                                deletingGenerationId !== null ||
+                                copyingGenerationId !== null
+                              }
+                              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingGenerationId === generation.id
+                                ? 'Eliminando...'
+                                : 'Eliminar'}
+                            </button>
+                          </div>
                         </div>
-                      )}
-
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-                        <p className="text-xs text-muted-foreground">
-                          Generado el{' '}
-                          {new Date(
-                            generation.createdAt,
-                          ).toLocaleString('es-ES')}
-                        </p>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleCopyGeneration(
-                              generation.id,
-                              generation.title,
-                              generation.description,
-                              generation.highlights,
-                              generation.callToAction,
-                            )
-                          }
-                          disabled={
-                            copyingGenerationId !== null
-                          }
-                          className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {copyingGenerationId ===
-                            generation.id
-                            ? 'Copiando...'
-                            : copySuccess ===
-                              generation.id
-                              ? 'Copiado'
-                              : 'Copiar anuncio'}
-                        </button>
-                      </div>
-                    </div>
-                  )
-                },
-              )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Controles de Paginación */}
@@ -970,7 +1355,7 @@ function PropertyDetailPage() {
         )}
       </section>
     </div>
-  )
-}
+  );
+};
 
-export default PropertyDetailPage
+export default PropertyDetailPage;

@@ -66,6 +66,13 @@ function NewPropertyPage() {
   const [error, setError] =
     useState<string | null>(null)
 
+  // Estados para Edición y Eliminación
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedListing, setEditedListing] =
+    useState<GeneratedListing | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   function updateProperty<K extends keyof Property>(
     field: K,
     value: Property[K],
@@ -115,8 +122,7 @@ function NewPropertyPage() {
 
     setError(null)
 
-    const validationError =
-      validateProperty()
+    const validationError = validateProperty()
 
     if (validationError) {
       setError(validationError)
@@ -125,25 +131,23 @@ function NewPropertyPage() {
 
     setIsGenerating(true)
     setGeneratedListing(null)
+    setEditedListing(null)
     setCreatedPropertyId(null)
     setCreatedGenerationId(null)
+    setIsEditing(false)
 
     try {
-      const result =
-        await generateListing({
-          property,
-          provider,
-          tone,
-          language,
-        })
+      const result = await generateListing({
+        property,
+        provider,
+        tone,
+        language,
+      })
 
       setGeneratedListing(result.listing)
-      setCreatedPropertyId(
-        result.propertyId,
-      )
-      setCreatedGenerationId(
-        result.generationId,
-      )
+      setEditedListing(result.listing)
+      setCreatedPropertyId(result.propertyId)
+      setCreatedGenerationId(result.generationId)
     } catch (generationError) {
       console.error(
         'Error generando anuncio:',
@@ -160,9 +164,55 @@ function NewPropertyPage() {
 
   function handleResetGeneration() {
     setGeneratedListing(null)
+    setEditedListing(null)
     setCreatedPropertyId(null)
     setCreatedGenerationId(null)
     setError(null)
+    setIsEditing(false)
+  }
+
+  async function handleSaveChanges() {
+    if (!createdGenerationId || !editedListing) return
+
+    setIsSaving(true)
+    setError(null)
+
+    try {
+      // Aquí invocarías tu servicio de actualización, por ejemplo:
+      // await updateListingService(createdGenerationId, editedListing)
+
+      setGeneratedListing(editedListing)
+      setIsEditing(false)
+    } catch (err) {
+      console.error('Error al guardar:', err)
+      setError('No se han podido guardar los cambios del anuncio.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleDeleteListing() {
+    if (!createdGenerationId) return
+
+    const confirmed = window.confirm(
+      '¿Estás seguro de que deseas eliminar este anuncio generado?',
+    )
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      // Aquí invocarías tu servicio de borrado, por ejemplo:
+      // await deleteListingService(createdGenerationId)
+
+      handleResetGeneration()
+    } catch (err) {
+      console.error('Error al eliminar:', err)
+      setError('No se ha podido eliminar el anuncio.')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -686,15 +736,62 @@ function NewPropertyPage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={
-                handleResetGeneration
-              }
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Generar otro
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {!isEditing ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsEditing(true)
+                    setEditedListing(generatedListing)
+                  }}
+                >
+                  Editar anuncio
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isSaving}
+                    onClick={handleSaveChanges}
+                  >
+                    {isSaving ? 'Guardando...' : 'Guardar'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={isSaving}
+                    onClick={() => {
+                      setIsEditing(false)
+                      setEditedListing(generatedListing)
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </>
+              )}
+
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={isDeleting}
+                onClick={handleDeleteListing}
+              >
+                {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              </Button>
+
+              <button
+                type="button"
+                onClick={handleResetGeneration}
+                className="text-sm font-medium text-primary hover:underline ml-2"
+              >
+                Generar otro
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 space-y-6">
@@ -703,9 +800,23 @@ function NewPropertyPage() {
                 Título
               </p>
 
-              <h3 className="mt-1 text-2xl font-bold">
-                {generatedListing.title}
-              </h3>
+              {isEditing && editedListing ? (
+                <input
+                  type="text"
+                  value={editedListing.title}
+                  onChange={(e) =>
+                    setEditedListing({
+                      ...editedListing,
+                      title: e.target.value,
+                    })
+                  }
+                  className="mt-1 h-10 w-full rounded-md border bg-background px-3 font-bold"
+                />
+              ) : (
+                <h3 className="mt-1 text-2xl font-bold">
+                  {generatedListing.title}
+                </h3>
+              )}
             </div>
 
             <div>
@@ -713,11 +824,23 @@ function NewPropertyPage() {
                 Descripción
               </p>
 
-              <p className="mt-2 whitespace-pre-line leading-7">
-                {
-                  generatedListing.description
-                }
-              </p>
+              {isEditing && editedListing ? (
+                <textarea
+                  value={editedListing.description}
+                  onChange={(e) =>
+                    setEditedListing({
+                      ...editedListing,
+                      description: e.target.value,
+                    })
+                  }
+                  rows={6}
+                  className="mt-2 w-full resize-y rounded-md border bg-background p-3"
+                />
+              ) : (
+                <p className="mt-2 whitespace-pre-line leading-7">
+                  {generatedListing.description}
+                </p>
+              )}
             </div>
 
             <div>
@@ -749,11 +872,23 @@ function NewPropertyPage() {
                 Llamada a la acción
               </p>
 
-              <p className="mt-2">
-                {
-                  generatedListing.callToAction
-                }
-              </p>
+              {isEditing && editedListing ? (
+                <input
+                  type="text"
+                  value={editedListing.callToAction}
+                  onChange={(e) =>
+                    setEditedListing({
+                      ...editedListing,
+                      callToAction: e.target.value,
+                    })
+                  }
+                  className="mt-1 h-10 w-full rounded-md border bg-background px-3"
+                />
+              ) : (
+                <p className="mt-2">
+                  {generatedListing.callToAction}
+                </p>
+              )}
             </div>
           </div>
 

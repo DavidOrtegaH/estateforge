@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import {
   getGeneration,
+  updateGeneration,
+  deleteGeneration,
   type GenerationItem,
 } from '@/services/generationService'
 
@@ -52,25 +54,20 @@ function getToneLabel(tone: string | undefined): string {
   return toneLabels[tone.toLowerCase()] || tone
 }
 
-function parseHighlights(
-  highlights: unknown,
-): string[] {
+function parseHighlights(highlights: unknown): string[] {
   if (Array.isArray(highlights)) {
     return highlights.filter(
-      (item): item is string =>
-        typeof item === 'string',
+      (item): item is string => typeof item === 'string',
     )
   }
 
   if (typeof highlights === 'string') {
     try {
-      const parsed: unknown =
-        JSON.parse(highlights)
+      const parsed: unknown = JSON.parse(highlights)
 
       if (Array.isArray(parsed)) {
         return parsed.filter(
-          (item): item is string =>
-            typeof item === 'string',
+          (item): item is string => typeof item === 'string',
         )
       }
 
@@ -81,9 +78,7 @@ function parseHighlights(
       if (highlights.trim().length > 0) {
         return highlights
           .split('\n')
-          .map((item) =>
-            item.replace(/^[-•*]\s*/, '').trim(),
-          )
+          .map((item) => item.replace(/^[-•*]\s*/, '').trim())
           .filter(Boolean)
       }
     }
@@ -94,17 +89,29 @@ function parseHighlights(
 
 function GenerationDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
 
-  const [generation, setGeneration] =
-    useState<GenerationItem | null>(null)
-
+  const [generation, setGeneration] = useState<GenerationItem | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] =
-    useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const [copying, setCopying] = useState(false)
-  const [copySuccess, setCopySuccess] =
-    useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
+
+  // Estados para la funcionalidad de edición
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  // Estado para la funcionalidad de eliminación
+  const [deleting, setDeleting] = useState(false)
+
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    highlights: '',
+    callToAction: '',
+  })
 
   useEffect(() => {
     if (!id) {
@@ -117,14 +124,10 @@ function GenerationDetailPage() {
 
     async function loadGeneration() {
       try {
-        const data =
-          await getGeneration(generationId)
-
+        const data = await getGeneration(generationId)
         setGeneration(data)
       } catch {
-        setError(
-          'No se pudo cargar el anuncio.',
-        )
+        setError('No se pudo cargar el anuncio.')
       } finally {
         setLoading(false)
       }
@@ -132,6 +135,74 @@ function GenerationDetailPage() {
 
     void loadGeneration()
   }, [id])
+
+  function handleStartEdit() {
+    if (!generation) return
+
+    const parsedHighlights = parseHighlights(generation.highlights)
+
+    setEditForm({
+      title: generation.title || '',
+      description: generation.description || '',
+      highlights: parsedHighlights.join('\n'),
+      callToAction: generation.callToAction || '',
+    })
+    setEditError(null)
+    setIsEditing(true)
+  }
+
+  function handleCancelEdit() {
+    setIsEditing(false)
+    setEditError(null)
+  }
+
+  async function handleSaveEdit() {
+    if (!generation) return
+
+    setSaving(true)
+    setEditError(null)
+
+    try {
+      const highlightsArray = editForm.highlights
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean)
+
+      const updated = await updateGeneration(generation.id, {
+        title: editForm.title,
+        description: editForm.description,
+        highlights: highlightsArray.join('\n'), // Ajusta si tu backend espera string o array
+        callToAction: editForm.callToAction,
+      })
+
+      setGeneration(updated)
+      setIsEditing(false)
+    } catch {
+      setEditError('No se pudieron guardar los cambios. Inténtalo de nuevo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!generation) return
+
+    const confirmed = window.confirm(
+      '¿Estás seguro de que deseas eliminar este anuncio? Esta acción no se puede deshacer.',
+    )
+
+    if (!confirmed) return
+
+    setDeleting(true)
+
+    try {
+      await deleteGeneration(generation.id)
+      navigate('/historial')
+    } catch {
+      alert('No se pudo eliminar el anuncio. Inténtalo de nuevo.')
+      setDeleting(false)
+    }
+  }
 
   async function handleCopy() {
     if (!generation || copying) {
@@ -142,9 +213,7 @@ function GenerationDetailPage() {
     setCopySuccess(false)
 
     try {
-      const highlights = parseHighlights(
-        generation.highlights,
-      )
+      const highlights = parseHighlights(generation.highlights)
 
       const text = [
         generation.title,
@@ -154,21 +223,16 @@ function GenerationDetailPage() {
         highlights.length > 0
           ? [
               'Características destacadas:',
-              ...highlights.map(
-                (highlight) => `• ${highlight}`,
-              ),
+              ...highlights.map((highlight) => `• ${highlight}`),
             ].join('\n')
           : '',
         '',
         generation.callToAction,
       ]
-        .filter(
-          (section) => section.trim().length > 0,
-        )
+        .filter((section) => section.trim().length > 0)
         .join('\n')
 
       await navigator.clipboard.writeText(text)
-
       setCopySuccess(true)
     } catch {
       setCopySuccess(false)
@@ -180,10 +244,7 @@ function GenerationDetailPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">
-          Cargando anuncio...
-        </h1>
-
+        <h1 className="text-2xl font-semibold">Cargando anuncio...</h1>
         <p className="mt-4 text-muted-foreground">
           Obteniendo la información del anuncio.
         </p>
@@ -194,15 +255,10 @@ function GenerationDetailPage() {
   if (error || !generation) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">
-          Anuncio no encontrado
-        </h1>
-
+        <h1 className="text-2xl font-semibold">Anuncio no encontrado</h1>
         <p className="mt-2 text-muted-foreground">
-          {error ??
-            'No se encontró el anuncio solicitado.'}
+          {error ?? 'No se encontró el anuncio solicitado.'}
         </p>
-
         <Link
           to="/historial"
           className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
@@ -214,10 +270,7 @@ function GenerationDetailPage() {
   }
 
   const { property } = generation
-
-  const highlights = parseHighlights(
-    generation.highlights,
-  )
+  const highlights = parseHighlights(generation.highlights)
 
   return (
     <div className="max-w-4xl">
@@ -229,252 +282,320 @@ function GenerationDetailPage() {
           ← Volver al historial
         </Link>
 
-        <button
-          type="button"
-          onClick={() => void handleCopy()}
-          disabled={copying}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {copying
-            ? 'Copiando...'
-            : copySuccess
-              ? 'Copiado'
-              : 'Copiar anuncio'}
-        </button>
-      </div>
-
-      <div className="mt-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
-            {generation.provider}
-          </span>
-
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-            {getToneLabel(generation.tone)}
-          </span>
-
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
-            {generation.language === 'es'
-              ? 'Español'
-              : generation.language}
-          </span>
-        </div>
-
-        <h1 className="mt-4 text-3xl font-bold">
-          {generation.title}
-        </h1>
-
-        <p className="mt-2 text-muted-foreground">
-          {property.city || 'Sin ciudad'}
-          {property.neighborhood
-            ? ` · ${property.neighborhood}`
-            : ''}
-        </p>
-
-        <Link
-          to={`/inmuebles/${property.id}`}
-          className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
-        >
-          Ver inmueble →
-        </Link>
-      </div>
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">
-            Precio
-          </p>
-
-          <p className="mt-1 text-lg font-semibold">
-            {property.price.toLocaleString(
-              'es-ES',
-            )}{' '}
-            €
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">
-            Superficie
-          </p>
-
-          <p className="mt-1 text-lg font-semibold">
-            {property.area} m²
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">
-            Habitaciones
-          </p>
-
-          <p className="mt-1 text-lg font-semibold">
-            {property.bedrooms}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">
-            Baños
-          </p>
-
-          <p className="mt-1 text-lg font-semibold">
-            {property.bathrooms}
-          </p>
-        </div>
-      </div>
-
-      <section className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="text-xl font-semibold">
-          Descripción
-        </h2>
-
-        <p className="mt-4 whitespace-pre-line leading-7">
-          {generation.description}
-        </p>
-      </section>
-
-      <section className="mt-6 rounded-lg border bg-card p-6">
-        <h2 className="text-xl font-semibold">
-          Características destacadas
-        </h2>
-
-        {highlights.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">
-            No se han indicado características
-            destacadas.
-          </p>
-        ) : (
-          <ul className="mt-4 space-y-2">
-            {highlights.map((highlight) => (
-              <li
-                key={highlight}
-                className="rounded-md bg-muted px-3 py-2 text-sm"
+        <div className="flex items-center gap-2">
+          {!isEditing && (
+            <>
+              <button
+                type="button"
+                onClick={handleStartEdit}
+                className="rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted"
               >
-                {highlight}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                Editar
+              </button>
 
-      <section className="mt-6 rounded-lg border bg-card p-6">
-        <h2 className="text-xl font-semibold">
-          Llamada a la acción
-        </h2>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={deleting}
+                className="rounded-md border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </>
+          )}
 
-        <p className="mt-4 whitespace-pre-line leading-7">
-          {generation.callToAction}
-        </p>
-      </section>
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            disabled={copying || isEditing || deleting}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {copying
+              ? 'Copiando...'
+              : copySuccess
+                ? 'Copiado'
+                : 'Copiar anuncio'}
+          </button>
+        </div>
+      </div>
 
-      <section className="mt-6 rounded-lg border bg-card p-6">
-        <h2 className="text-xl font-semibold">
-          Información de generación
-        </h2>
-
-        <dl className="mt-4 grid gap-5 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm text-muted-foreground">
-              Proveedor
-            </dt>
-
-            <dd className="mt-1 font-medium capitalize">
-              {generation.provider}
-            </dd>
+      {isEditing ? (
+        <div className="mt-6 rounded-lg border bg-card p-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">Editar anuncio</h2>
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              disabled={saving}
+              className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Cancelar
+            </button>
           </div>
 
-          <div>
-            <dt className="text-sm text-muted-foreground">
-              Tono
-            </dt>
+          <div className="mt-6 space-y-5">
+            <div>
+              <label htmlFor="edit-title" className="text-sm font-medium">
+                Título
+              </label>
+              <input
+                id="edit-title"
+                type="text"
+                value={editForm.title}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, title: e.target.value })
+                }
+                disabled={saving}
+                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+              />
+            </div>
 
-            <dd className="mt-1 font-medium">
-              {getToneLabel(generation.tone)}
-            </dd>
-          </div>
+            <div>
+              <label htmlFor="edit-description" className="text-sm font-medium">
+                Descripción
+              </label>
+              <textarea
+                id="edit-description"
+                rows={8}
+                value={editForm.description}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, description: e.target.value })
+                }
+                disabled={saving}
+                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+              />
+            </div>
 
-          <div>
-            <dt className="text-sm text-muted-foreground">
-              Idioma
-            </dt>
+            <div>
+              <label htmlFor="edit-highlights" className="text-sm font-medium">
+                Características destacadas
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Escribe una característica por línea.
+              </p>
+              <textarea
+                id="edit-highlights"
+                rows={5}
+                value={editForm.highlights}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, highlights: e.target.value })
+                }
+                disabled={saving}
+                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+              />
+            </div>
 
-            <dd className="mt-1 font-medium capitalize">
-              {generation.language === 'es'
-                ? 'Español'
-                : generation.language}
-            </dd>
-          </div>
+            <div>
+              <label htmlFor="edit-cta" className="text-sm font-medium">
+                Llamada a la acción
+              </label>
+              <textarea
+                id="edit-cta"
+                rows={3}
+                value={editForm.callToAction}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, callToAction: e.target.value })
+                }
+                disabled={saving}
+                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+              />
+            </div>
 
-          <div>
-            <dt className="text-sm text-muted-foreground">
-              Generado
-            </dt>
+            {editError && (
+              <p className="text-sm text-destructive">{editError}</p>
+            )}
 
-            <dd className="mt-1 font-medium">
-              {new Date(
-                generation.createdAt,
-              ).toLocaleString('es-ES')}
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="mt-6 rounded-lg border bg-card p-6">
-        <h2 className="text-xl font-semibold">
-          Inmueble asociado
-        </h2>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Tipo
-            </p>
-
-            <p className="mt-1 font-medium">
-              {getPropertyTypeLabel(property.type)}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Operación
-            </p>
-
-            <p className="mt-1 font-medium">
-              {getOperationLabel(property.operation)}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Ciudad
-            </p>
-
-            <p className="mt-1 font-medium">
-              {property.city || 'No indicada'}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Barrio
-            </p>
-
-            <p className="mt-1 font-medium">
-              {property.neighborhood ||
-                'No indicado'}
-            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                disabled={saving}
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveEdit()}
+                disabled={saving}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
           </div>
         </div>
+      ) : (
+        <>
+          <div className="mt-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
+                {generation.provider}
+              </span>
 
-        <Link
-          to={`/inmuebles/${property.id}`}
-          className="mt-5 inline-block text-sm font-medium text-primary hover:underline"
-        >
-          Ver inmueble →
-        </Link>
-      </section>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                {getToneLabel(generation.tone)}
+              </span>
+
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
+                {generation.language === 'es'
+                  ? 'Español'
+                  : generation.language}
+              </span>
+            </div>
+
+            <h1 className="mt-4 text-3xl font-bold">{generation.title}</h1>
+
+            <p className="mt-2 text-muted-foreground">
+              {property.city || 'Sin ciudad'}
+              {property.neighborhood ? ` · ${property.neighborhood}` : ''}
+            </p>
+
+            <Link
+              to={`/inmuebles/${property.id}`}
+              className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
+            >
+              Ver inmueble →
+            </Link>
+          </div>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Precio</p>
+              <p className="mt-1 text-lg font-semibold">
+                {property.price.toLocaleString('es-ES')} €
+              </p>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Superficie</p>
+              <p className="mt-1 text-lg font-semibold">{property.area} m²</p>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Habitaciones</p>
+              <p className="mt-1 text-lg font-semibold">{property.bedrooms}</p>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Baños</p>
+              <p className="mt-1 text-lg font-semibold">{property.bathrooms}</p>
+            </div>
+          </div>
+
+          <section className="mt-8 rounded-lg border bg-card p-6">
+            <h2 className="text-xl font-semibold">Descripción</h2>
+            <p className="mt-4 whitespace-pre-line leading-7">
+              {generation.description}
+            </p>
+          </section>
+
+          <section className="mt-6 rounded-lg border bg-card p-6">
+            <h2 className="text-xl font-semibold">Características destacadas</h2>
+
+            {highlights.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                No se han indicado características destacadas.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {highlights.map((highlight) => (
+                  <li
+                    key={highlight}
+                    className="rounded-md bg-muted px-3 py-2 text-sm"
+                  >
+                    {highlight}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="mt-6 rounded-lg border bg-card p-6">
+            <h2 className="text-xl font-semibold">Llamada a la acción</h2>
+            <p className="mt-4 whitespace-pre-line leading-7">
+              {generation.callToAction}
+            </p>
+          </section>
+
+          <section className="mt-6 rounded-lg border bg-card p-6">
+            <h2 className="text-xl font-semibold">Información de generación</h2>
+
+            <dl className="mt-4 grid gap-5 sm:grid-cols-2">
+              <div>
+                <dt className="text-sm text-muted-foreground">Proveedor</dt>
+                <dd className="mt-1 font-medium capitalize">
+                  {generation.provider}
+                </dd>
+              </div>
+
+              <div>
+                <dt className="text-sm text-muted-foreground">Tono</dt>
+                <dd className="mt-1 font-medium">
+                  {getToneLabel(generation.tone)}
+                </dd>
+              </div>
+
+              <div>
+                <dt className="text-sm text-muted-foreground">Idioma</dt>
+                <dd className="mt-1 font-medium capitalize">
+                  {generation.language === 'es'
+                    ? 'Español'
+                    : generation.language}
+                </dd>
+              </div>
+
+              <div>
+                <dt className="text-sm text-muted-foreground">Generado</dt>
+                <dd className="mt-1 font-medium">
+                  {new Date(generation.createdAt).toLocaleString('es-ES')}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="mt-6 rounded-lg border bg-card p-6">
+            <h2 className="text-xl font-semibold">Inmueble asociado</h2>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-sm text-muted-foreground">Tipo</p>
+                <p className="mt-1 font-medium">
+                  {getPropertyTypeLabel(property.type)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground">Operación</p>
+                <p className="mt-1 font-medium">
+                  {getOperationLabel(property.operation)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground">Ciudad</p>
+                <p className="mt-1 font-medium">
+                  {property.city || 'No indicada'}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground">Barrio</p>
+                <p className="mt-1 font-medium">
+                  {property.neighborhood || 'No indicado'}
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to={`/inmuebles/${property.id}`}
+              className="mt-5 inline-block text-sm font-medium text-primary hover:underline"
+            >
+              Ver inmueble →
+            </Link>
+          </section>
+        </>
+      )}
     </div>
   )
 }

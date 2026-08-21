@@ -17,8 +17,8 @@ export interface UpdatePropertyListingRequest {
   highlights?: string[] | string
   callToAction?: string
   provider?: AIProviderType
-  tone?: string
-  language?: string
+  tone?: ListingTone
+  language?: ListingLanguage
 }
 
 export interface GeneratePropertyListingResult {
@@ -30,6 +30,19 @@ export interface GeneratePropertyListingResult {
     highlights: string[]
     callToAction: string
   }
+}
+
+export interface UpdatedGeneration {
+  id: string
+  propertyId: string
+  title: string
+  description: string
+  highlights: string[] | string
+  callToAction: string
+  provider: string
+  tone: string
+  language: string
+  createdAt: string
 }
 
 export async function generatePropertyListing(
@@ -72,7 +85,7 @@ export async function generatePropertyListing(
 export async function updateGeneration(
   id: string,
   request: UpdatePropertyListingRequest,
-): Promise<GeneratePropertyListingResult> {
+): Promise<UpdatedGeneration> {
   const response = await fetch(
     `http://localhost:3000/api/generations/${id}`,
     {
@@ -102,9 +115,7 @@ export async function updateGeneration(
     throw new Error(message)
   }
 
-  return response.json() as Promise<
-    GeneratePropertyListingResult
-  >
+  return response.json() as Promise<UpdatedGeneration>
 }
 
 export async function deleteGeneration(
@@ -135,5 +146,7 @@ export async function deleteGeneration(
     throw new Error(message)
   }
 
-  return response.json() as Promise<{ success: boolean }>
+  return response.json() as Promise<{
+    success: boolean
+  }>
 }
