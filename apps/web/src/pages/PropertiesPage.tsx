@@ -345,24 +345,25 @@ function PropertiesPage() {
                   : 'inmuebles seleccionados'}
               </span>
 
-              {selectedCount > 0 && (
-                <button
-                  type="button"
-                  onClick={
-                    handleDeleteSelected
-                  }
-                  disabled={deleting}
-                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {deleting
-                    ? 'Eliminando...'
-                    : `Eliminar seleccionados (${selectedCount})`}
-                </button>
-              )}
+              {/* Botón de eliminar con espacio reservado mediante visibility */}
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                disabled={deleting || selectedCount === 0}
+                aria-hidden={selectedCount === 0}
+                tabIndex={selectedCount === 0 ? -1 : 0}
+                className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  selectedCount > 0 ? 'visible' : 'invisible pointer-events-none'
+                }`}
+              >
+                {deleting
+                  ? 'Eliminando...'
+                  : `Eliminar seleccionados (${selectedCount})`}
+              </button>
             </div>
           </div>
 
-          <div className="mt-8 grid gap-1 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {currentProperties.map(
               (property) => {
                 const generationCount =
@@ -376,13 +377,14 @@ function PropertiesPage() {
                 return (
                   <div
                     key={property.id}
-                    className={`relative rounded-lg border bg-card transition ${isSelected
-                      ? 'border-primary ring-2 ring-primary/20'
-                      : 'hover:border-primary hover:shadow-md'
-                      }`}
+                    className={`relative rounded-lg border bg-card transition ${
+                      isSelected
+                        ? 'border-primary ring-2 ring-primary/25'
+                        : 'border-border'
+                    }`}
                   >
-                    {/* Checkbox */}
-                    <div className="relative w-full overflow-hidden rounded-t-lg">
+                    {/* Botón superior de selección */}
+                    <div className="relative w-full overflow-hidden rounded-t-lg group">
                       <input
                         type="checkbox"
                         aria-label={`Seleccionar ${getPropertyTypeLabel(property.type)} en ${property.city || 'Sin ciudad'}`}
@@ -393,18 +395,23 @@ function PropertiesPage() {
                           )
                         }
                         disabled={deleting}
-                        className="block h-7 w-full appearance-none border-0 bg-accent cursor-pointer checked:bg-primary focus:outline-none"
+                        className={`block h-8 w-full appearance-none border-0 cursor-pointer focus:outline-none transition-colors ${
+                          isSelected
+                            ? 'bg-foreground cursor-default'
+                            : 'bg-accent group-hover:bg-primary'
+                        }`}
                       />
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground">
+                      <div className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
+                        isSelected
+                          ? 'text-background font-semibold'
+                          : 'text-muted-foreground group-hover:text-primary-foreground group-hover:font-semibold'
+                      }`}>
                         {isSelected ? '✓ Seleccionado' : 'Seleccionar'}
                       </div>
                     </div>
 
-                    {/* Contenido navegable */}
-                    <Link
-                      to={`/inmuebles/${property.id}`}
-                      className="block p-5"
-                    >
+                    {/* Bloque central */}
+                    <div className="p-5">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <h2 className="mt-1 text-lg font-semibold">
@@ -473,6 +480,23 @@ function PropertiesPage() {
                             ? 'anuncio'
                             : 'anuncios'}
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Contenido navegable (Ver detalles) */}
+                    <Link
+                      to={`/inmuebles/${property.id}`}
+                      className="block group"
+                    >
+                      <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
+                        <button
+                          type="button"
+                          aria-label="Ver detalles"
+                          className="block h-full w-full border-0 bg-accent group-hover:bg-primary group-hover:text-primary-foreground cursor-pointer focus:outline-none transition-colors"
+                        />
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground group-hover:text-primary-foreground group-hover:font-semibold transition-colors">
+                          Ver detalles
+                        </div>
                       </div>
                     </Link>
                   </div>

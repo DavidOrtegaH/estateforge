@@ -66,12 +66,13 @@ function NewPropertyPage() {
   const [error, setError] =
     useState<string | null>(null)
 
-  // Estados para Edición y Eliminación
+  // Estados para Edición, Eliminación y Copiado
   const [isEditing, setIsEditing] = useState(false)
   const [editedListing, setEditedListing] =
     useState<GeneratedListing | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
 
   function updateProperty<K extends keyof Property>(
     field: K,
@@ -135,6 +136,7 @@ function NewPropertyPage() {
     setCreatedPropertyId(null)
     setCreatedGenerationId(null)
     setIsEditing(false)
+    setIsCopied(false)
 
     try {
       const result = await generateListing({
@@ -169,6 +171,7 @@ function NewPropertyPage() {
     setCreatedGenerationId(null)
     setError(null)
     setIsEditing(false)
+    setIsCopied(false)
   }
 
   async function handleSaveChanges() {
@@ -212,6 +215,31 @@ function NewPropertyPage() {
       setError('No se ha podido eliminar el anuncio.')
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  async function handleCopyListing() {
+    const listingToCopy = isEditing ? editedListing : generatedListing
+    if (!listingToCopy) return
+
+    try {
+      const textToCopy = `
+${listingToCopy.title}
+
+${listingToCopy.description}
+
+Características destacadas:
+${listingToCopy.highlights.map((h) => `- ${h}`).join('\n')}
+
+${listingToCopy.callToAction}
+      `.trim()
+
+      await navigator.clipboard.writeText(textToCopy)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    } catch (err) {
+      console.error('Error al copiar al portapapeles:', err)
+      setError('No se ha podido copiar el contenido al portapapeles.')
     }
   }
 
@@ -716,8 +744,8 @@ function NewPropertyPage() {
             disabled={isGenerating}
           >
             {isGenerating
-              ? 'Generando anuncio...'
-              : 'Generar anuncio con IA'}
+              ? 'Generando...'
+              : 'Crear inmueble y generar su anuncio con IA'}
           </Button>
         </div>
       </form>
@@ -737,6 +765,15 @@ function NewPropertyPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyListing}
+              >
+                {isCopied ? '¡Copiado!' : 'Copiar anuncio'}
+              </Button>
+
               {!isEditing ? (
                 <Button
                   type="button"
@@ -783,14 +820,6 @@ function NewPropertyPage() {
               >
                 {isDeleting ? 'Eliminando...' : 'Eliminar'}
               </Button>
-
-              <button
-                type="button"
-                onClick={handleResetGeneration}
-                className="text-sm font-medium text-primary hover:underline ml-2"
-              >
-                Generar otro
-              </button>
             </div>
           </div>
 
@@ -907,7 +936,7 @@ function NewPropertyPage() {
                 to={`/historial/${createdGenerationId}`}
                 className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
               >
-                Ver anuncio
+                Ver anuncio detallado
               </Link>
             )}
           </div>
