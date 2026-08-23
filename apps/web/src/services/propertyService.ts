@@ -13,7 +13,7 @@ export interface PropertyItem {
   condition: string
   bedrooms: number
   bathrooms: number
-  floor?: string
+  floor: number | null
   additionalInformation?: string
   elevator?: boolean
   terrace?: boolean
@@ -70,16 +70,21 @@ export async function updateProperty(
   id: string,
   data: Partial<PropertyItem>,
 ): Promise<PropertyItem> {
-  const response = await fetch(`${API_URL}/api/properties/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${API_URL}/api/properties/${id}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     },
-    body: JSON.stringify(data),
-  })
+  )
 
   if (!response.ok) {
-    throw new Error(`Failed to update property: ${response.status}`)
+    throw new Error(
+      `Failed to update property: ${response.status}`,
+    )
   }
 
   return response.json() as Promise<PropertyItem>

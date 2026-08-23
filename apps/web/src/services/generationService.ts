@@ -12,6 +12,7 @@ export interface GenerationResult {
 }
 
 export interface GenerationProperty {
+  title: string
   id: string
   operation: string
   type: string
@@ -75,6 +76,29 @@ export async function getGenerations(): Promise<
   }
 
   return response.json() as Promise<GenerationItem[]>
+}
+
+export async function deleteGenerations(
+  ids: string[],
+): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/api/generations`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ids,
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to delete generations: ${response.status}`,
+    )
+  }
 }
 
 export async function getGeneration(

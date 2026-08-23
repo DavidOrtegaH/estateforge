@@ -20,7 +20,10 @@ import {
   updateGeneration,
 } from '@/services/propertyGenerationService'
 
-// Diccionarios de traducción
+// ============================================================
+// DICCIONARIOS
+// ============================================================
+
 const propertyTypeLabels: Record<string, string> = {
   flat: 'Piso',
   house: 'Casa',
@@ -46,20 +49,41 @@ const conditionLabels: Record<string, string> = {
   to_renovate: 'A reformar',
 }
 
-// Funciones auxiliares para obtener las etiquetas traducidas
-function getPropertyTypeLabel(type: string | undefined): string {
+// ============================================================
+// AUXILIARES
+// ============================================================
+
+function getPropertyTypeLabel(
+  type: string | undefined,
+): string {
   if (!type) return 'No indicado'
-  return propertyTypeLabels[type.toLowerCase()] || type
+
+  return (
+    propertyTypeLabels[type.toLowerCase()] ||
+    type
+  )
 }
 
-function getOperationLabel(operation: string | undefined): string {
+function getOperationLabel(
+  operation: string | undefined,
+): string {
   if (!operation) return 'No indicada'
-  return operationLabels[operation.toLowerCase()] || operation
+
+  return (
+    operationLabels[operation.toLowerCase()] ||
+    operation
+  )
 }
 
-function getConditionLabel(condition: string | undefined): string {
+function getConditionLabel(
+  condition: string | undefined,
+): string {
   if (!condition) return 'No indicado'
-  return conditionLabels[condition.toLowerCase()] || condition
+
+  return (
+    conditionLabels[condition.toLowerCase()] ||
+    condition
+  )
 }
 
 function parseHighlights(
@@ -88,7 +112,9 @@ function parseHighlights(
         return highlights
           .split('\n')
           .map((item) =>
-            item.replace(/^[-•*]\s*/, '').trim(),
+            item
+              .replace(/^[-•*]\s*/, '')
+              .trim(),
           )
           .filter(Boolean)
       }
@@ -97,6 +123,10 @@ function parseHighlights(
 
   return []
 }
+
+// ============================================================
+// COMPONENTE
+// ============================================================
 
 function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -110,11 +140,25 @@ function PropertyDetailPage() {
   const [error, setError] =
     useState<string | null>(null)
 
-  // Estados de edición del inmueble
-  const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState<Partial<PropertyItem>>({})
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [editError, setEditError] = useState<string | null>(null)
+  // ==========================================================
+  // EDICIÓN DEL INMUEBLE
+  // ==========================================================
+
+  const [isEditing, setIsEditing] =
+    useState(false)
+
+  const [editForm, setEditForm] =
+    useState<Partial<PropertyItem>>({})
+
+  const [savingEdit, setSavingEdit] =
+    useState(false)
+
+  const [editError, setEditError] =
+    useState<string | null>(null)
+
+  // ==========================================================
+  // GENERACIÓN
+  // ==========================================================
 
   const [generating, setGenerating] =
     useState(false)
@@ -131,17 +175,29 @@ function PropertyDetailPage() {
   const [language, setLanguage] =
     useState<ListingLanguage>('español')
 
+  // ==========================================================
+  // ELIMINACIÓN DEL INMUEBLE
+  // ==========================================================
+
   const [deleting, setDeleting] =
     useState(false)
 
   const [deleteError, setDeleteError] =
     useState<string | null>(null)
 
+  // ==========================================================
+  // COPIAR ANUNCIO
+  // ==========================================================
+
   const [copyingGenerationId, setCopyingGenerationId] =
     useState<string | null>(null)
 
   const [copySuccess, setCopySuccess] =
     useState<string | null>(null)
+
+  // ==========================================================
+  // EDICIÓN DE ANUNCIO
+  // ==========================================================
 
   const [editingGenerationId, setEditingGenerationId] =
     useState<string | null>(null)
@@ -165,27 +221,45 @@ function PropertyDetailPage() {
   const [generationEditError, setGenerationEditError] =
     useState<string | null>(null)
 
+  // ==========================================================
+  // ELIMINACIÓN DE ANUNCIO
+  // ==========================================================
+
   const [deletingGenerationId, setDeletingGenerationId] =
     useState<string | null>(null)
 
   const [generationDeleteError, setGenerationDeleteError] =
     useState<string | null>(null)
 
-  // Estados para la paginación de anuncios
+  // ==========================================================
+  // PAGINACIÓN
+  // ==========================================================
+
   const [currentPage, setCurrentPage] = useState(1)
+
   const itemsPerPage = 3
+
+  // ==========================================================
+  // CARGAR INMUEBLE
+  // ==========================================================
 
   useEffect(() => {
     async function loadProperty() {
       if (!id) {
-        setError('No se ha indicado el inmueble.')
+        setError(
+          'No se ha indicado el inmueble.',
+        )
+
         setLoading(false)
+
         return
       }
 
       try {
         const result = await getProperty(id)
+
         setProperty(result)
+
         setEditForm(result)
       } catch {
         setError(
@@ -199,7 +273,10 @@ function PropertyDetailPage() {
     void loadProperty()
   }, [id])
 
-  // Scroll instantáneo al cambiar de página
+  // ==========================================================
+  // SCROLL PAGINACIÓN
+  // ==========================================================
+
   useEffect(() => {
     window.scrollTo({
       top: document.documentElement.scrollHeight,
@@ -207,9 +284,60 @@ function PropertyDetailPage() {
     })
   }, [currentPage])
 
-  async function handleSaveEdit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!id || savingEdit || !property) return
+  // ==========================================================
+  // INICIAR EDICIÓN
+  // ==========================================================
+
+  function handleStartEdit() {
+    if (!property) {
+      return
+    }
+
+    setEditForm({
+      ...property,
+    })
+
+    setEditError(null)
+
+    setIsEditing(true)
+  }
+
+  // ==========================================================
+  // CANCELAR EDICIÓN
+  // ==========================================================
+
+  function handleCancelEdit() {
+    if (savingEdit) {
+      return
+    }
+
+    if (property) {
+      setEditForm({
+        ...property,
+      })
+    }
+
+    setEditError(null)
+
+    setIsEditing(false)
+  }
+
+  // ==========================================================
+  // GUARDAR EDICIÓN DEL INMUEBLE
+  // ==========================================================
+
+  async function handleSaveEdit(
+    event: React.FormEvent,
+  ) {
+    event.preventDefault()
+
+    if (
+      !id ||
+      savingEdit ||
+      !property
+    ) {
+      return
+    }
 
     setSavingEdit(true)
     setEditError(null)
@@ -217,29 +345,73 @@ function PropertyDetailPage() {
     try {
       const payload: Partial<PropertyItem> = {
         title: editForm.title,
-        price: editForm.price,
-        area: editForm.area,
-        city: editForm.city,
-        neighborhood: editForm.neighborhood,
-        address: editForm.address,
         operation: editForm.operation,
         type: editForm.type,
         condition: editForm.condition,
+
+        price: editForm.price,
+        area: editForm.area,
+
         bedrooms: editForm.bedrooms,
         bathrooms: editForm.bathrooms,
+
         floor: editForm.floor,
-        additionalInformation: editForm.additionalInformation,
+
+        address: editForm.address,
+        city: editForm.city,
+        neighborhood:
+          editForm.neighborhood,
+
+        elevator: editForm.elevator,
+        terrace: editForm.terrace,
+        balcony: editForm.balcony,
+        garage: editForm.garage,
+        pool: editForm.pool,
+        garden: editForm.garden,
+        airConditioning:
+          editForm.airConditioning,
+        heating: editForm.heating,
+
+        additionalInformation:
+          editForm.additionalInformation,
       }
 
-      const updated = await updateProperty(id, payload)
-      setProperty({ ...property, ...updated })
+      const updated =
+        await updateProperty(
+          id,
+          payload,
+        )
+
+      setProperty({
+        ...property,
+        ...updated,
+      })
+
+      setEditForm({
+        ...property,
+        ...updated,
+      })
+
       setIsEditing(false)
-    } catch {
-      setEditError('No se han podido guardar los cambios del inmueble.')
+    } catch (error) {
+      console.error(
+        'Error actualizando inmueble:',
+        error,
+      )
+
+      setEditError(
+        error instanceof Error
+          ? error.message
+          : 'No se han podido guardar los cambios del inmueble.',
+      )
     } finally {
       setSavingEdit(false)
     }
   }
+
+  // ==========================================================
+  // GENERAR ANUNCIO
+  // ==========================================================
 
   async function handleGenerateListing() {
     if (!id || generating) {
@@ -262,6 +434,9 @@ function PropertyDetailPage() {
         await getProperty(id)
 
       setProperty(updatedProperty)
+
+      setEditForm(updatedProperty)
+
       setCurrentPage(1)
     } catch (error) {
       console.error(
@@ -276,6 +451,10 @@ function PropertyDetailPage() {
       setGenerating(false)
     }
   }
+
+  // ==========================================================
+  // ELIMINAR INMUEBLE
+  // ==========================================================
 
   async function handleDeleteProperty() {
     if (!id || deleting) {
@@ -306,95 +485,44 @@ function PropertyDetailPage() {
     }
   }
 
+  // ==========================================================
+  // INICIAR EDICIÓN DE ANUNCIO
+  // ==========================================================
+
   function handleStartEditGeneration(
-  generation: PropertyItem['generations'][number],
-) {
-  const highlights = parseHighlights(
-    generation.highlights,
-  )
-
-  setEditingGenerationId(generation.id)
-
-  setGenerationEditForm({
-    title: generation.title,
-    description: generation.description,
-    highlights: highlights.join('\n'),
-    callToAction: generation.callToAction,
-  })
-
-  setGenerationEditError(null)
-  setGenerationDeleteError(null)
-}
-
-function handleCancelEditGeneration() {
-  if (savingGeneration) {
-    return
-  }
-
-  setEditingGenerationId(null)
-
-  setGenerationEditForm({
-    title: '',
-    description: '',
-    highlights: '',
-    callToAction: '',
-  })
-
-  setGenerationEditError(null)
-}
-
-async function handleSaveGeneration() {
-  if (
-    !editingGenerationId ||
-    savingGeneration
+    generation: PropertyItem['generations'][number],
   ) {
-    return
-  }
-
-  if (!generationEditForm.title.trim()) {
-    setGenerationEditError(
-      'El título del anuncio es obligatorio.',
-    )
-    return
-  }
-
-  if (!generationEditForm.description.trim()) {
-    setGenerationEditError(
-      'La descripción del anuncio es obligatoria.',
-    )
-    return
-  }
-
-  setSavingGeneration(true)
-  setGenerationEditError(null)
-
-  try {
     const highlights =
-      generationEditForm.highlights
-        .split('\n')
-        .map((item) => item.trim())
-        .filter(Boolean)
+      parseHighlights(
+        generation.highlights,
+      )
 
-    await updateGeneration(
-      editingGenerationId,
-      {
-        title: generationEditForm.title.trim(),
-        description:
-          generationEditForm.description.trim(),
-        highlights,
-        callToAction:
-          generationEditForm.callToAction.trim(),
-      },
+    setEditingGenerationId(
+      generation.id,
     )
 
-    if (!id) {
+    setGenerationEditForm({
+      title: generation.title,
+      description:
+        generation.description,
+      highlights:
+        highlights.join('\n'),
+      callToAction:
+        generation.callToAction,
+    })
+
+    setGenerationEditError(null)
+    setGenerationDeleteError(null)
+  }
+
+  // ==========================================================
+  // CANCELAR EDICIÓN DE ANUNCIO
+  // ==========================================================
+
+  function handleCancelEditGeneration() {
+    if (savingGeneration) {
       return
     }
-
-    const updatedProperty =
-      await getProperty(id)
-
-    setProperty(updatedProperty)
 
     setEditingGenerationId(null)
 
@@ -404,93 +532,195 @@ async function handleSaveGeneration() {
       highlights: '',
       callToAction: '',
     })
-  } catch (error) {
-    console.error(
-      'Error editando anuncio:',
-      error,
-    )
 
-    setGenerationEditError(
-      error instanceof Error
-        ? error.message
-        : 'No se ha podido guardar el anuncio.',
-    )
-  } finally {
-    setSavingGeneration(false)
-  }
-}
-
-async function handleDeleteGeneration(
-  generationId: string,
-) {
-  if (
-    deletingGenerationId ||
-    savingGeneration
-  ) {
-    return
+    setGenerationEditError(null)
   }
 
-  const confirmed = window.confirm(
-    '¿Seguro que quieres eliminar este anuncio? Esta acción no se puede deshacer.',
-  )
+  // ==========================================================
+  // GUARDAR ANUNCIO
+  // ==========================================================
 
-  if (!confirmed) {
-    return
-  }
-
-  setDeletingGenerationId(generationId)
-  setGenerationDeleteError(null)
-
-  try {
-    await deleteGeneration(generationId)
-
-    if (!id) {
+  async function handleSaveGeneration() {
+    if (
+      !editingGenerationId ||
+      savingGeneration
+    ) {
       return
     }
 
-    const updatedProperty =
-      await getProperty(id)
+    if (
+      !generationEditForm.title.trim()
+    ) {
+      setGenerationEditError(
+        'El título del anuncio es obligatorio.',
+      )
 
-    setProperty(updatedProperty)
-
-    /*
-     * Si al eliminar el anuncio nos hemos quedado
-     * fuera de la última página, retrocedemos.
-     */
-    const remainingGenerations =
-      updatedProperty.generations.length
-
-    const newTotalPages = Math.max(
-      1,
-      Math.ceil(
-        remainingGenerations / itemsPerPage,
-      ),
-    )
-
-    setCurrentPage((previousPage) =>
-      Math.min(previousPage, newTotalPages),
-    )
+      return
+    }
 
     if (
-      editingGenerationId === generationId
+      !generationEditForm.description.trim()
     ) {
-      handleCancelEditGeneration()
+      setGenerationEditError(
+        'La descripción del anuncio es obligatoria.',
+      )
+
+      return
     }
-  } catch (error) {
-    console.error(
-      'Error eliminando anuncio:',
-      error,
+
+    setSavingGeneration(true)
+    setGenerationEditError(null)
+
+    try {
+      const highlights =
+        generationEditForm.highlights
+          .split('\n')
+          .map((item) =>
+            item.trim(),
+          )
+          .filter(Boolean)
+
+      await updateGeneration(
+        editingGenerationId,
+        {
+          title:
+            generationEditForm.title.trim(),
+
+          description:
+            generationEditForm.description.trim(),
+
+          highlights,
+
+          callToAction:
+            generationEditForm.callToAction.trim(),
+        },
+      )
+
+      if (!id) {
+        return
+      }
+
+      const updatedProperty =
+        await getProperty(id)
+
+      setProperty(updatedProperty)
+
+      setEditForm(updatedProperty)
+
+      setEditingGenerationId(null)
+
+      setGenerationEditForm({
+        title: '',
+        description: '',
+        highlights: '',
+        callToAction: '',
+      })
+    } catch (error) {
+      console.error(
+        'Error editando anuncio:',
+        error,
+      )
+
+      setGenerationEditError(
+        error instanceof Error
+          ? error.message
+          : 'No se ha podido guardar el anuncio.',
+      )
+    } finally {
+      setSavingGeneration(false)
+    }
+  }
+
+  // ==========================================================
+  // ELIMINAR ANUNCIO
+  // ==========================================================
+
+  async function handleDeleteGeneration(
+    generationId: string,
+  ) {
+    if (
+      deletingGenerationId ||
+      savingGeneration
+    ) {
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        '¿Seguro que quieres eliminar este anuncio? Esta acción no se puede deshacer.',
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingGenerationId(
+      generationId,
     )
 
-    setGenerationDeleteError(
-      error instanceof Error
-        ? error.message
-        : 'No se ha podido eliminar el anuncio.',
-    )
-  } finally {
-    setDeletingGenerationId(null)
+    setGenerationDeleteError(null)
+
+    try {
+      await deleteGeneration(
+        generationId,
+      )
+
+      if (!id) {
+        return
+      }
+
+      const updatedProperty =
+        await getProperty(id)
+
+      setProperty(updatedProperty)
+
+      setEditForm(updatedProperty)
+
+      const remainingGenerations =
+        updatedProperty.generations.length
+
+      const newTotalPages =
+        Math.max(
+          1,
+          Math.ceil(
+            remainingGenerations /
+            itemsPerPage,
+          ),
+        )
+
+      setCurrentPage(
+        (previousPage) =>
+          Math.min(
+            previousPage,
+            newTotalPages,
+          ),
+      )
+
+      if (
+        editingGenerationId ===
+        generationId
+      ) {
+        handleCancelEditGeneration()
+      }
+    } catch (error) {
+      console.error(
+        'Error eliminando anuncio:',
+        error,
+      )
+
+      setGenerationDeleteError(
+        error instanceof Error
+          ? error.message
+          : 'No se ha podido eliminar el anuncio.',
+      )
+    } finally {
+      setDeletingGenerationId(null)
+    }
   }
-}
+
+  // ==========================================================
+  // COPIAR ANUNCIO
+  // ==========================================================
 
   async function handleCopyGeneration(
     generationId: string,
@@ -503,7 +733,10 @@ async function handleDeleteGeneration(
       return
     }
 
-    setCopyingGenerationId(generationId)
+    setCopyingGenerationId(
+      generationId,
+    )
+
     setCopySuccess(null)
 
     try {
@@ -519,7 +752,8 @@ async function handleDeleteGeneration(
           ? [
             'Características destacadas:',
             ...parsedHighlights.map(
-              (highlight) => `• ${highlight}`,
+              (highlight) =>
+                `• ${highlight}`,
             ),
           ].join('\n')
           : '',
@@ -527,19 +761,29 @@ async function handleDeleteGeneration(
         callToAction,
       ]
         .filter(
-          (section) => section.trim().length > 0,
+          (section) =>
+            section.trim().length >
+            0,
         )
         .join('\n')
 
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(
+        text,
+      )
 
-      setCopySuccess(generationId)
+      setCopySuccess(
+        generationId,
+      )
     } catch {
       setCopySuccess(null)
     } finally {
       setCopyingGenerationId(null)
     }
   }
+
+  // ==========================================================
+  // LOADING
+  // ==========================================================
 
   if (loading) {
     return (
@@ -554,6 +798,10 @@ async function handleDeleteGeneration(
       </div>
     )
   }
+
+  // ==========================================================
+  // ERROR
+  // ==========================================================
 
   if (error || !property) {
     return (
@@ -577,38 +825,95 @@ async function handleDeleteGeneration(
     )
   }
 
+  // ==========================================================
+  // CARACTERÍSTICAS
+  // ==========================================================
+
   const features = [
-    property.elevator && 'Ascensor',
-    property.terrace && 'Terraza',
-    property.balcony && 'Balcón',
-    property.garage && 'Garaje',
-    property.pool && 'Piscina',
-    property.garden && 'Jardín',
+    property.elevator &&
+    'Ascensor',
+
+    property.terrace &&
+    'Terraza',
+
+    property.balcony &&
+    'Balcón',
+
+    property.garage &&
+    'Garaje',
+
+    property.pool &&
+    'Piscina',
+
+    property.garden &&
+    'Jardín',
+
     property.airConditioning &&
     'Aire acondicionado',
-    property.heating && 'Calefacción',
+
+    property.heating &&
+    'Calefacción',
   ].filter(Boolean) as string[]
 
-  const totalGenerations = property.generations.length
-  const totalPages = Math.ceil(totalGenerations / itemsPerPage)
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentGenerations = property.generations.slice(indexOfFirstItem, indexOfLastItem)
+  // ==========================================================
+  // PAGINACIÓN
+  // ==========================================================
+
+  const totalGenerations =
+    property.generations.length
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        totalGenerations /
+        itemsPerPage,
+      ),
+    )
+
+  const indexOfLastItem =
+    currentPage *
+    itemsPerPage
+
+  const indexOfFirstItem =
+    indexOfLastItem -
+    itemsPerPage
+
+  const currentGenerations =
+    property.generations.slice(
+      indexOfFirstItem,
+      indexOfLastItem,
+    )
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1)
+    if (
+      currentPage <
+      totalPages
+    ) {
+      setCurrentPage(
+        (prev) => prev + 1,
+      )
     }
   }
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1)
+      setCurrentPage(
+        (prev) => prev - 1,
+      )
     }
   }
 
+  // ==========================================================
+  // RENDER
+  // ==========================================================
+
   return (
     <div className="max-w-6xl">
+      {/* =====================================================
+          CABECERA
+      ====================================================== */}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Link
           to="/inmuebles"
@@ -620,15 +925,24 @@ async function handleDeleteGeneration(
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsEditing(!isEditing)}
-            className="rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+            onClick={
+              isEditing
+                ? handleCancelEdit
+                : handleStartEdit
+            }
+            disabled={savingEdit}
+            className="rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isEditing ? 'Cancelar edición' : 'Editar inmueble'}
+            {isEditing
+              ? 'Cancelar edición'
+              : 'Editar inmueble'}
           </button>
 
           <button
             type="button"
-            onClick={handleDeleteProperty}
+            onClick={
+              handleDeleteProperty
+            }
             disabled={deleting}
             className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -645,81 +959,879 @@ async function handleDeleteGeneration(
         </p>
       )}
 
-      {/* Formulario de Edición o Vista normal de los datos básicos */}
-      {isEditing ? (
-        <form onSubmit={handleSaveEdit} className="mt-6 rounded-lg border bg-card p-6 space-y-4">
-          <h2 className="text-xl font-semibold">Editar detalles del inmueble</h2>
+      {/* =====================================================
+          EDICIÓN DEL INMUEBLE
+      ====================================================== */}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium">Título</label>
-              <input
-                type="text"
-                value={editForm.title ?? ''}
-                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Precio (€)</label>
-              <input
-                type="number"
-                value={editForm.price ?? 0}
-                onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Superficie (m²)</label>
-              <input
-                type="number"
-                value={editForm.area ?? 0}
-                onChange={(e) => setEditForm({ ...editForm, area: Number(e.target.value) })}
-                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Ciudad</label>
-              <input
-                type="text"
-                value={editForm.city ?? ''}
-                onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-              />
-            </div>
+      {isEditing ? (
+        <form
+          onSubmit={
+            handleSaveEdit
+          }
+          className="mt-6 space-y-8 rounded-lg border bg-card p-6"
+        >
+          <div>
+            <h2 className="text-xl font-semibold">
+              Editar inmueble
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Modifica los datos del
+              inmueble y guarda los
+              cambios.
+            </p>
           </div>
 
+          {/* INFORMACIÓN BÁSICA */}
+
+          <section>
+            <h3 className="text-lg font-semibold">
+              Información básica
+            </h3>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {/* TÍTULO */}
+
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="property-title"
+                  className="text-sm font-medium"
+                >
+                  Título
+                </label>
+
+                <input
+                  id="property-title"
+                  type="text"
+                  value={
+                    editForm.title ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      title:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              {/* OPERACIÓN */}
+
+              <div>
+                <label
+                  htmlFor="property-operation"
+                  className="text-sm font-medium"
+                >
+                  Operación
+                </label>
+
+                <select
+                  id="property-operation"
+                  value={
+                    editForm.operation ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      operation:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                >
+                  <option value="">
+                    Seleccionar
+                  </option>
+
+                  <option value="sale">
+                    Venta
+                  </option>
+
+                  <option value="rent">
+                    Alquiler
+                  </option>
+
+                  <option value="transfer">
+                    Traspaso
+                  </option>
+                </select>
+              </div>
+
+              {/* TIPO */}
+
+              <div>
+                <label
+                  htmlFor="property-type"
+                  className="text-sm font-medium"
+                >
+                  Tipo de inmueble
+                </label>
+
+                <select
+                  id="property-type"
+                  value={
+                    editForm.type ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      type:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                >
+                  <option value="">
+                    Seleccionar
+                  </option>
+
+                  <option value="flat">
+                    Piso
+                  </option>
+
+                  <option value="house">
+                    Casa
+                  </option>
+
+                  <option value="chalet">
+                    Chalet
+                  </option>
+
+                  <option value="penthouse">
+                    Ático
+                  </option>
+
+                  <option value="duplex">
+                    Dúplex
+                  </option>
+
+                  <option value="studio">
+                    Estudio
+                  </option>
+
+                  <option value="commercial">
+                    Local comercial
+                  </option>
+
+                  <option value="office">
+                    Oficina
+                  </option>
+
+                  <option value="land">
+                    Terreno
+                  </option>
+                </select>
+              </div>
+
+              {/* ESTADO */}
+
+              <div>
+                <label
+                  htmlFor="property-condition"
+                  className="text-sm font-medium"
+                >
+                  Estado
+                </label>
+
+                <select
+                  id="property-condition"
+                  value={
+                    editForm.condition ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      condition:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                >
+                  <option value="">
+                    Seleccionar
+                  </option>
+
+                  <option value="new">
+                    Nuevo
+                  </option>
+
+                  <option value="good">
+                    Buen estado
+                  </option>
+
+                  <option value="renovated">
+                    Reformado
+                  </option>
+
+                  <option value="to_renovate">
+                    A reformar
+                  </option>
+                </select>
+              </div>
+
+              {/* PRECIO */}
+
+              <div>
+                <label
+                  htmlFor="property-price"
+                  className="text-sm font-medium"
+                >
+                  Precio (€)
+                </label>
+
+                <input
+                  id="property-price"
+                  type="number"
+                  min="0"
+                  value={
+                    editForm.price ??
+                    0
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      price:
+                        Number(
+                          event.target
+                            .value,
+                        ),
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              {/* SUPERFICIE */}
+
+              <div>
+                <label
+                  htmlFor="property-area"
+                  className="text-sm font-medium"
+                >
+                  Superficie (m²)
+                </label>
+
+                <input
+                  id="property-area"
+                  type="number"
+                  min="0"
+                  value={
+                    editForm.area ??
+                    0
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      area:
+                        Number(
+                          event.target
+                            .value,
+                        ),
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              {/* HABITACIONES */}
+
+              <div>
+                <label
+                  htmlFor="property-bedrooms"
+                  className="text-sm font-medium"
+                >
+                  Habitaciones
+                </label>
+
+                <input
+                  id="property-bedrooms"
+                  type="number"
+                  min="0"
+                  value={
+                    editForm.bedrooms ??
+                    0
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      bedrooms:
+                        Number(
+                          event.target
+                            .value,
+                        ),
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              {/* BAÑOS */}
+
+              <div>
+                <label
+                  htmlFor="property-bathrooms"
+                  className="text-sm font-medium"
+                >
+                  Baños
+                </label>
+
+                <input
+                  id="property-bathrooms"
+                  type="number"
+                  min="0"
+                  value={
+                    editForm.bathrooms ??
+                    0
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      bathrooms:
+                        Number(
+                          event.target
+                            .value,
+                        ),
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              {/* PLANTA */}
+
+              <div>
+                <label
+                  htmlFor="property-floor"
+                  className="text-sm font-medium"
+                >
+                  Planta
+                </label>
+                <input
+                  id="property-floor"
+                  type="number"
+                  value={editForm.floor ?? ''}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setEditForm({
+                      ...editForm,
+                      floor: value === '' ? null : Number(value),
+                    });
+                  }}
+                  disabled={savingEdit}
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* UBICACIÓN */}
+
+          <section>
+            <h3 className="text-lg font-semibold">
+              Ubicación
+            </h3>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {/* DIRECCIÓN */}
+
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="property-address"
+                  className="text-sm font-medium"
+                >
+                  Dirección
+                </label>
+
+                <input
+                  id="property-address"
+                  type="text"
+                  value={
+                    editForm.address ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      address:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              {/* CIUDAD */}
+
+              <div>
+                <label
+                  htmlFor="property-city"
+                  className="text-sm font-medium"
+                >
+                  Ciudad
+                </label>
+
+                <input
+                  id="property-city"
+                  type="text"
+                  value={
+                    editForm.city ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      city:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              {/* BARRIO */}
+
+              <div>
+                <label
+                  htmlFor="property-neighborhood"
+                  className="text-sm font-medium"
+                >
+                  Zona
+                </label>
+
+                <input
+                  id="property-neighborhood"
+                  type="text"
+                  value={
+                    editForm.neighborhood ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      neighborhood:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* CARACTERÍSTICAS */}
+
+          <section>
+            <h3 className="text-lg font-semibold">
+              Características
+            </h3>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* ASCENSOR */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.elevator ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      elevator:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Ascensor
+                </span>
+              </label>
+
+              {/* TERRAZA */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.terrace ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      terrace:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Terraza
+                </span>
+              </label>
+
+              {/* BALCÓN */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.balcony ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      balcony:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Balcón
+                </span>
+              </label>
+
+              {/* GARAJE */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.garage ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      garage:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Garaje
+                </span>
+              </label>
+
+              {/* PISCINA */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.pool ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      pool:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Piscina
+                </span>
+              </label>
+
+              {/* JARDÍN */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.garden ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      garden:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Jardín
+                </span>
+              </label>
+
+              {/* AIRE ACONDICIONADO */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.airConditioning ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      airConditioning:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Aire acondicionado
+                </span>
+              </label>
+
+              {/* CALEFACCIÓN */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.heating ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      heating:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Calefacción
+                </span>
+              </label>
+            </div>
+          </section>
+
+          {/* INFORMACIÓN ADICIONAL */}
+
+          <section>
+            <h3 className="text-lg font-semibold">
+              Información adicional
+            </h3>
+
+            <textarea
+              value={
+                editForm.additionalInformation ??
+                ''
+              }
+              onChange={(
+                event,
+              ) =>
+                setEditForm({
+                  ...editForm,
+                  additionalInformation:
+                    event.target
+                      .value,
+                })
+              }
+              disabled={
+                savingEdit
+              }
+              rows={8}
+              placeholder="Información adicional sobre el inmueble..."
+              className="mt-4 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+            />
+          </section>
+
+          {/* ERROR */}
+
           {editError && (
-            <p className="text-sm text-destructive">{editError}</p>
+            <p className="text-sm text-destructive">
+              {editError}
+            </p>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          {/* BOTONES */}
+
+          <div className="flex justify-end gap-2 border-t pt-5">
+            <button
+              type="button"
+              onClick={
+                handleCancelEdit
+              }
+              disabled={
+                savingEdit
+              }
+              className="rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+
             <button
               type="submit"
-              disabled={savingEdit}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              disabled={
+                savingEdit
+              }
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {savingEdit ? 'Guardando...' : 'Guardar cambios'}
+              {savingEdit
+                ? 'Guardando...'
+                : 'Guardar cambios'}
             </button>
           </div>
         </form>
       ) : (
+        /* ===================================================
+           VISTA NORMAL
+        ==================================================== */
+
         <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
             <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              {getOperationLabel(property.operation)}
+              {getOperationLabel(
+                property.operation,
+              )}
             </p>
 
             <h1 className="mt-1 text-3xl font-bold">
-              {property.title || 'Inmueble sin título'}
+              {property.title ||
+                'Inmueble sin título'}
             </h1>
 
             <p className="mt-2 text-sm text-muted-foreground">
-              {getPropertyTypeLabel(property.type)}
+              {getPropertyTypeLabel(
+                property.type,
+              )}
             </p>
 
             <p className="mt-2 text-muted-foreground">
-              {property.city || 'Sin ciudad'}
+              {property.city ||
+                'Sin ciudad'}
+
               {property.neighborhood
                 ? ` · ${property.neighborhood}`
                 : ''}
@@ -740,6 +1852,10 @@ async function handleDeleteGeneration(
           </div>
         </div>
       )}
+
+      {/* =====================================================
+          RESUMEN
+      ====================================================== */}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border bg-card p-5">
@@ -783,6 +1899,10 @@ async function handleDeleteGeneration(
         </div>
       </div>
 
+      {/* =====================================================
+          INFORMACIÓN DEL INMUEBLE
+      ====================================================== */}
+
       <section className="mt-8 rounded-lg border bg-card p-6">
         <h2 className="text-xl font-semibold">
           Información del inmueble
@@ -795,7 +1915,9 @@ async function handleDeleteGeneration(
             </dt>
 
             <dd className="mt-1 font-medium">
-              {getOperationLabel(property.operation)}
+              {getOperationLabel(
+                property.operation,
+              )}
             </dd>
           </div>
 
@@ -805,7 +1927,9 @@ async function handleDeleteGeneration(
             </dt>
 
             <dd className="mt-1 font-medium">
-              {getPropertyTypeLabel(property.type)}
+              {getPropertyTypeLabel(
+                property.type,
+              )}
             </dd>
           </div>
 
@@ -815,7 +1939,9 @@ async function handleDeleteGeneration(
             </dt>
 
             <dd className="mt-1 font-medium">
-              {getConditionLabel(property.condition)}
+              {getConditionLabel(
+                property.condition,
+              )}
             </dd>
           </div>
 
@@ -825,7 +1951,8 @@ async function handleDeleteGeneration(
             </dt>
 
             <dd className="mt-1 font-medium">
-              {property.address || 'No indicada'}
+              {property.address ||
+                'No indicada'}
             </dd>
           </div>
 
@@ -835,13 +1962,14 @@ async function handleDeleteGeneration(
             </dt>
 
             <dd className="mt-1 font-medium">
-              {property.city || 'No indicada'}
+              {property.city ||
+                'No indicada'}
             </dd>
           </div>
 
           <div>
             <dt className="text-sm text-muted-foreground">
-              Barrio
+              Zona
             </dt>
 
             <dd className="mt-1 font-medium">
@@ -852,6 +1980,10 @@ async function handleDeleteGeneration(
         </dl>
       </section>
 
+      {/* =====================================================
+          CARACTERÍSTICAS
+      ====================================================== */}
+
       <section className="mt-6 rounded-lg border bg-card p-6">
         <h2 className="text-xl font-semibold">
           Características
@@ -859,22 +1991,29 @@ async function handleDeleteGeneration(
 
         {features.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            No se han indicado características
+            No se han indicado
+            características
             adicionales.
           </p>
         ) : (
           <div className="mt-4 flex flex-wrap gap-2">
-            {features.map((feature) => (
-              <span
-                key={feature}
-                className="rounded-full bg-muted px-3 py-1.5 text-sm"
-              >
-                {feature}
-              </span>
-            ))}
+            {features.map(
+              (feature) => (
+                <span
+                  key={feature}
+                  className="rounded-full bg-muted px-3 py-1.5 text-sm"
+                >
+                  {feature}
+                </span>
+              ),
+            )}
           </div>
         )}
       </section>
+
+      {/* =====================================================
+          INFORMACIÓN ADICIONAL
+      ====================================================== */}
 
       {property.additionalInformation && (
         <section className="mt-6 rounded-lg border bg-card p-6">
@@ -883,10 +2022,16 @@ async function handleDeleteGeneration(
           </h2>
 
           <p className="mt-4 whitespace-pre-line leading-7 text-muted-foreground">
-            {property.additionalInformation}
+            {
+              property.additionalInformation
+            }
           </p>
         </section>
       )}
+
+      {/* =====================================================
+          GENERAR ANUNCIO
+      ====================================================== */}
 
       <section className="mt-8 rounded-lg border bg-card p-6">
         <div>
@@ -895,12 +2040,15 @@ async function handleDeleteGeneration(
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Elige el proveedor, tono y el idioma antes
-            de generar un nuevo anuncio.
+            Elige el proveedor, tono
+            y el idioma antes de
+            generar un nuevo anuncio.
           </p>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          {/* PROVEEDOR */}
+
           <div>
             <label
               htmlFor="generation-provider"
@@ -912,12 +2060,17 @@ async function handleDeleteGeneration(
             <select
               id="generation-provider"
               value={provider}
-              onChange={(event) =>
+              onChange={(
+                event,
+              ) =>
                 setProvider(
-                  event.target.value as AIProviderType,
+                  event.target
+                    .value as AIProviderType,
                 )
               }
-              disabled={generating}
+              disabled={
+                generating
+              }
               className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="gemini">
@@ -930,10 +2083,14 @@ async function handleDeleteGeneration(
             </select>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              Gemini utiliza la API configurada en el
-              servidor. Mock no consume ninguna API.
+              Gemini utiliza la API
+              configurada en el
+              servidor. Mock no
+              consume ninguna API.
             </p>
           </div>
+
+          {/* TONO */}
 
           <div>
             <label
@@ -946,12 +2103,17 @@ async function handleDeleteGeneration(
             <select
               id="generation-tone"
               value={tone}
-              onChange={(event) =>
+              onChange={(
+                event,
+              ) =>
                 setTone(
-                  event.target.value as ListingTone,
+                  event.target
+                    .value as ListingTone,
                 )
               }
-              disabled={generating}
+              disabled={
+                generating
+              }
               className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="professional">
@@ -968,6 +2130,8 @@ async function handleDeleteGeneration(
             </select>
           </div>
 
+          {/* IDIOMA */}
+
           <div>
             <label
               htmlFor="generation-language"
@@ -979,12 +2143,17 @@ async function handleDeleteGeneration(
             <select
               id="generation-language"
               value={language}
-              onChange={(event) =>
+              onChange={(
+                event,
+              ) =>
                 setLanguage(
-                  event.target.value as ListingLanguage,
+                  event.target
+                    .value as ListingLanguage,
                 )
               }
-              disabled={generating}
+              disabled={
+                generating
+              }
               className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="español">
@@ -1001,8 +2170,12 @@ async function handleDeleteGeneration(
         <div className="mt-6 flex justify-end">
           <button
             type="button"
-            onClick={handleGenerateListing}
-            disabled={generating}
+            onClick={
+              handleGenerateListing
+            }
+            disabled={
+              generating
+            }
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {generating
@@ -1018,7 +2191,11 @@ async function handleDeleteGeneration(
         )}
       </section>
 
- <section className="mt-8">
+      {/* =====================================================
+          ANUNCIOS GENERADOS
+      ====================================================== */}
+
+      <section className="mt-8">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold">
@@ -1026,326 +2203,463 @@ async function handleDeleteGeneration(
             </h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              {totalGenerations === 0
+              {totalGenerations ===
+                0
                 ? 'Todavía no hay anuncios para este inmueble.'
-                : `${totalGenerations} ${
-                    totalGenerations === 1
-                      ? 'anuncio generado'
-                      : 'anuncios generados'
-                  }.`}
+                : `${totalGenerations} ${totalGenerations ===
+                  1
+                  ? 'anuncio generado'
+                  : 'anuncios generados'
+                }.`}
             </p>
           </div>
 
-          {totalGenerations > 0 && (
-            <Link
-              to="/historial"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Ver historial
-            </Link>
-          )}
+          {totalGenerations >
+            0 && (
+              <Link
+                to="/historial"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Ver historial
+              </Link>
+            )}
         </div>
 
-        {totalGenerations === 0 ? (
+        {totalGenerations ===
+          0 ? (
           <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Genera el primer anuncio para este inmueble.
+              Genera el primer
+              anuncio para este
+              inmueble.
             </p>
           </div>
         ) : (
           <div>
             <div className="mt-5 space-y-4">
-              {currentGenerations.map((generation) => {
-                const highlights = parseHighlights(generation.highlights);
+              {currentGenerations.map(
+                (generation) => {
+                  const highlights =
+                    parseHighlights(
+                      generation.highlights,
+                    )
 
-                return (
-                  <div
-                    key={generation.id}
-                    className="rounded-lg border bg-card p-5"
-                  >
-                    {editingGenerationId === generation.id ? (
-                      <div>
-                        <div className="flex items-center justify-between gap-4">
-                          <h3 className="text-lg font-semibold">
-                            Editar anuncio
-                          </h3>
+                  return (
+                    <div
+                      key={
+                        generation.id
+                      }
+                      className="rounded-lg border bg-card p-5"
+                    >
+                      {editingGenerationId ===
+                        generation.id ? (
+                        <div>
+                          <div className="flex items-center justify-between gap-4">
+                            <h3 className="text-lg font-semibold">
+                              Editar anuncio
+                            </h3>
 
-                          <button
-                            type="button"
-                            onClick={handleCancelEditGeneration}
-                            disabled={savingGeneration}
-                            className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
+                            <button
+                              type="button"
+                              onClick={
+                                handleCancelEditGeneration
+                              }
+                              disabled={
+                                savingGeneration
+                              }
+                              className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+
+                          <div className="mt-5 space-y-5">
+                            {/* TÍTULO */}
+
+                            <div>
+                              <label
+                                htmlFor={`generation-title-${generation.id}`}
+                                className="text-sm font-medium"
+                              >
+                                Título
+                              </label>
+
+                              <input
+                                id={`generation-title-${generation.id}`}
+                                type="text"
+                                value={
+                                  generationEditForm.title
+                                }
+                                onChange={(
+                                  event,
+                                ) =>
+                                  setGenerationEditForm(
+                                    {
+                                      ...generationEditForm,
+                                      title:
+                                        event
+                                          .target
+                                          .value,
+                                    },
+                                  )
+                                }
+                                disabled={
+                                  savingGeneration
+                                }
+                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                              />
+                            </div>
+
+                            {/* DESCRIPCIÓN */}
+
+                            <div>
+                              <label
+                                htmlFor={`generation-description-${generation.id}`}
+                                className="text-sm font-medium"
+                              >
+                                Descripción
+                              </label>
+
+                              <textarea
+                                id={`generation-description-${generation.id}`}
+                                value={
+                                  generationEditForm.description
+                                }
+                                onChange={(
+                                  event,
+                                ) =>
+                                  setGenerationEditForm(
+                                    {
+                                      ...generationEditForm,
+                                      description:
+                                        event
+                                          .target
+                                          .value,
+                                    },
+                                  )
+                                }
+                                disabled={
+                                  savingGeneration
+                                }
+                                rows={
+                                  8
+                                }
+                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                              />
+                            </div>
+
+                            {/* HIGHLIGHTS */}
+
+                            <div>
+                              <label
+                                htmlFor={`generation-highlights-${generation.id}`}
+                                className="text-sm font-medium"
+                              >
+                                Características destacadas
+                              </label>
+
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Escribe una característica por línea.
+                              </p>
+
+                              <textarea
+                                id={`generation-highlights-${generation.id}`}
+                                value={
+                                  generationEditForm.highlights
+                                }
+                                onChange={(
+                                  event,
+                                ) =>
+                                  setGenerationEditForm(
+                                    {
+                                      ...generationEditForm,
+                                      highlights:
+                                        event
+                                          .target
+                                          .value,
+                                    },
+                                  )
+                                }
+                                disabled={
+                                  savingGeneration
+                                }
+                                rows={
+                                  5
+                                }
+                                placeholder={
+                                  '133 m²\n3 habitaciones\n2 baños\nBalcón'
+                                }
+                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                              />
+                            </div>
+
+                            {/* CTA */}
+
+                            <div>
+                              <label
+                                htmlFor={`generation-cta-${generation.id}`}
+                                className="text-sm font-medium"
+                              >
+                                Llamada a la acción
+                              </label>
+
+                              <textarea
+                                id={`generation-cta-${generation.id}`}
+                                value={
+                                  generationEditForm.callToAction
+                                }
+                                onChange={(
+                                  event,
+                                ) =>
+                                  setGenerationEditForm(
+                                    {
+                                      ...generationEditForm,
+                                      callToAction:
+                                        event
+                                          .target
+                                          .value,
+                                    },
+                                  )
+                                }
+                                disabled={
+                                  savingGeneration
+                                }
+                                rows={
+                                  3
+                                }
+                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                              />
+                            </div>
+
+                            {generationEditError && (
+                              <p className="text-sm text-destructive">
+                                {
+                                  generationEditError
+                                }
+                              </p>
+                            )}
+
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleSaveGeneration()
+                                }
+                                disabled={
+                                  savingGeneration
+                                }
+                                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {savingGeneration
+                                  ? 'Guardando...'
+                                  : 'Guardar cambios'}
+                              </button>
+                            </div>
+                          </div>
                         </div>
-
-                        <div className="mt-5 space-y-5">
-                          <div>
-                            <label
-                              htmlFor={`generation-title-${generation.id}`}
-                              className="text-sm font-medium"
-                            >
-                              Título
-                            </label>
-
-                            <input
-                              id={`generation-title-${generation.id}`}
-                              type="text"
-                              value={generationEditForm.title}
-                              onChange={(event) =>
-                                setGenerationEditForm({
-                                  ...generationEditForm,
-                                  title: event.target.value,
-                                })
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                              {
+                                generation.provider
                               }
-                              disabled={savingGeneration}
-                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
-                            />
+                            </span>
+
+                            <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                              {
+                                generation.tone
+                              }
+                            </span>
+
+                            <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                              {
+                                generation.language
+                              }
+                            </span>
                           </div>
 
-                          <div>
-                            <label
-                              htmlFor={`generation-description-${generation.id}`}
-                              className="text-sm font-medium"
+                          <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row">
+                            <Link
+                              to={`/historial/${generation.id}`}
+                              className="min-w-0 flex-1"
                             >
-                              Descripción
-                            </label>
+                              <h3 className="font-semibold hover:underline">
+                                {
+                                  generation.title
+                                }
+                              </h3>
 
-                            <textarea
-                              id={`generation-description-${generation.id}`}
-                              value={generationEditForm.description}
-                              onChange={(event) =>
-                                setGenerationEditForm({
-                                  ...generationEditForm,
-                                  description: event.target.value,
-                                })
-                              }
-                              disabled={savingGeneration}
-                              rows={8}
-                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
-                            />
+                              <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                                {
+                                  generation.description
+                                }
+                              </p>
+                            </Link>
                           </div>
 
-                          <div>
-                            <label
-                              htmlFor={`generation-highlights-${generation.id}`}
-                              className="text-sm font-medium"
-                            >
-                              Características destacadas
-                            </label>
+                          {highlights.length >
+                            0 && (
+                              <div className="mt-4">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Características destacadas
+                                </p>
 
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Escribe una característica por línea.
-                            </p>
+                                <ul className="mt-2 space-y-1 text-sm">
+                                  {highlights.map(
+                                    (
+                                      highlight,
+                                    ) => (
+                                      <li
+                                        key={
+                                          highlight
+                                        }
+                                        className="text-muted-foreground"
+                                      >
+                                        •{' '}
+                                        {
+                                          highlight
+                                        }
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              </div>
+                            )}
 
-                            <textarea
-                              id={`generation-highlights-${generation.id}`}
-                              value={generationEditForm.highlights}
-                              onChange={(event) =>
-                                setGenerationEditForm({
-                                  ...generationEditForm,
-                                  highlights: event.target.value,
-                                })
+                          {generationDeleteError && (
+                            <p className="mt-4 text-sm text-destructive">
+                              {
+                                generationDeleteError
                               }
-                              disabled={savingGeneration}
-                              rows={5}
-                              placeholder={
-                                '133 m²\n3 habitaciones\n2 baños\nBalcón'
-                              }
-                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
-                            />
-                          </div>
-
-                          <div>
-                            <label
-                              htmlFor={`generation-cta-${generation.id}`}
-                              className="text-sm font-medium"
-                            >
-                              Llamada a la acción
-                            </label>
-
-                            <textarea
-                              id={`generation-cta-${generation.id}`}
-                              value={generationEditForm.callToAction}
-                              onChange={(event) =>
-                                setGenerationEditForm({
-                                  ...generationEditForm,
-                                  callToAction: event.target.value,
-                                })
-                              }
-                              disabled={savingGeneration}
-                              rows={3}
-                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
-                            />
-                          </div>
-
-                          {generationEditError && (
-                            <p className="text-sm text-destructive">
-                              {generationEditError}
                             </p>
                           )}
 
-                          <div className="flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => void handleSaveGeneration()}
-                              disabled={savingGeneration}
-                              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {savingGeneration
-                                ? 'Guardando...'
-                                : 'Guardar cambios'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mt-4 flex flex-wrap items-center gap-2">
-                          <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                            {generation.provider}
-                          </span>
-
-                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                            {generation.tone}
-                          </span>
-
-                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                            {generation.language}
-                          </span>
-                        </div>
-
-                        <div className="mt-8 flex flex-col justify-between gap-4 sm:flex-row">
-                          <Link
-                            to={`/historial/${generation.id}`}
-                            className="min-w-0 flex-1"
-                          >
-                            <h3 className="font-semibold hover:underline">
-                              {generation.title}
-                            </h3>
-
-                            <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                              {generation.description}
-                            </p>
-                          </Link>
-                        </div>
-
-                        {highlights.length > 0 && (
-                          <div className="mt-4">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Características destacadas
+                          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                            <p className="text-xs text-muted-foreground">
+                              Generado el{' '}
+                              {new Date(
+                                generation.createdAt,
+                              ).toLocaleString(
+                                'es-ES',
+                              )}
                             </p>
 
-                            <ul className="mt-2 space-y-1 text-sm">
-                              {highlights.map((highlight) => (
-                                <li
-                                  key={highlight}
-                                  className="text-muted-foreground"
-                                >
-                                  • {highlight}
-                                </li>
-                              ))}
-                            </ul>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleStartEditGeneration(
+                                    generation,
+                                  )
+                                }
+                                disabled={
+                                  deletingGenerationId !==
+                                  null
+                                }
+                                className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Editar
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleCopyGeneration(
+                                    generation.id,
+                                    generation.title,
+                                    generation.description,
+                                    generation.highlights,
+                                    generation.callToAction,
+                                  )
+                                }
+                                disabled={
+                                  copyingGenerationId !==
+                                  null ||
+                                  deletingGenerationId !==
+                                  null
+                                }
+                                className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {copyingGenerationId ===
+                                  generation.id
+                                  ? 'Copiando...'
+                                  : copySuccess ===
+                                    generation.id
+                                    ? 'Copiado'
+                                    : 'Copiar anuncio'}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleDeleteGeneration(
+                                    generation.id,
+                                  )
+                                }
+                                disabled={
+                                  deletingGenerationId !==
+                                  null ||
+                                  copyingGenerationId !==
+                                  null
+                                }
+                                className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {deletingGenerationId ===
+                                  generation.id
+                                  ? 'Eliminando...'
+                                  : 'Eliminar'}
+                              </button>
+                            </div>
                           </div>
-                        )}
-
-                        {generationDeleteError && (
-                          <p className="mt-4 text-sm text-destructive">
-                            {generationDeleteError}
-                          </p>
-                        )}
-
-                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-                          <p className="text-xs text-muted-foreground">
-                            Generado el{' '}
-                            {new Date(generation.createdAt).toLocaleString(
-                              'es-ES',
-                            )}
-                          </p>
-
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleStartEditGeneration(generation)
-                              }
-                              disabled={deletingGenerationId !== null}
-                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Editar
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleCopyGeneration(
-                                  generation.id,
-                                  generation.title,
-                                  generation.description,
-                                  generation.highlights,
-                                  generation.callToAction,
-                                )
-                              }
-                              disabled={
-                                copyingGenerationId !== null ||
-                                deletingGenerationId !== null
-                              }
-                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {copyingGenerationId === generation.id
-                                ? 'Copiando...'
-                                : copySuccess === generation.id
-                                  ? 'Copiado'
-                                  : 'Copiar anuncio'}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleDeleteGeneration(generation.id)
-                              }
-                              disabled={
-                                deletingGenerationId !== null ||
-                                copyingGenerationId !== null
-                              }
-                              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {deletingGenerationId === generation.id
-                                ? 'Eliminando...'
-                                : 'Eliminar'}
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+                        </>
+                      )}
+                    </div>
+                  )
+                },
+              )}
             </div>
 
-            {/* Controles de Paginación */}
+            {/* =================================================
+                PAGINACIÓN
+            ================================================== */}
+
             {totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between border-t pt-4">
                 <button
                   type="button"
-                  onClick={handlePrevPage}
-                  disabled={currentPage === 1}
-                  className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                  onClick={
+                    handlePrevPage
+                  }
+                  disabled={
+                    currentPage === 1
+                  }
+                  className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                 >
                   Anterior
                 </button>
 
                 <span className="text-sm text-muted-foreground">
-                  Página <span className="font-semibold">{currentPage}</span> de{' '}
-                  <span className="font-semibold">{totalPages}</span>
+                  Página{' '}
+                  <span className="font-semibold">
+                    {currentPage}
+                  </span>{' '}
+                  de{' '}
+                  <span className="font-semibold">
+                    {totalPages}
+                  </span>
                 </span>
 
                 <button
                   type="button"
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
-                  className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                  onClick={
+                    handleNextPage
+                  }
+                  disabled={
+                    currentPage ===
+                    totalPages
+                  }
+                  className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                 >
                   Siguiente
                 </button>
@@ -1355,7 +2669,7 @@ async function handleDeleteGeneration(
         )}
       </section>
     </div>
-  );
-};
+  )
+}
 
-export default PropertyDetailPage;
+export default PropertyDetailPage

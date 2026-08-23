@@ -237,4 +237,57 @@ export async function generationRoutes(
       }
     },
   )
+
+  /**
+   * Eliminar anuncios
+   */
+
+  app.delete(
+  '/api/generations',
+  async (request, reply) => {
+    const body = request.body as {
+      ids?: string[]
+    }
+
+    if (
+      !Array.isArray(body.ids) ||
+      body.ids.length === 0
+    ) {
+      return reply.code(400).send({
+        message: 'ids must be a non-empty array',
+      })
+    }
+
+    const ids = [
+      ...new Set(
+        body.ids.filter(
+          (id): id is string =>
+            typeof id === 'string' &&
+            id.trim().length > 0,
+        ),
+      ),
+    ]
+
+    if (ids.length === 0) {
+      return reply.code(400).send({
+        message:
+          'ids must contain valid generation ids',
+      })
+    }
+
+    const result =
+      await prisma.generation.deleteMany({
+        where: {
+          id: {
+            in: ids,
+          },
+        },
+      })
+
+    return {
+      success: true,
+      deletedCount: result.count,
+    }
+  },
+)
 }

@@ -282,8 +282,8 @@ function buildDescription(
       ? ` ${additionalInformation}`
       : ''
 
-  return (
-    `${propertyLabel}${operationText}${locationText}.` +
+return (
+    `${propertyLabel} ${operationText}${locationText}.` +
     `${areaText}${bedroomsText}${bathroomsText}.` +
     `${floorText}${features}` +
     `${conditionText}${priceText}` +
