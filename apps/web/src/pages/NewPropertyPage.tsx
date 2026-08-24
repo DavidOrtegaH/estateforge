@@ -67,12 +67,20 @@ function NewPropertyPage() {
     useState<string | null>(null)
 
   // Estados para Edición, Eliminación y Copiado
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] =
+    useState(false)
+
   const [editedListing, setEditedListing] =
     useState<GeneratedListing | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isCopied, setIsCopied] = useState(false)
+
+  const [isSaving, setIsSaving] =
+    useState(false)
+
+  const [isDeleting, setIsDeleting] =
+    useState(false)
+
+  const [isCopied, setIsCopied] =
+    useState(false)
 
   function updateProperty<K extends keyof Property>(
     field: K,
@@ -123,7 +131,8 @@ function NewPropertyPage() {
 
     setError(null)
 
-    const validationError = validateProperty()
+    const validationError =
+      validateProperty()
 
     if (validationError) {
       setError(validationError)
@@ -149,7 +158,9 @@ function NewPropertyPage() {
       setGeneratedListing(result.listing)
       setEditedListing(result.listing)
       setCreatedPropertyId(result.propertyId)
-      setCreatedGenerationId(result.generationId)
+      setCreatedGenerationId(
+        result.generationId,
+      )
     } catch (generationError) {
       console.error(
         'Error generando anuncio:',
@@ -175,52 +186,87 @@ function NewPropertyPage() {
   }
 
   async function handleSaveChanges() {
-    if (!createdGenerationId || !editedListing) return
+    if (
+      !createdGenerationId ||
+      !editedListing
+    ) {
+      return
+    }
 
     setIsSaving(true)
     setError(null)
 
     try {
-      // Aquí invocarías tu servicio de actualización, por ejemplo:
-      // await updateListingService(createdGenerationId, editedListing)
+      // Aquí invocarías tu servicio de actualización.
+      // Por ejemplo:
+      // await updateListingService(
+      //   createdGenerationId,
+      //   editedListing,
+      // )
 
       setGeneratedListing(editedListing)
       setIsEditing(false)
     } catch (err) {
-      console.error('Error al guardar:', err)
-      setError('No se han podido guardar los cambios del anuncio.')
+      console.error(
+        'Error al guardar:',
+        err,
+      )
+
+      setError(
+        'No se han podido guardar los cambios del anuncio.',
+      )
     } finally {
       setIsSaving(false)
     }
   }
 
   async function handleDeleteListing() {
-    if (!createdGenerationId) return
+    if (!createdGenerationId) {
+      return
+    }
 
     const confirmed = window.confirm(
       '¿Estás seguro de que deseas eliminar este anuncio generado?',
     )
-    if (!confirmed) return
+
+    if (!confirmed) {
+      return
+    }
 
     setIsDeleting(true)
     setError(null)
 
     try {
-      // Aquí invocarías tu servicio de borrado, por ejemplo:
-      // await deleteListingService(createdGenerationId)
+      // Aquí invocarías tu servicio de borrado.
+      // Por ejemplo:
+      // await deleteListingService(
+      //   createdGenerationId,
+      // )
 
       handleResetGeneration()
     } catch (err) {
-      console.error('Error al eliminar:', err)
-      setError('No se ha podido eliminar el anuncio.')
+      console.error(
+        'Error al eliminar:',
+        err,
+      )
+
+      setError(
+        'No se ha podido eliminar el anuncio.',
+      )
     } finally {
       setIsDeleting(false)
     }
   }
 
   async function handleCopyListing() {
-    const listingToCopy = isEditing ? editedListing : generatedListing
-    if (!listingToCopy) return
+    const listingToCopy =
+      isEditing
+        ? editedListing
+        : generatedListing
+
+    if (!listingToCopy) {
+      return
+    }
 
     try {
       const textToCopy = `
@@ -229,17 +275,32 @@ ${listingToCopy.title}
 ${listingToCopy.description}
 
 Características destacadas:
-${listingToCopy.highlights.map((h) => `- ${h}`).join('\n')}
+${listingToCopy.highlights
+  .map((highlight) => `- ${highlight}`)
+  .join('\n')}
 
 ${listingToCopy.callToAction}
       `.trim()
 
-      await navigator.clipboard.writeText(textToCopy)
+      await navigator.clipboard.writeText(
+        textToCopy,
+      )
+
       setIsCopied(true)
-      setTimeout(() => setIsCopied(false), 2000)
+
+      setTimeout(
+        () => setIsCopied(false),
+        2000,
+      )
     } catch (err) {
-      console.error('Error al copiar al portapapeles:', err)
-      setError('No se ha podido copiar el contenido al portapapeles.')
+      console.error(
+        'Error al copiar al portapapeles:',
+        err,
+      )
+
+      setError(
+        'No se ha podido copiar el contenido al portapapeles.',
+      )
     }
   }
 
@@ -296,8 +357,8 @@ ${listingToCopy.callToAction}
               />
 
               <span className="text-xs text-muted-foreground">
-                Este nombre se utilizará para identificar el inmueble
-                en EstateForge.
+                Este nombre se utilizará para identificar
+                el inmueble en EstateForge.
               </span>
             </label>
 
@@ -373,7 +434,9 @@ ${listingToCopy.callToAction}
               <input
                 type="number"
                 min="0"
-                value={property.price || ''}
+                value={
+                  property.price || ''
+                }
                 onChange={(event) =>
                   updateProperty(
                     'price',
@@ -394,7 +457,9 @@ ${listingToCopy.callToAction}
               <input
                 type="number"
                 min="0"
-                value={property.area || ''}
+                value={
+                  property.area || ''
+                }
                 onChange={(event) =>
                   updateProperty(
                     'area',
@@ -415,7 +480,9 @@ ${listingToCopy.callToAction}
               <input
                 type="number"
                 min="0"
-                value={property.bedrooms || ''}
+                value={
+                  property.bedrooms || ''
+                }
                 onChange={(event) =>
                   updateProperty(
                     'bedrooms',
@@ -436,7 +503,9 @@ ${listingToCopy.callToAction}
               <input
                 type="number"
                 min="0"
-                value={property.bathrooms || ''}
+                value={
+                  property.bathrooms || ''
+                }
                 onChange={(event) =>
                   updateProperty(
                     'bathrooms',
@@ -519,7 +588,9 @@ ${listingToCopy.callToAction}
               <input
                 type="number"
                 min="0"
-                value={property.floor ?? ''}
+                value={
+                  property.floor ?? ''
+                }
                 onChange={(event) =>
                   updateProperty(
                     'floor',
@@ -751,8 +822,41 @@ ${listingToCopy.callToAction}
       </form>
 
       {generatedListing && (
-        <section className="mt-8 rounded-lg border bg-card p-6">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <section className="mt-8 overflow-hidden rounded-lg border bg-card">
+          {/* =================================================
+              ENLACES SUPERIORES
+              Van arriba del todo de la tarjeta
+              ================================================= */}
+
+          <div className="grid grid-cols-2">
+            {createdPropertyId ? (
+              <Link
+                to={`/inmuebles/${createdPropertyId}`}
+                className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted"
+              >
+                Ver inmueble
+              </Link>
+            ) : (
+              <div className="min-h-11" />
+            )}
+
+            {createdGenerationId ? (
+              <Link
+                to={`/historial/${createdGenerationId}`}
+                className="flex min-h-11 items-center justify-center text-sm font-medium transition hover:bg-muted"
+              >
+                Ver anuncio detallado
+              </Link>
+            ) : (
+              <div className="min-h-11" />
+            )}
+          </div>
+
+          {/* =================================================
+              CABECERA
+              ================================================= */}
+
+          <div className="border-t p-6 pb-0">
             <div>
               <h2 className="text-lg font-semibold">
                 Anuncio generado
@@ -763,183 +867,238 @@ ${listingToCopy.callToAction}
                 correctamente.
               </p>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
+          {/* =================================================
+              CONTENIDO DEL ANUNCIO
+              ================================================= */}
+
+          <div className="p-6">
+            <div className="space-y-6">
+              {/* TÍTULO */}
+
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Título
+                </p>
+
+                {isEditing &&
+                editedListing ? (
+                  <input
+                    type="text"
+                    value={
+                      editedListing.title
+                    }
+                    onChange={(event) =>
+                      setEditedListing({
+                        ...editedListing,
+                        title:
+                          event.target.value,
+                      })
+                    }
+                    className="mt-1 h-10 w-full rounded-md border bg-background px-3 font-bold"
+                  />
+                ) : (
+                  <h3 className="mt-1 text-2xl font-bold">
+                    {
+                      generatedListing.title
+                    }
+                  </h3>
+                )}
+              </div>
+
+              {/* DESCRIPCIÓN */}
+
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Descripción
+                </p>
+
+                {isEditing &&
+                editedListing ? (
+                  <textarea
+                    value={
+                      editedListing.description
+                    }
+                    onChange={(event) =>
+                      setEditedListing({
+                        ...editedListing,
+                        description:
+                          event.target.value,
+                      })
+                    }
+                    rows={6}
+                    className="mt-2 w-full resize-y rounded-md border bg-background p-3"
+                  />
+                ) : (
+                  <p className="mt-2 whitespace-pre-line leading-7">
+                    {
+                      generatedListing.description
+                    }
+                  </p>
+                )}
+              </div>
+
+              {/* CARACTERÍSTICAS */}
+
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Características destacadas
+                </p>
+
+                {isEditing &&
+                editedListing ? (
+                  <textarea
+                    value={editedListing.highlights.join(
+                      '\n',
+                    )}
+                    onChange={(event) =>
+                      setEditedListing({
+                        ...editedListing,
+                        highlights:
+                          event.target.value
+                            .split('\n')
+                            .map(
+                              (item) =>
+                                item.trim(),
+                            )
+                            .filter(Boolean),
+                      })
+                    }
+                    rows={6}
+                    className="mt-2 w-full resize-y rounded-md border bg-background p-3"
+                    placeholder="Una característica por línea"
+                  />
+                ) : generatedListing
+                    .highlights.length ===
+                  0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    No se han indicado características
+                    destacadas.
+                  </p>
+                ) : (
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {generatedListing.highlights.map(
+                      (highlight) => (
+                        <li key={highlight}>
+                          {highlight}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                )}
+              </div>
+
+              {/* CTA */}
+
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Llamada a la acción
+                </p>
+
+                {isEditing &&
+                editedListing ? (
+                  <input
+                    type="text"
+                    value={
+                      editedListing.callToAction
+                    }
+                    onChange={(event) =>
+                      setEditedListing({
+                        ...editedListing,
+                        callToAction:
+                          event.target.value,
+                      })
+                    }
+                    className="mt-1 h-10 w-full rounded-md border bg-background px-3"
+                  />
+                ) : (
+                  <p className="mt-2">
+                    {
+                      generatedListing.callToAction
+                    }
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* =================================================
+              ACCIONES INFERIORES
+              ================================================= */}
+
+          {!isEditing ? (
+            <div className="grid grid-cols-3 border-t">
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCopyListing}
-              >
-                {isCopied ? '¡Copiado!' : 'Copiar anuncio'}
-              </Button>
-
-              {!isEditing ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIsEditing(true)
-                    setEditedListing(generatedListing)
-                  }}
-                >
-                  Editar anuncio
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isSaving}
-                    onClick={handleSaveChanges}
-                  >
-                    {isSaving ? 'Guardando...' : 'Guardar'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={isSaving}
-                    onClick={() => {
-                      setIsEditing(false)
-                      setEditedListing(generatedListing)
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </>
-              )}
-
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
+                onClick={
+                  handleCopyListing
+                }
                 disabled={isDeleting}
-                onClick={handleDeleteListing}
+                className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isDeleting ? 'Eliminando...' : 'Eliminar'}
-              </Button>
-            </div>
-          </div>
+                {isCopied
+                  ? '¡Copiado!'
+                  : 'Copiar anuncio'}
+              </button>
 
-          <div className="mt-6 space-y-6">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Título
-              </p>
-
-              {isEditing && editedListing ? (
-                <input
-                  type="text"
-                  value={editedListing.title}
-                  onChange={(e) =>
-                    setEditedListing({
-                      ...editedListing,
-                      title: e.target.value,
-                    })
-                  }
-                  className="mt-1 h-10 w-full rounded-md border bg-background px-3 font-bold"
-                />
-              ) : (
-                <h3 className="mt-1 text-2xl font-bold">
-                  {generatedListing.title}
-                </h3>
-              )}
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Descripción
-              </p>
-
-              {isEditing && editedListing ? (
-                <textarea
-                  value={editedListing.description}
-                  onChange={(e) =>
-                    setEditedListing({
-                      ...editedListing,
-                      description: e.target.value,
-                    })
-                  }
-                  rows={6}
-                  className="mt-2 w-full resize-y rounded-md border bg-background p-3"
-                />
-              ) : (
-                <p className="mt-2 whitespace-pre-line leading-7">
-                  {generatedListing.description}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Características destacadas
-              </p>
-
-              {generatedListing.highlights
-                .length === 0 ? (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  No se han indicado características
-                  destacadas.
-                </p>
-              ) : (
-                <ul className="mt-2 list-disc space-y-1 pl-5">
-                  {generatedListing.highlights.map(
-                    (highlight) => (
-                      <li key={highlight}>
-                        {highlight}
-                      </li>
-                    ),
-                  )}
-                </ul>
-              )}
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Llamada a la acción
-              </p>
-
-              {isEditing && editedListing ? (
-                <input
-                  type="text"
-                  value={editedListing.callToAction}
-                  onChange={(e) =>
-                    setEditedListing({
-                      ...editedListing,
-                      callToAction: e.target.value,
-                    })
-                  }
-                  className="mt-1 h-10 w-full rounded-md border bg-background px-3"
-                />
-              ) : (
-                <p className="mt-2">
-                  {generatedListing.callToAction}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-3 border-t pt-6">
-            {createdPropertyId && (
-              <Link
-                to={`/inmuebles/${createdPropertyId}`}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(true)
+                  setEditedListing(
+                    generatedListing,
+                  )
+                }}
+                disabled={isDeleting}
+                className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Ver inmueble
-              </Link>
-            )}
+                Editar anuncio
+              </button>
 
-            {createdGenerationId && (
-              <Link
-                to={`/historial/${createdGenerationId}`}
-                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
+              <button
+                type="button"
+                onClick={
+                  handleDeleteListing
+                }
+                disabled={isDeleting}
+                className="flex min-h-11 items-center justify-center text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Ver anuncio detallado
-              </Link>
-            )}
-          </div>
+                {isDeleting
+                  ? 'Eliminando...'
+                  : 'Eliminar'}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 border-t">
+              <button
+                type="button"
+                onClick={
+                  handleSaveChanges
+                }
+                disabled={isSaving}
+                className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving
+                  ? 'Guardando...'
+                  : 'Guardar'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false)
+                  setEditedListing(
+                    generatedListing,
+                  )
+                }}
+                disabled={isSaving}
+                className="flex min-h-11 items-center justify-center text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
         </section>
       )}
     </div>

@@ -228,7 +228,7 @@ function DashboardPage() {
   const allRecentPropertiesSelected =
     recentPropertyIds.length > 0 &&
     selectedRecentPropertyCount ===
-      recentPropertyIds.length
+    recentPropertyIds.length
 
   const someRecentPropertiesSelected =
     selectedRecentPropertyCount > 0 &&
@@ -245,7 +245,7 @@ function DashboardPage() {
   const allRecentGenerationsSelected =
     recentGenerationIds.length > 0 &&
     selectedRecentGenerationCount ===
-      recentGenerationIds.length
+    recentGenerationIds.length
 
   const someRecentGenerationsSelected =
     selectedRecentGenerationCount > 0 &&
@@ -286,7 +286,7 @@ function DashboardPage() {
           : '',
       floor:
         property.floor !== undefined &&
-        property.floor !== null
+          property.floor !== null
           ? String(property.floor)
           : '',
       condition: property.condition ?? '',
@@ -382,32 +382,32 @@ function DashboardPage() {
         currentGenerations.map((generation) =>
           generation.propertyId === propertyId
             ? {
-                ...generation,
-                property: {
-                  ...generation.property,
-                  title:
-                    updatedProperty.title,
-                  operation:
-                    updatedProperty.operation,
-                  type:
-                    updatedProperty.type,
-                  price:
-                    updatedProperty.price,
-                  address:
-                    updatedProperty.address ?? '',
-                  city:
-                    updatedProperty.city,
-                  neighborhood:
-                    updatedProperty.neighborhood ??
-                    '',
-                  area:
-                    updatedProperty.area,
-                  bedrooms:
-                    updatedProperty.bedrooms,
-                  bathrooms:
-                    updatedProperty.bathrooms,
-                },
-              }
+              ...generation,
+              property: {
+                ...generation.property,
+                title:
+                  updatedProperty.title,
+                operation:
+                  updatedProperty.operation,
+                type:
+                  updatedProperty.type,
+                price:
+                  updatedProperty.price,
+                address:
+                  updatedProperty.address ?? '',
+                city:
+                  updatedProperty.city,
+                neighborhood:
+                  updatedProperty.neighborhood ??
+                  '',
+                area:
+                  updatedProperty.area,
+                bedrooms:
+                  updatedProperty.bedrooms,
+                bathrooms:
+                  updatedProperty.bathrooms,
+              },
+            }
             : generation,
         ),
       )
@@ -596,10 +596,9 @@ function DashboardPage() {
     const count = selectedIds.length
 
     const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${
-        count === 1
-          ? 'inmueble'
-          : 'inmuebles'
+      `¿Seguro que quieres eliminar ${count} ${count === 1
+        ? 'inmueble'
+        : 'inmuebles'
       } seleccionados? También se eliminarán todos sus anuncios generados asociados.`,
     )
 
@@ -803,7 +802,7 @@ function DashboardPage() {
           currentGenerations.map(
             (generation) =>
               generation.id ===
-              generationId
+                generationId
                 ? updatedGeneration
                 : generation,
           ),
@@ -936,14 +935,14 @@ function DashboardPage() {
                   generationId,
               )
                 ? {
-                    ...property,
-                    generations:
-                      property.generations.filter(
-                        (generation) =>
-                          generation.id !==
-                          generationId,
-                      ),
-                  }
+                  ...property,
+                  generations:
+                    property.generations.filter(
+                      (generation) =>
+                        generation.id !==
+                        generationId,
+                    ),
+                }
                 : property,
           ),
       )
@@ -984,10 +983,9 @@ function DashboardPage() {
     const count = selectedIds.length
 
     const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${
-        count === 1
-          ? 'anuncio'
-          : 'anuncios'
+      `¿Seguro que quieres eliminar ${count} ${count === 1
+        ? 'anuncio'
+        : 'anuncios'
       } seleccionados? Los inmuebles asociados no se eliminarán.`,
     )
 
@@ -1280,23 +1278,23 @@ function DashboardPage() {
 
                 {selectedPropertyIds.size >
                   0 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handleDeleteSelectedProperties()
-                    }
-                    disabled={
-                      deletingProperties ||
-                      deletingGenerations ||
-                      Boolean(deletingPropertyId)
-                    }
-                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {deletingProperties
-                      ? 'Eliminando...'
-                      : `Eliminar inmuebles seleccionados (${selectedPropertyIds.size})`}
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleDeleteSelectedProperties()
+                      }
+                      disabled={
+                        deletingProperties ||
+                        deletingGenerations ||
+                        Boolean(deletingPropertyId)
+                      }
+                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deletingProperties
+                        ? 'Eliminando...'
+                        : `Eliminar inmuebles seleccionados (${selectedPropertyIds.size})`}
+                    </button>
+                  )}
               </div>
             </div>
 
@@ -1323,47 +1321,41 @@ function DashboardPage() {
                   return (
                     <div
                       key={property.id}
-                      className={`rounded-lg border bg-card p-5 transition ${
-                        isSelected
+                      className={`rounded-lg border bg-card transition ${isSelected
                           ? 'border-primary ring-2 ring-primary/20'
                           : ''
-                      }`}
+                        }`}
                     >
                       {!isEditing ? (
                         <>
-                          {/* Checkbox individual */}
-                          <div className="mb-4 flex items-center gap-3 border-b pb-4">
-                            <input
-                              type="checkbox"
-                              id={`dashboard-property-${property.id}`}
-                              aria-label={`Seleccionar inmueble ${property.title || 'sin título'}`}
-                              checked={
-                                isSelected
-                              }
-                              onChange={() =>
-                                handleToggleProperty(
-                                  property.id,
-                                )
+                          {/* Selector superior */}
+                          <div className="group relative w-full overflow-hidden rounded-t-lg">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleToggleProperty(property.id)
                               }
                               disabled={
                                 deletingProperties ||
                                 deletingGenerations ||
                                 isDeleting
                               }
-                              className="h-4 w-4 cursor-pointer"
-                            />
-
-                            <label
-                              htmlFor={`dashboard-property-${property.id}`}
-                              className="cursor-pointer text-sm font-medium"
+                              aria-pressed={isSelected}
+                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                                isSelected
+                                  ? 'bg-foreground font-semibold text-background'
+                                  : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
+                              }`}
                             >
                               {isSelected
-                                ? 'Inmueble seleccionado'
-                                : 'Seleccionar inmueble'}
-                            </label>
+                                ? '✓ Seleccionado'
+                                : 'Seleccionar'}
+                            </button>
                           </div>
 
-                          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                          {/* Contenido del inmueble */}
+                          <div className="p-5">
+                            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                             <div className="min-w-0">
                               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                 {
@@ -1430,10 +1422,13 @@ function DashboardPage() {
                             </span>
                           </div>
 
-                          <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+                          </div>
+
+                          {/* Acciones inferiores */}
+                          <div className="grid grid-cols-3 border-t">
                             <Link
                               to={`/inmuebles/${property.id}`}
-                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted"
+                              className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted"
                             >
                               Ver
                             </Link>
@@ -1441,16 +1436,14 @@ function DashboardPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                handleStartEditProperty(
-                                  property,
-                                )
+                                handleStartEditProperty(property)
                               }
                               disabled={
                                 isDeleting ||
                                 deletingProperties ||
                                 deletingGenerations
                               }
-                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               Editar
                             </button>
@@ -1458,16 +1451,14 @@ function DashboardPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                void handleDeleteProperty(
-                                  property.id,
-                                )
+                                void handleDeleteProperty(property.id)
                               }
                               disabled={
                                 isDeleting ||
                                 deletingProperties ||
                                 deletingGenerations
                               }
-                              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex min-h-11 items-center justify-center text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {isDeleting
                                 ? 'Eliminando...'
@@ -1958,7 +1949,7 @@ function DashboardPage() {
                                       type="checkbox"
                                       checked={
                                         propertyForm[
-                                          field as keyof typeof propertyForm
+                                        field as keyof typeof propertyForm
                                         ] as boolean
                                       }
                                       onChange={(
@@ -2099,32 +2090,32 @@ function DashboardPage() {
                 <span className="text-sm text-muted-foreground">
                   {selectedGenerationIds.size}{' '}
                   {selectedGenerationIds.size ===
-                  1
+                    1
                     ? 'anuncio seleccionado'
                     : 'anuncios seleccionados'}
                 </span>
 
                 {selectedGenerationIds.size >
                   0 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handleDeleteSelectedGenerations()
-                    }
-                    disabled={
-                      deletingGenerations ||
-                      deletingProperties ||
-                      Boolean(
-                        deletingGenerationId,
-                      )
-                    }
-                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {deletingGenerations
-                      ? 'Eliminando...'
-                      : `Eliminar anuncios seleccionados (${selectedGenerationIds.size})`}
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleDeleteSelectedGenerations()
+                      }
+                      disabled={
+                        deletingGenerations ||
+                        deletingProperties ||
+                        Boolean(
+                          deletingGenerationId,
+                        )
+                      }
+                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deletingGenerations
+                        ? 'Eliminando...'
+                        : `Eliminar anuncios seleccionados (${selectedGenerationIds.size})`}
+                    </button>
+                  )}
               </div>
             </div>
 
@@ -2156,128 +2147,123 @@ function DashboardPage() {
                   return (
                     <div
                       key={generation.id}
-                      className={`rounded-lg border bg-card p-5 transition ${
-                        isSelected
+                      className={`rounded-lg border bg-card transition ${isSelected
                           ? 'border-primary ring-2 ring-primary/20'
                           : ''
-                      }`}
+                        }`}
                     >
                       {!isEditing ? (
                         <>
-                          {/* Checkbox individual */}
-                          <div className="mb-4 flex items-center gap-3 border-b pb-4">
-                            <input
-                              type="checkbox"
-                              id={`dashboard-generation-${generation.id}`}
-                              aria-label={`Seleccionar anuncio ${generation.title || 'sin título'}`}
-                              checked={
-                                isSelected
-                              }
-                              onChange={() =>
-                                handleToggleGeneration(
-                                  generation.id,
-                                )
-                              }
-                              disabled={
-                                deletingGenerations ||
-                                deletingProperties ||
-                                isDeleting
-                              }
-                              className="h-4 w-4 cursor-pointer"
-                            />
+                          {/* Selector superior */}
+                          <div className="group relative w-full overflow-hidden rounded-t-lg">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleGeneration(generation.id)
+                                }
+                                disabled={
+                                  deletingGenerations ||
+                                  deletingProperties ||
+                                  isDeleting
+                                }
+                                aria-pressed={isSelected}
+                                className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
+                                    ? 'bg-foreground font-semibold text-background'
+                                    : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
+                                  }`}
+                              >
+                                {isSelected
+                                  ? '✓ Seleccionado'
+                                  : 'Seleccionar'}
+                              </button>
+                            </div>
 
-                            <label
-                              htmlFor={`dashboard-generation-${generation.id}`}
-                              className="cursor-pointer text-sm font-medium"
-                            >
-                              {isSelected
-                                ? 'Anuncio seleccionado'
-                                : 'Seleccionar anuncio'}
-                            </label>
-                          </div>
+                          {/* Contenido del anuncio */}
+                          <div className="p-5">
+                            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                                    {
+                                      generation.provider
+                                    }
+                                  </span>
 
-                          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {
+                                      generation.tone
+                                    }
+                                  </span>
+
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {
+                                      generation.language
+                                    }
+                                  </span>
+                                </div>
+
+                                <h3 className="mt-3 text-lg font-semibold">
                                   {
-                                    generation.provider
+                                    generation.title
                                   }
-                                </span>
+                                </h3>
 
-                                <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                                   {
-                                    generation.tone
+                                    generation.description
                                   }
-                                </span>
+                                </p>
 
-                                <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                  {
-                                    generation.language
-                                  }
-                                </span>
+                                <p className="mt-3 text-xs text-muted-foreground">
+                                  Inmueble:{' '}
+                                  <span className="font-medium">
+                                    {generation
+                                      .property
+                                      .title ||
+                                      'Sin título'}
+                                  </span>
+                                </p>
                               </div>
-
-                              <h3 className="mt-3 text-lg font-semibold">
-                                {
-                                  generation.title
-                                }
-                              </h3>
-
-                              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                                {
-                                  generation.description
-                                }
-                              </p>
-
-                              <p className="mt-3 text-xs text-muted-foreground">
-                                Inmueble:{' '}
-                                <span className="font-medium">
-                                  {generation
-                                    .property
-                                    .title ||
-                                    'Sin título'}
-                                </span>
-                              </p>
                             </div>
+
+                            {highlights.length >
+                              0 && (
+                                <div className="mt-4 pl-5">
+                                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                    Características
+                                    destacadas
+                                  </p>
+
+                                  <ul className="mt-2 space-y-1 text-sm">
+                                    {highlights
+                                      .slice(0, 5)
+                                      .map(
+                                        (
+                                          highlight,
+                                        ) => (
+                                          <li
+                                            key={
+                                              highlight
+                                            }
+                                            className="text-muted-foreground"
+                                          >
+                                            •{' '}
+                                            {
+                                              highlight
+                                            }
+                                          </li>
+                                        ),
+                                      )}
+                                  </ul>
+                                </div>
+                              )}
                           </div>
 
-                          {highlights.length >
-                            0 && (
-                            <div className="mt-4">
-                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Características
-                                destacadas
-                              </p>
-
-                              <ul className="mt-2 space-y-1 text-sm">
-                                {highlights
-                                  .slice(0, 5)
-                                  .map(
-                                    (
-                                      highlight,
-                                    ) => (
-                                      <li
-                                        key={
-                                          highlight
-                                        }
-                                        className="text-muted-foreground"
-                                      >
-                                        •{' '}
-                                        {
-                                          highlight
-                                        }
-                                      </li>
-                                    ),
-                                  )}
-                              </ul>
-                            </div>
-                          )}
-
-                          <div className="mt-5 flex flex-wrap justify-end gap-2 border-t pt-4">
+                          {/* Acciones inferiores */}
+                          <div className="grid grid-cols-3 border-t">
                             <Link
                               to={`/historial/${generation.id}`}
-                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted"
+                              className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted"
                             >
                               Ver
                             </Link>
@@ -2294,7 +2280,7 @@ function DashboardPage() {
                                 deletingGenerations ||
                                 deletingProperties
                               }
-                              className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               Editar
                             </button>
@@ -2311,7 +2297,7 @@ function DashboardPage() {
                                 deletingGenerations ||
                                 deletingProperties
                               }
-                              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex min-h-11 items-center justify-center text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {isDeleting
                                 ? 'Eliminando...'
