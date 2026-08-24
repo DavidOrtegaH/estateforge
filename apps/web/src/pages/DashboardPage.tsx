@@ -1276,25 +1276,29 @@ function DashboardPage() {
                     : 'inmuebles seleccionados'}
                 </span>
 
-                {selectedPropertyIds.size >
-                  0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleDeleteSelectedProperties()
-                      }
-                      disabled={
-                        deletingProperties ||
-                        deletingGenerations ||
-                        Boolean(deletingPropertyId)
-                      }
-                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {deletingProperties
-                        ? 'Eliminando...'
-                        : `Eliminar inmuebles seleccionados (${selectedPropertyIds.size})`}
-                    </button>
-                  )}
+                {/* Botón de eliminar con espacio reservado mediante visibility */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleDeleteSelectedProperties()
+                  }
+                  disabled={
+                    deletingProperties ||
+                    deletingGenerations ||
+                    Boolean(deletingPropertyId) ||
+                    selectedPropertyIds.size === 0
+                  }
+                  aria-hidden={selectedPropertyIds.size === 0}
+                  tabIndex={selectedPropertyIds.size === 0 ? -1 : 0}
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedPropertyIds.size > 0
+                      ? 'visible'
+                      : 'invisible pointer-events-none'
+                    }`}
+                >
+                  {deletingProperties
+                    ? 'Eliminando...'
+                    : `Eliminar inmuebles seleccionados (${selectedPropertyIds.size})`}
+                </button>
               </div>
             </div>
 
@@ -1322,8 +1326,8 @@ function DashboardPage() {
                     <div
                       key={property.id}
                       className={`rounded-lg border bg-card transition ${isSelected
-                          ? 'border-primary ring-2 ring-primary/20'
-                          : ''
+                        ? 'border-primary ring-2 ring-primary/20'
+                        : ''
                         }`}
                     >
                       {!isEditing ? (
@@ -1341,11 +1345,10 @@ function DashboardPage() {
                                 isDeleting
                               }
                               aria-pressed={isSelected}
-                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
-                                isSelected
+                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
                                   ? 'bg-foreground font-semibold text-background'
                                   : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
-                              }`}
+                                }`}
                             >
                               {isSelected
                                 ? '✓ Seleccionado'
@@ -1356,71 +1359,71 @@ function DashboardPage() {
                           {/* Contenido del inmueble */}
                           <div className="p-5">
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                {
-                                  property.operation
-                                }
-                              </p>
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  {
+                                    property.operation
+                                  }
+                                </p>
 
-                              <h3 className="mt-1 text-lg font-semibold">
-                                {property.title ||
-                                  'Inmueble sin título'}
-                              </h3>
+                                <h3 className="mt-1 text-lg font-semibold">
+                                  {property.title ||
+                                    'Inmueble sin título'}
+                                </h3>
 
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {
-                                  property.type
-                                }
-                                {' · '}
-                                {
-                                  property.city
-                                }
-                                {property.neighborhood
-                                  ? ` · ${property.neighborhood}`
-                                  : ''}
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                  {
+                                    property.type
+                                  }
+                                  {' · '}
+                                  {
+                                    property.city
+                                  }
+                                  {property.neighborhood
+                                    ? ` · ${property.neighborhood}`
+                                    : ''}
+                                </p>
+                              </div>
+
+                              <p className="whitespace-nowrap text-lg font-bold">
+                                {property.price.toLocaleString(
+                                  'es-ES',
+                                )}{' '}
+                                €
                               </p>
                             </div>
 
-                            <p className="whitespace-nowrap text-lg font-bold">
-                              {property.price.toLocaleString(
-                                'es-ES',
-                              )}{' '}
-                              €
-                            </p>
-                          </div>
+                            <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {
+                                  property.area
+                                }{' '}
+                                m²
+                              </span>
 
-                          <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {
-                                property.area
-                              }{' '}
-                              m²
-                            </span>
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {
+                                  property.bedrooms
+                                }{' '}
+                                habitaciones
+                              </span>
 
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {
-                                property.bedrooms
-                              }{' '}
-                              habitaciones
-                            </span>
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {
+                                  property.bathrooms
+                                }{' '}
+                                baños
+                              </span>
 
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {
-                                property.bathrooms
-                              }{' '}
-                              baños
-                            </span>
-
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {
-                                property.generations
-                                  ?.length ??
-                                0
-                              }{' '}
-                              anuncios
-                            </span>
-                          </div>
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {
+                                  property.generations
+                                    ?.length ??
+                                  0
+                                }{' '}
+                                anuncios
+                              </span>
+                            </div>
 
                           </div>
 
@@ -2051,7 +2054,7 @@ function DashboardPage() {
           </div>
         ) : (
           <>
-            {/* Barra de selección de anuncios */}
+{/* Barra de selección de anuncios */}
             <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-3">
                 <input
@@ -2090,32 +2093,34 @@ function DashboardPage() {
                 <span className="text-sm text-muted-foreground">
                   {selectedGenerationIds.size}{' '}
                   {selectedGenerationIds.size ===
-                    1
+                  1
                     ? 'anuncio seleccionado'
                     : 'anuncios seleccionados'}
                 </span>
 
-                {selectedGenerationIds.size >
-                  0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleDeleteSelectedGenerations()
-                      }
-                      disabled={
-                        deletingGenerations ||
-                        deletingProperties ||
-                        Boolean(
-                          deletingGenerationId,
-                        )
-                      }
-                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {deletingGenerations
-                        ? 'Eliminando...'
-                        : `Eliminar anuncios seleccionados (${selectedGenerationIds.size})`}
-                    </button>
-                  )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleDeleteSelectedGenerations()
+                  }
+                  disabled={
+                    deletingGenerations ||
+                    deletingProperties ||
+                    Boolean(
+                      deletingGenerationId,
+                    ) ||
+                    selectedGenerationIds.size === 0
+                  }
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selectedGenerationIds.size === 0
+                      ? 'invisible pointer-events-none'
+                      : ''
+                  }`}
+                >
+                  {deletingGenerations
+                    ? 'Eliminando...'
+                    : `Eliminar anuncios seleccionados (${selectedGenerationIds.size})`}
+                </button>
               </div>
             </div>
 
@@ -2148,35 +2153,35 @@ function DashboardPage() {
                     <div
                       key={generation.id}
                       className={`rounded-lg border bg-card transition ${isSelected
-                          ? 'border-primary ring-2 ring-primary/20'
-                          : ''
+                        ? 'border-primary ring-2 ring-primary/20'
+                        : ''
                         }`}
                     >
                       {!isEditing ? (
                         <>
                           {/* Selector superior */}
                           <div className="group relative w-full overflow-hidden rounded-t-lg">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleToggleGeneration(generation.id)
-                                }
-                                disabled={
-                                  deletingGenerations ||
-                                  deletingProperties ||
-                                  isDeleting
-                                }
-                                aria-pressed={isSelected}
-                                className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
-                                    ? 'bg-foreground font-semibold text-background'
-                                    : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
-                                  }`}
-                              >
-                                {isSelected
-                                  ? '✓ Seleccionado'
-                                  : 'Seleccionar'}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleToggleGeneration(generation.id)
+                              }
+                              disabled={
+                                deletingGenerations ||
+                                deletingProperties ||
+                                isDeleting
+                              }
+                              aria-pressed={isSelected}
+                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
+                                ? 'bg-foreground font-semibold text-background'
+                                : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
+                                }`}
+                            >
+                              {isSelected
+                                ? '✓ Seleccionado'
+                                : 'Seleccionar'}
+                            </button>
+                          </div>
 
                           {/* Contenido del anuncio */}
                           <div className="p-5">
