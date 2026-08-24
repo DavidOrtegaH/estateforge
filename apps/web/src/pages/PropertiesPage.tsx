@@ -377,7 +377,7 @@ function PropertiesPage() {
                 return (
                   <div
                     key={property.id}
-                    className={`relative rounded-lg border bg-card transition ${
+                    className={`relative flex flex-col rounded-lg border bg-card transition ${
                       isSelected
                         ? 'border-primary ring-2 ring-primary/25'
                         : 'border-border'
@@ -411,61 +411,63 @@ function PropertiesPage() {
                     </div>
 
                     {/* Bloque central */}
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h2 className="mt-1 text-lg font-semibold">
-                            {property.title || getPropertyTypeLabel(property.type)}
-                          </h2>
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h2 className="mt-1 text-lg font-semibold">
+                              {property.title || getPropertyTypeLabel(property.type)}
+                            </h2>
 
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {getPropertyTypeLabel(property.type)}
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {getPropertyTypeLabel(property.type)}
+                            </p>
+                          </div>
+
+                          <p className="whitespace-nowrap text-lg font-bold">
+                            {property.price.toLocaleString(
+                              'es-ES',
+                            )}{' '}
+                            €
                           </p>
                         </div>
 
-                        <p className="whitespace-nowrap text-lg font-bold">
-                          {property.price.toLocaleString(
-                            'es-ES',
-                          )}{' '}
-                          €
-                        </p>
-                      </div>
-
-                      <div className="mt-4">
-                        <p className="text-sm">
-                          {property.city ||
-                            'Sin ciudad'}
-                        </p>
-
-                        {property.neighborhood && (
-                          <p className="text-sm text-muted-foreground">
-                            {
-                              property.neighborhood
-                            }
+                        <div className="mt-4">
+                          <p className="text-sm">
+                            {property.city ||
+                              'Sin ciudad'}
                           </p>
-                        )}
-                      </div>
 
-                      <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <span className="rounded-md bg-muted px-2 py-1">
-                          {property.area} m²
-                        </span>
+                          {property.neighborhood && (
+                            <p className="text-sm text-muted-foreground">
+                              {
+                                property.neighborhood
+                              }
+                            </p>
+                          )}
+                        </div>
 
-                        <span className="rounded-md bg-muted px-2 py-1">
-                          {property.bedrooms}{' '}
-                          {property.bedrooms ===
-                            1
-                            ? 'habitación'
-                            : 'habitaciones'}
-                        </span>
+                        <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          <span className="rounded-md bg-muted px-2 py-1">
+                            {property.area} m²
+                          </span>
 
-                        <span className="rounded-md bg-muted px-2 py-1">
-                          {property.bathrooms}{' '}
-                          {property.bathrooms ===
-                            1
-                            ? 'baño'
-                            : 'baños'}
-                        </span>
+                          <span className="rounded-md bg-muted px-2 py-1">
+                            {property.bedrooms}{' '}
+                            {property.bedrooms ===
+                              1
+                              ? 'habitación'
+                              : 'habitaciones'}
+                          </span>
+
+                          <span className="rounded-md bg-muted px-2 py-1">
+                            {property.bathrooms}{' '}
+                            {property.bathrooms ===
+                              1
+                              ? 'baño'
+                              : 'baños'}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="mt-5 border-t pt-4">
@@ -486,7 +488,7 @@ function PropertiesPage() {
                     {/* Contenido navegable (Ver detalles) */}
                     <Link
                       to={`/inmuebles/${property.id}`}
-                      className="block group"
+                      className="block group mt-auto"
                     >
                       <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
                         <button
