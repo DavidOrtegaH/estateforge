@@ -2254,16 +2254,6 @@ function getPropertyTypeLabel(type: string | undefined): string {
                                     generation.description
                                   }
                                 </p>
-
-                                <p className="mt-3 text-xs text-muted-foreground">
-                                  Inmueble:{' '}
-                                  <span className="font-medium">
-                                    {generation
-                                      .property
-                                      .title ||
-                                      'Sin título'}
-                                  </span>
-                                </p>
                               </div>
                             </div>
 
