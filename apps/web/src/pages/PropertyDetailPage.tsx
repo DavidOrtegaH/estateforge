@@ -1811,96 +1811,16 @@ function PropertyDetailPage() {
 
         <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              {getOperationLabel(
-                property.operation,
-              )}
-            </p>
-
             <h1 className="mt-1 text-3xl font-bold">
               {property.title ||
                 'Inmueble sin título'}
             </h1>
-
-            <p className="mt-2 text-sm text-muted-foreground">
-              {getPropertyTypeLabel(
-                property.type,
-              )}
-            </p>
-
-            <p className="mt-2 text-muted-foreground">
-              {property.city ||
-                'Sin ciudad'}
-
-              {property.neighborhood
-                ? ` · ${property.neighborhood}`
-                : ''}
-            </p>
-          </div>
-
-          <div className="text-left sm:text-right">
-            <p className="text-3xl font-bold">
-              {property.price.toLocaleString(
-                'es-ES',
-              )}{' '}
-              €
-            </p>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              {property.area} m²
-            </p>
           </div>
         </div>
       )}
 
-      {/* =====================================================
-          RESUMEN
-      ====================================================== */}
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-card p-5">
-          <p className="text-sm text-muted-foreground">
-            Superficie
-          </p>
-
-          <p className="mt-1 text-xl font-semibold">
-            {property.area} m²
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-5">
-          <p className="text-sm text-muted-foreground">
-            Habitaciones
-          </p>
-
-          <p className="mt-1 text-xl font-semibold">
-            {property.bedrooms}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-5">
-          <p className="text-sm text-muted-foreground">
-            Baños
-          </p>
-
-          <p className="mt-1 text-xl font-semibold">
-            {property.bathrooms}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-5">
-          <p className="text-sm text-muted-foreground">
-            Planta
-          </p>
-
-          <p className="mt-1 text-xl font-semibold">
-            {property.floor ?? '—'}
-          </p>
-        </div>
-      </div>
-
-      {/* =====================================================
-          INFORMACIÓN DEL INMUEBLE
+{/* =====================================================
+          INFORMACIÓN DEL INMUEBLE (De más a menos importante)
       ====================================================== */}
 
       <section className="mt-8 rounded-lg border bg-card p-6">
@@ -1909,84 +1829,135 @@ function PropertyDetailPage() {
         </h2>
 
         <dl className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Precio */}
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Precio
+            </dt>
+            <dd className="mt-1 font-medium">
+              {property.price.toLocaleString('es-ES')} €
+            </dd>
+          </div>
+
+          {/* Operación */}
           <div>
             <dt className="text-sm text-muted-foreground">
               Operación
             </dt>
-
             <dd className="mt-1 font-medium">
-              {getOperationLabel(
-                property.operation,
-              )}
+              {getOperationLabel(property.operation)}
             </dd>
           </div>
 
+          {/* Tipo */}
           <div>
             <dt className="text-sm text-muted-foreground">
               Tipo
             </dt>
-
             <dd className="mt-1 font-medium">
-              {getPropertyTypeLabel(
-                property.type,
-              )}
+              {getPropertyTypeLabel(property.type)}
             </dd>
           </div>
 
+          {/* Superficie */}
           <div>
             <dt className="text-sm text-muted-foreground">
-              Estado
+              Superficie
             </dt>
-
             <dd className="mt-1 font-medium">
-              {getConditionLabel(
-                property.condition,
-              )}
+              {property.area} m²
             </dd>
           </div>
 
+          {/* Habitaciones */}
           <div>
             <dt className="text-sm text-muted-foreground">
-              Dirección
+              Habitaciones
             </dt>
-
             <dd className="mt-1 font-medium">
-              {property.address ||
-                'No indicada'}
+              {property.bedrooms}
             </dd>
           </div>
 
+          {/* Baños */}
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Baños
+            </dt>
+            <dd className="mt-1 font-medium">
+              {property.bathrooms}
+            </dd>
+          </div>
+
+          {/* Ciudad */}
           <div>
             <dt className="text-sm text-muted-foreground">
               Ciudad
             </dt>
-
             <dd className="mt-1 font-medium">
-              {property.city ||
-                'No indicada'}
+              {property.city || 'No indicada'}
             </dd>
           </div>
 
+          {/* Zona */}
           <div>
             <dt className="text-sm text-muted-foreground">
               Zona
             </dt>
-
             <dd className="mt-1 font-medium">
-              {property.neighborhood ||
-                'No indicado'}
+              {property.neighborhood || 'No indicado'}
+            </dd>
+          </div>
+
+          {/* Dirección */}
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Dirección
+            </dt>
+            <dd className="mt-1 font-medium">
+              {property.address || 'No indicada'}
+            </dd>
+          </div>
+
+          {/* Estado */}
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Estado
+            </dt>
+            <dd className="mt-1 font-medium">
+              {getConditionLabel(property.condition)}
+            </dd>
+          </div>
+
+          {/* Planta */}
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Planta
+            </dt>
+            <dd className="mt-1 font-medium">
+              {property.floor ?? '—'}
+            </dd>
+          </div>
+
+          {/* Fecha de creación */}
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Fecha de creación
+            </dt>
+            <dd className="mt-1 font-medium">
+              {new Date(property.createdAt).toLocaleString('es-ES')}
             </dd>
           </div>
         </dl>
       </section>
 
       {/* =====================================================
-          CARACTERÍSTICAS
+          Extras
       ====================================================== */}
 
       <section className="mt-6 rounded-lg border bg-card p-6">
         <h2 className="text-xl font-semibold">
-          Características
+          Extras
         </h2>
 
         {features.length === 0 ? (

@@ -185,7 +185,7 @@ function HistoryPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-      currentPageIds.length
+    currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -258,10 +258,9 @@ function HistoryPage() {
     const count = selectedIds.size
 
     const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${
-        count === 1
-          ? 'anuncio'
-          : 'anuncios'
+      `¿Seguro que quieres eliminar ${count} ${count === 1
+        ? 'anuncio'
+        : 'anuncios'
       } seleccionados? Esta acción no se puede deshacer.`,
     )
 
@@ -426,9 +425,8 @@ function HistoryPage() {
                 disabled={deleting || selectedCount === 0}
                 aria-hidden={selectedCount === 0}
                 tabIndex={selectedCount === 0 ? -1 : 0}
-                className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  selectedCount > 0 ? 'visible' : 'invisible pointer-events-none'
-                }`}
+                className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0 ? 'visible' : 'invisible pointer-events-none'
+                  }`}
               >
                 {deleting
                   ? 'Eliminando...'
@@ -454,11 +452,10 @@ function HistoryPage() {
                 return (
                   <div
                     key={generation.id}
-                    className={`relative rounded-lg border bg-card transition ${
-                      isSelected
+                    className={`relative rounded-lg border bg-card transition ${isSelected
                         ? 'border-primary ring-2 ring-primary/25'
                         : 'border-border'
-                    }`}
+                      }`}
                   >
                     {/* Botón superior de selección */}
                     <div className="relative w-full overflow-hidden rounded-t-lg group">
@@ -472,17 +469,15 @@ function HistoryPage() {
                           )
                         }
                         disabled={deleting}
-                        className={`block h-8 w-full appearance-none border-0 cursor-pointer focus:outline-none transition-colors ${
-                          isSelected
+                        className={`block h-8 w-full appearance-none border-0 cursor-pointer focus:outline-none transition-colors ${isSelected
                             ? 'bg-foreground cursor-default'
                             : 'bg-accent group-hover:bg-primary'
-                        }`}
+                          }`}
                       />
-                      <div className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
-                        isSelected
+                      <div className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
                           ? 'text-background font-semibold'
                           : 'text-muted-foreground group-hover:text-primary-foreground group-hover:font-semibold'
-                      }`}>
+                        }`}>
                         {isSelected ? '✓ Seleccionado' : 'Seleccionar'}
                       </div>
                     </div>
@@ -521,24 +516,28 @@ function HistoryPage() {
                         </div>
                       </div>
 
-                      <div className="mt-5 rounded-md bg-muted/50 p-3">
+                      {/* Sección de Inmueble sin estilos de enlace */}
+                      <div className="mt-5">
                         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Inmueble
                         </p>
 
-                        <Link
-                          to={`/inmuebles/${generation.propertyId}`}
-                          className="mt-1 block text-sm font-medium hover:text-primary hover:underline"
-                        >
+                        <p className="mt-1 text-sm font-medium">
+
                           {generation.property
-                            ?.city ||
-                            'Sin ciudad'}
+                            ?.title ||
+                            'Sin título'}
+
+                          {generation.property
+                            ?.city
+                            ? ` · ${generation.property.city}`
+                            : 'Sin ciudad'}
 
                           {generation.property
                             ?.neighborhood
                             ? ` · ${generation.property.neighborhood}`
                             : ''}
-                        </Link>
+                        </p>
                       </div>
 
                       {highlights.length > 0 && (
@@ -641,7 +640,7 @@ function HistoryPage() {
                 onClick={handleNextPage}
                 disabled={
                   currentPage ===
-                    totalPages ||
+                  totalPages ||
                   deleting
                 }
                 className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"

@@ -9,6 +9,7 @@ import {
 
 // Diccionario de traducción para los tipos de inmueble
 const propertyTypeLabels: Record<string, string> = {
+  apartment: 'Apartamento',
   flat: 'Piso',
   house: 'Casa',
   chalet: 'Chalet',
@@ -20,9 +21,122 @@ const propertyTypeLabels: Record<string, string> = {
   land: 'Terreno',
 }
 
-function getPropertyTypeLabel(type: string | undefined): string {
+// Diccionario de traducción para las operaciones
+const propertyOperationLabels: Record<string, string> = {
+  sale: 'Venta',
+  rent: 'Alquiler',
+}
+
+// Diccionario de traducción para el estado del inmueble basado en las opciones
+const propertyConditionLabels: Record<string, string> = {
+  new: 'Obra nueva',
+  good: 'Buen estado',
+  renovated: 'Reformado',
+  'needs-renovation': 'Necesita reforma',
+  'to-renovate': 'Necesita reforma', // Mapeo adicional para 'to_renovate' normalizado
+}
+
+function getPropertyOperation(
+  type: string | undefined,
+): string {
   if (!type) return 'No indicado'
-  return propertyTypeLabels[type.toLowerCase()] || type
+
+  return (
+    propertyOperationLabels[type.toLowerCase()] ||
+    type
+  )
+}
+
+function getPropertyTypeLabel(
+  type: string | undefined,
+): string {
+  if (!type) return 'No indicado'
+
+  return (
+    propertyTypeLabels[type.toLowerCase()] ||
+    type
+  )
+}
+
+function getPropertyCondition(
+  condition: string | undefined,
+): string {
+  if (!condition) return ''
+
+  // Normalizamos reemplazando guiones bajos por guiones y pasando a minúsculas
+  const normalizedCondition = condition
+    .toLowerCase()
+    .replace(/_/g, '-')
+
+  return (
+    propertyConditionLabels[normalizedCondition] ||
+    condition
+  )
+}
+
+// Función auxiliar para poner la primera letra en mayúscula
+function capitalizeFirstLetter(text: string | undefined): string {
+  if (!text) return ''
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+function parseHighlights(
+  highlights: unknown,
+): string[] {
+  if (Array.isArray(highlights)) {
+    return highlights.filter(
+      (item): item is string =>
+        typeof item === 'string' &&
+        item.trim().length > 0,
+    )
+  }
+
+  if (typeof highlights === 'string') {
+    try {
+      const parsed: unknown =
+        JSON.parse(highlights)
+
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (item): item is string =>
+            typeof item === 'string' &&
+            item.trim().length > 0,
+        )
+      }
+    } catch {
+      return highlights
+        .split('\n')
+        .map((item) =>
+          item
+            .replace(/^[-•*]\s*/, '')
+            .trim(),
+        )
+        .filter(Boolean)
+    }
+  }
+
+  return []
+}
+
+function getPropertyHighlights(
+  property: PropertyItem,
+): string[] {
+  const highlights: string[] = []
+
+  for (const generation of property.generations) {
+    const generationHighlights =
+      parseHighlights(
+        generation.highlights,
+      )
+
+    for (const highlight of generationHighlights) {
+      if (!highlights.includes(highlight)) {
+        highlights.push(highlight)
+      }
+    }
+  }
+
+  return highlights
 }
 
 function PropertiesPage() {
@@ -55,7 +169,8 @@ function PropertiesPage() {
   useEffect(() => {
     async function loadProperties() {
       try {
-        const result = await getProperties()
+        const result =
+          await getProperties()
 
         setProperties(result)
       } catch {
@@ -199,7 +314,8 @@ function PropertiesPage() {
         Array.from(selectedIds),
       )
 
-      const result = await getProperties()
+      const result =
+        await getProperties()
 
       setProperties(result)
       setSelectedIds(new Set())
@@ -345,16 +461,26 @@ function PropertiesPage() {
                   : 'inmuebles seleccionados'}
               </span>
 
-              {/* Botón de eliminar con espacio reservado mediante visibility */}
+              {/* Botón de eliminar con espacio reservado */}
               <button
                 type="button"
                 onClick={handleDeleteSelected}
-                disabled={deleting || selectedCount === 0}
-                aria-hidden={selectedCount === 0}
-                tabIndex={selectedCount === 0 ? -1 : 0}
-                className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  selectedCount > 0 ? 'visible' : 'invisible pointer-events-none'
-                }`}
+                disabled={
+                  deleting ||
+                  selectedCount === 0
+                }
+                aria-hidden={
+                  selectedCount === 0
+                }
+                tabIndex={
+                  selectedCount === 0
+                    ? -1
+                    : 0
+                }
+                className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
+                    ? 'visible'
+                    : 'invisible pointer-events-none'
+                  }`}
               >
                 {deleting
                   ? 'Eliminando...'
@@ -363,7 +489,7 @@ function PropertiesPage() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-8 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
             {currentProperties.map(
               (property) => {
                 const generationCount =
@@ -374,20 +500,28 @@ function PropertiesPage() {
                     property.id,
                   )
 
+                const highlights =
+                  getPropertyHighlights(
+                    property,
+                  )
+
                 return (
                   <div
                     key={property.id}
-                    className={`relative flex flex-col rounded-lg border bg-card transition ${
-                      isSelected
+                    className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
                         ? 'border-primary ring-2 ring-primary/25'
                         : 'border-border'
-                    }`}
+                      }`}
                   >
-                    {/* Botón superior de selección */}
-                    <div className="relative w-full overflow-hidden rounded-t-lg group">
+                    {/* Selector superior */}
+                    <div className="group relative w-full overflow-hidden rounded-t-lg">
                       <input
                         type="checkbox"
-                        aria-label={`Seleccionar ${getPropertyTypeLabel(property.type)} en ${property.city || 'Sin ciudad'}`}
+                        aria-label={`Seleccionar ${getPropertyTypeLabel(
+                          property.type,
+                        )} en ${property.city ||
+                          'Sin ciudad'
+                          }`}
                         checked={isSelected}
                         onChange={() =>
                           handleToggleProperty(
@@ -395,33 +529,33 @@ function PropertiesPage() {
                           )
                         }
                         disabled={deleting}
-                        className={`block h-8 w-full appearance-none border-0 cursor-pointer focus:outline-none transition-colors ${
-                          isSelected
-                            ? 'bg-foreground cursor-default'
+                        className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
+                            ? 'cursor-default bg-foreground'
                             : 'bg-accent group-hover:bg-primary'
-                        }`}
+                          }`}
                       />
-                      <div className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
-                        isSelected
-                          ? 'text-background font-semibold'
-                          : 'text-muted-foreground group-hover:text-primary-foreground group-hover:font-semibold'
-                      }`}>
-                        {isSelected ? '✓ Seleccionado' : 'Seleccionar'}
+
+                      <div
+                        className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
+                            ? 'font-semibold text-background'
+                            : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
+                          }`}
+                      >
+                        {isSelected
+                          ? '✓ Seleccionado'
+                          : 'Seleccionar'}
                       </div>
                     </div>
 
-                    {/* Bloque central */}
-                    <div className="p-5 flex-1 flex flex-col justify-between">
+                    {/* Contenido central */}
+                    <div className="flex flex-1 flex-col p-5">
+                      {/* Parte superior */}
                       <div>
                         <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h2 className="mt-1 text-lg font-semibold">
-                              {property.title || getPropertyTypeLabel(property.type)}
+                          <div className="min-w-0">
+                            <h2 className="mt-1 text-lg font-semibold pb-12">
+                              {property.title}
                             </h2>
-
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {getPropertyTypeLabel(property.type)}
-                            </p>
                           </div>
 
                           <p className="whitespace-nowrap text-lg font-bold">
@@ -431,72 +565,101 @@ function PropertiesPage() {
                             €
                           </p>
                         </div>
+                      </div>
 
-                        <div className="mt-4">
-                          <p className="text-sm">
-                            {property.city ||
-                              'Sin ciudad'}
-                          </p>
+                      {/* Zona de highlights + contador */}
+                      <div className="mt-auto">
+                        <div className="flex min-h-21 flex-col justify-end pb-4">
+                          {highlights.length > 0 && (
+                            <div className="flex flex-wrap items-end gap-2">
+                              {highlights
+                                .slice(0, 5)
+                                .map(
+                                  (
+                                    highlight,
+                                  ) => (
+                                    <span
+                                      key={
+                                        highlight
+                                      }
+                                      className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                    >
+                                      {
+                                        highlight
+                                      }
+                                    </span>
+                                  ),
+                                )}
+                              {property.condition && (
+                                <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                                  {getPropertyCondition(property.condition)}
+                                </span>
+                              )}
 
-                          {property.neighborhood && (
-                            <p className="text-sm text-muted-foreground">
-                              {
-                                property.neighborhood
-                              }
-                            </p>
+                              {property.operation && (
+                                <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                                  {getPropertyOperation(property.operation)}
+                                </span>
+                              )}
+
+                              {property.type && (
+                                <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                                  {getPropertyTypeLabel(property.type)}
+                                </span>
+                              )}
+
+                              {property.city && (
+                                <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                                  {capitalizeFirstLetter(property.city)}
+                                </span>
+                              )}
+
+                              {property.neighborhood && (
+                                <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                                  {capitalizeFirstLetter(property.neighborhood)}
+                                </span>
+                              )}
+
+                              {property.address && (
+                                <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                                  {capitalizeFirstLetter(property.address)}
+                                </span>
+                              )}
+
+                            </div>
                           )}
                         </div>
 
-                        <div className="mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <span className="rounded-md bg-muted px-2 py-1">
-                            {property.area} m²
-                          </span>
+                        {/* Línea divisoria + anuncios */}
+                        <div className="border-t pt-4">
+                          <p className="text-xs text-muted-foreground">
+                            Anuncios generados
+                          </p>
 
-                          <span className="rounded-md bg-muted px-2 py-1">
-                            {property.bedrooms}{' '}
-                            {property.bedrooms ===
+                          <p className="mt-1 text-sm font-medium">
+                            {generationCount}{' '}
+                            {generationCount ===
                               1
-                              ? 'habitación'
-                              : 'habitaciones'}
-                          </span>
-
-                          <span className="rounded-md bg-muted px-2 py-1">
-                            {property.bathrooms}{' '}
-                            {property.bathrooms ===
-                              1
-                              ? 'baño'
-                              : 'baños'}
-                          </span>
+                              ? 'anuncio'
+                              : 'anuncios'}
+                          </p>
                         </div>
-                      </div>
-
-                      <div className="mt-5 border-t pt-4">
-                        <p className="text-xs text-muted-foreground">
-                          Anuncios generados
-                        </p>
-
-                        <p className="mt-1 text-sm font-medium">
-                          {generationCount}{' '}
-                          {generationCount ===
-                            1
-                            ? 'anuncio'
-                            : 'anuncios'}
-                        </p>
                       </div>
                     </div>
 
-                    {/* Contenido navegable (Ver detalles) */}
+                    {/* Ver detalles */}
                     <Link
                       to={`/inmuebles/${property.id}`}
-                      className="block group mt-auto"
+                      className="group mt-auto block"
                     >
                       <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
                         <button
                           type="button"
                           aria-label="Ver detalles"
-                          className="block h-full w-full border-0 bg-accent group-hover:bg-primary group-hover:text-primary-foreground cursor-pointer focus:outline-none transition-colors"
+                          className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary group-hover:text-primary-foreground focus:outline-none"
                         />
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground group-hover:text-primary-foreground group-hover:font-semibold transition-colors">
+
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground transition-colors group-hover:font-semibold group-hover:text-primary-foreground">
                           Ver detalles
                         </div>
                       </div>
@@ -517,7 +680,7 @@ function PropertiesPage() {
                   currentPage === 1 ||
                   deleting
                 }
-                className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Anterior
               </button>
@@ -541,7 +704,7 @@ function PropertiesPage() {
                   totalPages ||
                   deleting
                 }
-                className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Siguiente
               </button>
