@@ -1124,9 +1124,9 @@ function HistoryPage() {
                                   )
                                 }}
                                 className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
-                                    value
-                                    ? 'bg-muted font-medium'
-                                    : ''
+                                  value
+                                  ? 'bg-muted font-medium'
+                                  : ''
                                   }`}
                               >
                                 {label}
@@ -1266,9 +1266,9 @@ function HistoryPage() {
                         : 0
                     }
                     className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount >
-                        0
-                        ? 'visible'
-                        : 'pointer-events-none invisible'
+                      0
+                      ? 'visible'
+                      : 'pointer-events-none invisible'
                       }`}
                   >
                     {deleting
@@ -1343,8 +1343,8 @@ function HistoryPage() {
                               if (
                                 normalized ===
                                 `${generation.property?.bedrooms} ${generation.property?.bedrooms === 1
-                                    ? 'habitación'
-                                    : 'habitaciones'
+                                  ? 'habitación'
+                                  : 'habitaciones'
                                   }`.toLowerCase()
                               ) {
                                 return false
@@ -1353,8 +1353,8 @@ function HistoryPage() {
                               if (
                                 normalized ===
                                 `${generation.property?.bathrooms} ${generation.property?.bathrooms === 1
-                                    ? 'baño'
-                                    : 'baños'
+                                  ? 'baño'
+                                  : 'baños'
                                   }`.toLowerCase()
                               ) {
                                 return false
@@ -1371,8 +1371,8 @@ function HistoryPage() {
                             generation.id
                           }
                           className={`relative rounded-lg border bg-card transition ${isSelected
-                              ? 'border-primary ring-2 ring-primary/25'
-                              : 'border-border'
+                            ? 'border-primary ring-2 ring-primary/25'
+                            : 'border-border'
                             }`}
                         >
                           {/* SELECTOR SUPERIOR */}
@@ -1393,15 +1393,15 @@ function HistoryPage() {
                                 deleting
                               }
                               className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
-                                  ? 'cursor-default bg-foreground'
-                                  : 'bg-accent group-hover:bg-primary'
+                                ? 'cursor-default bg-foreground'
+                                : 'bg-accent group-hover:bg-primary'
                                 }`}
                             />
 
                             <div
                               className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
-                                  ? 'font-semibold text-background'
-                                  : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
+                                ? 'font-semibold text-background'
+                                : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
                                 }`}
                             >
                               {isSelected

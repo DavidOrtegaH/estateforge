@@ -216,7 +216,7 @@ function getPropertyHighlights(property: PropertyItem): string[] {
       }
 
       const extracted: string[] = []
-      
+
       const areaMatch = item.match(/(\d+)\s*m[²2]/i)
       if (areaMatch) extracted.push(`${areaMatch[1]} m²`)
 
@@ -537,7 +537,7 @@ function PropertiesPage() {
             filters.operation &&
             property.operation
               ?.toLowerCase() !==
-              filters.operation.toLowerCase()
+            filters.operation.toLowerCase()
           ) {
             return false
           }
@@ -549,7 +549,7 @@ function PropertiesPage() {
             filters.type &&
             property.type
               ?.toLowerCase() !==
-              filters.type.toLowerCase()
+            filters.type.toLowerCase()
           ) {
             return false
           }
@@ -562,9 +562,9 @@ function PropertiesPage() {
             property.condition
               ?.toLowerCase()
               .replace(/_/g, '-') !==
-              filters.condition
-                .toLowerCase()
-                .replace(/_/g, '-')
+            filters.condition
+              .toLowerCase()
+              .replace(/_/g, '-')
           ) {
             return false
           }
@@ -678,7 +678,7 @@ function PropertiesPage() {
     1,
     Math.ceil(
       filteredAndSortedProperties.length /
-        itemsPerPage,
+      itemsPerPage,
     ),
   )
 
@@ -711,7 +711,7 @@ function PropertiesPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-      currentPageIds.length
+    currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -781,10 +781,9 @@ function PropertiesPage() {
     const count = selectedIds.size
 
     const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${
-        count === 1
-          ? 'inmueble'
-          : 'inmuebles'
+      `¿Seguro que quieres eliminar ${count} ${count === 1
+        ? 'inmueble'
+        : 'inmuebles'
       } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
     )
 
@@ -1036,12 +1035,11 @@ function PropertiesPage() {
                                 false,
                               )
                             }}
-                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${
-                              sortOption ===
-                              value
+                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
+                                value
                                 ? 'bg-muted font-medium'
                                 : ''
-                            }`}
+                              }`}
                           >
                             {label}
                           </button>
@@ -1057,53 +1055,52 @@ function PropertiesPage() {
                   onClick={() =>
                     setIsFilterOpen(true)
                   }
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${
-                    hasActiveFilters(
-                      filters,
-                    )
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${hasActiveFilters(
+                    filters,
+                  )
                       ? 'border-primary bg-primary/5 text-primary'
                       : ''
-                  }`}
+                    }`}
                 >
                   Filtrar
                   {hasActiveFilters(
                     filters,
                   ) && (
-                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                      Activos
-                    </span>
-                  )}
+                      <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                        Activos
+                      </span>
+                    )}
                 </button>
               </div>
             </div>
 
             {/* Información de resultados */}
             <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <span>    
+              <span>
                 <span className="font-medium text-foreground">
                   {properties.length}{' '}
                 </span>{' '}
                 {properties.length ===
-                      1
-                      ? 'inmueble encontrado'
-                      : 'inmuebles encontrados'}
+                  1
+                  ? 'inmueble encontrado'
+                  : 'inmuebles encontrados'}
               </span>
 
               {(searchTerm ||
                 hasActiveFilters(
                   filters,
                 )) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm('')
-                    handleResetFilters()
-                  }}
-                  className="w-fit text-sm font-medium text-primary hover:underline"
-                >
-                  Limpiar búsqueda y filtros
-                </button>
-              )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('')
+                      handleResetFilters()
+                    }}
+                    className="w-fit text-sm font-medium text-primary hover:underline"
+                  >
+                    Limpiar búsqueda y filtros
+                  </button>
+                )}
             </div>
 
             {/* Barra de selección */}
@@ -1127,7 +1124,7 @@ function PropertiesPage() {
                   disabled={
                     deleting ||
                     currentProperties.length ===
-                      0
+                    0
                   }
                   className="h-4 w-4 cursor-pointer"
                 />
@@ -1166,11 +1163,10 @@ function PropertiesPage() {
                       ? -1
                       : 0
                   }
-                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    selectedCount > 0
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
                       ? 'visible'
                       : 'pointer-events-none invisible'
-                  }`}
+                    }`}
                 >
                   {deleting
                     ? 'Eliminando...'
@@ -1180,7 +1176,7 @@ function PropertiesPage() {
             </div>
 
             {currentProperties.length ===
-            0 ? (
+              0 ? (
               <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                 <h2 className="font-semibold">
                   No hay inmuebles que coincidan
@@ -1223,11 +1219,10 @@ function PropertiesPage() {
                     return (
                       <div
                         key={property.id}
-                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${
-                          isSelected
+                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
                             ? 'border-primary ring-2 ring-primary/25'
                             : 'border-border'
-                        }`}
+                          }`}
                       >
                         {/* Selector superior */}
                         <div className="group relative w-full overflow-hidden rounded-t-lg">
@@ -1235,10 +1230,9 @@ function PropertiesPage() {
                             type="checkbox"
                             aria-label={`Seleccionar ${getPropertyTypeLabel(
                               property.type,
-                            )} en ${
-                              property.city ||
+                            )} en ${property.city ||
                               'Sin ciudad'
-                            }`}
+                              }`}
                             checked={
                               isSelected
                             }
@@ -1250,19 +1244,17 @@ function PropertiesPage() {
                             disabled={
                               deleting
                             }
-                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${
-                              isSelected
+                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
                                 ? 'cursor-default bg-foreground'
                                 : 'bg-accent group-hover:bg-primary'
-                            }`}
+                              }`}
                           />
 
                           <div
-                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
-                              isSelected
+                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
                                 ? 'font-semibold text-background'
                                 : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                            }`}
+                              }`}
                           >
                             {isSelected
                               ? '✓ Seleccionado'
@@ -1368,31 +1360,31 @@ function PropertiesPage() {
                             {/* Línea divisoria + anuncios */}
                             <div className="border-t pt-4 flex justify-between">
                               <div>
-                              <p className="text-xs text-muted-foreground">
-                                Anuncios generados
-                              </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Anuncios generados
+                                </p>
 
-                              <p className="mt-1 text-sm font-medium">
-                                {generationCount}{' '}
-                                {generationCount ===
-                                1
-                                  ? 'anuncio'
-                                  : 'anuncios'}
-                              </p>
-</div>
+                                <p className="mt-1 text-sm font-medium">
+                                  {generationCount}{' '}
+                                  {generationCount ===
+                                    1
+                                    ? 'anuncio'
+                                    : 'anuncios'}
+                                </p>
+                              </div>
                               <div className="">
-                                
-                              <p className="text-xs text-muted-foreground">
-                                Generado el:
-                              </p>
-                              <p className="mt-1 text-sm font-medium">
-                                {new Date(
-                                  property.createdAt,
-                                ).toLocaleString(
-                                  'es-ES',
-                                )}
-                              </p>
-                            </div>
+
+                                <p className="text-xs text-muted-foreground">
+                                  Generado el:
+                                </p>
+                                <p className="mt-1 text-sm font-medium">
+                                  {new Date(
+                                    property.createdAt,
+                                  ).toLocaleString(
+                                    'es-ES',
+                                  )}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1424,7 +1416,7 @@ function PropertiesPage() {
             {/* Controles de paginación */}
             {totalPages > 1 &&
               currentProperties.length >
-                0 && (
+              0 && (
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
                   <button
                     type="button"
@@ -1433,7 +1425,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                        1 ||
+                      1 ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1459,7 +1451,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                        totalPages ||
+                      totalPages ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1949,14 +1941,14 @@ function PropertiesPage() {
                     ([field, label]) => {
                       const filterField =
                         field as
-                          | 'pool'
-                          | 'garden'
-                          | 'terrace'
-                          | 'balcony'
-                          | 'garage'
-                          | 'elevator'
-                          | 'airConditioning'
-                          | 'heating'
+                        | 'pool'
+                        | 'garden'
+                        | 'terrace'
+                        | 'balcony'
+                        | 'garage'
+                        | 'elevator'
+                        | 'airConditioning'
+                        | 'heating'
 
                       return (
                         <label
@@ -1967,7 +1959,7 @@ function PropertiesPage() {
                             type="checkbox"
                             checked={
                               filters[
-                                filterField
+                              filterField
                               ]
                             }
                             onChange={() =>
@@ -1992,72 +1984,72 @@ function PropertiesPage() {
               {hasActiveFilters(
                 filters,
               ) && (
-                <div className="mt-6 rounded-md bg-muted/50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Filtros activos
-                  </p>
+                  <div className="mt-6 rounded-md bg-muted/50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Filtros activos
+                    </p>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {filters.price.value && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Precio{' '}
-                        {getOperatorLabel(
-                          filters.price
-                            .operator,
-                        )}{' '}
-                        {
-                          filters.price
-                            .value
-                        } €
-                      </span>
-                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {filters.price.value && (
+                        <span className="rounded-md bg-background px-2 py-1 text-xs">
+                          Precio{' '}
+                          {getOperatorLabel(
+                            filters.price
+                              .operator,
+                          )}{' '}
+                          {
+                            filters.price
+                              .value
+                          } €
+                        </span>
+                      )}
 
-                    {filters.area.value && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Superficie{' '}
-                        {getOperatorLabel(
-                          filters.area
-                            .operator,
-                        )}{' '}
-                        {
-                          filters.area
-                            .value
-                        } m²
-                      </span>
-                    )}
+                      {filters.area.value && (
+                        <span className="rounded-md bg-background px-2 py-1 text-xs">
+                          Superficie{' '}
+                          {getOperatorLabel(
+                            filters.area
+                              .operator,
+                          )}{' '}
+                          {
+                            filters.area
+                              .value
+                          } m²
+                        </span>
+                      )}
 
-                    {filters.bedrooms
-                      .value && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Habitaciones{' '}
-                        {getOperatorLabel(
-                          filters.bedrooms
-                            .operator,
-                        )}{' '}
-                        {
-                          filters.bedrooms
-                            .value
-                        }
-                      </span>
-                    )}
+                      {filters.bedrooms
+                        .value && (
+                          <span className="rounded-md bg-background px-2 py-1 text-xs">
+                            Habitaciones{' '}
+                            {getOperatorLabel(
+                              filters.bedrooms
+                                .operator,
+                            )}{' '}
+                            {
+                              filters.bedrooms
+                                .value
+                            }
+                          </span>
+                        )}
 
-                    {filters.bathrooms
-                      .value && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Baños{' '}
-                        {getOperatorLabel(
-                          filters.bathrooms
-                            .operator,
-                        )}{' '}
-                        {
-                          filters.bathrooms
-                            .value
-                        }
-                      </span>
-                    )}
+                      {filters.bathrooms
+                        .value && (
+                          <span className="rounded-md bg-background px-2 py-1 text-xs">
+                            Baños{' '}
+                            {getOperatorLabel(
+                              filters.bathrooms
+                                .operator,
+                            )}{' '}
+                            {
+                              filters.bathrooms
+                                .value
+                            }
+                          </span>
+                        )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Pie del modal */}
