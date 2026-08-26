@@ -1007,7 +1007,7 @@ function PropertiesPage() {
                       ]}
                     </span>
                     <span className="text-xs">
-                      ▾
+                      ↓
                     </span>
                   </button>
 
@@ -1065,7 +1065,7 @@ function PropertiesPage() {
                       : ''
                   }`}
                 >
-                  Filtros
+                  Filtrar
                   {hasActiveFilters(
                     filters,
                   ) && (
@@ -1079,18 +1079,14 @@ function PropertiesPage() {
 
             {/* Información de resultados */}
             <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Mostrando{' '}
+              <span>    
                 <span className="font-medium text-foreground">
-                  {
-                    filteredAndSortedProperties.length
-                  }
+                  {properties.length}{' '}
                 </span>{' '}
-                de{' '}
-                <span className="font-medium text-foreground">
-                  {properties.length}
-                </span>{' '}
-                inmuebles
+                {properties.length ===
+                      1
+                      ? 'inmueble encontrado'
+                      : 'inmuebles encontrados'}
               </span>
 
               {(searchTerm ||
@@ -1370,7 +1366,8 @@ function PropertiesPage() {
                             </div>
 
                             {/* Línea divisoria + anuncios */}
-                            <div className="border-t pt-4">
+                            <div className="border-t pt-4 flex justify-between">
+                              <div>
                               <p className="text-xs text-muted-foreground">
                                 Anuncios generados
                               </p>
@@ -1382,6 +1379,20 @@ function PropertiesPage() {
                                   ? 'anuncio'
                                   : 'anuncios'}
                               </p>
+</div>
+                              <div className="">
+                                
+                              <p className="text-xs text-muted-foreground">
+                                Generado el:
+                              </p>
+                              <p className="mt-1 text-sm font-medium">
+                                {new Date(
+                                  property.createdAt,
+                                ).toLocaleString(
+                                  'es-ES',
+                                )}
+                              </p>
+                            </div>
                             </div>
                           </div>
                         </div>

@@ -11,7 +11,13 @@ import {
   type GenerationItem,
 } from '@/services/generationService'
 
+import {
+  buildPropertyHighlights,
+} from '@/utils/propertyHighlights'
 
+// ============================================================
+// DICCIONARIOS
+// ============================================================
 
 const toneLabels: Record<string, string> = {
   professional: 'Profesional',
@@ -42,6 +48,10 @@ const propertyTypeLabels: Record<string, string> = {
   land: 'Terreno',
 }
 
+// ============================================================
+// TIPOS
+// ============================================================
+
 type SortOption =
   | 'newest'
   | 'oldest'
@@ -52,6 +62,10 @@ type NumberFilter = {
   min: string
   max: string
 }
+
+// ============================================================
+// ETIQUETAS
+// ============================================================
 
 function getToneLabel(
   tone: string | undefined,
@@ -69,7 +83,8 @@ function getLanguageLabel(
 ): string {
   if (!language) return 'No indicado'
 
-  const normalized = language.toLowerCase()
+  const normalized =
+    language.toLowerCase()
 
   if (
     normalized === 'es' ||
@@ -96,8 +111,9 @@ function getOperationLabel(
   if (!operation) return 'No indicado'
 
   return (
-    operationLabels[operation.toLowerCase()] ||
-    operation
+    operationLabels[
+    operation.toLowerCase()
+    ] || operation
   )
 }
 
@@ -107,10 +123,15 @@ function getPropertyTypeLabel(
   if (!type) return 'No indicado'
 
   return (
-    propertyTypeLabels[type.toLowerCase()] ||
-    type
+    propertyTypeLabels[
+    type.toLowerCase()
+    ] || type
   )
 }
+
+// ============================================================
+// HIGHLIGHTS
+// ============================================================
 
 function parseHighlights(
   highlights: unknown,
@@ -150,6 +171,45 @@ function parseHighlights(
   return []
 }
 
+/**
+ * Elimina highlights duplicados para su representación
+ * como píldoras en HistoryPage.
+ *
+ * La comparación ignora:
+ * - espacios al principio/final
+ * - diferencias de mayúsculas/minúsculas
+ *
+ * Se conserva el primer texto original encontrado.
+ */
+function deduplicateHighlights(
+  highlights: string[],
+): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+
+  highlights.forEach((highlight) => {
+    const normalized =
+      highlight.trim().toLowerCase()
+
+    if (!normalized) {
+      return
+    }
+
+    if (seen.has(normalized)) {
+      return
+    }
+
+    seen.add(normalized)
+    unique.push(highlight.trim())
+  })
+
+  return unique
+}
+
+// ============================================================
+// FILTROS NUMÉRICOS
+// ============================================================
+
 function getNumberValue(
   value: unknown,
 ): number | null {
@@ -177,7 +237,8 @@ function matchesNumberFilter(
   value: unknown,
   filter: NumberFilter,
 ): boolean {
-  const numericValue = getNumberValue(value)
+  const numericValue =
+    getNumberValue(value)
 
   if (numericValue === null) {
     return (
@@ -190,15 +251,15 @@ function matchesNumberFilter(
     filter.min.trim() === ''
       ? null
       : Number(
-          filter.min.replace(',', '.'),
-        )
+        filter.min.replace(',', '.'),
+      )
 
   const max =
     filter.max.trim() === ''
       ? null
       : Number(
-          filter.max.replace(',', '.'),
-        )
+        filter.max.replace(',', '.'),
+      )
 
   if (
     min !== null &&
@@ -218,6 +279,10 @@ function matchesNumberFilter(
 
   return true
 }
+
+// ============================================================
+// COMPONENTE
+// ============================================================
 
 function HistoryPage() {
   const [generations, setGenerations] =
@@ -243,17 +308,18 @@ function HistoryPage() {
 
   const itemsPerPage = 3
 
-  /*
-   * =====================================================
-   * BÚSQUEDA, ORDENACIÓN Y FILTROS
-   * =====================================================
-   */
+  // ==========================================================
+  // BÚSQUEDA, ORDENACIÓN Y FILTROS
+  // ==========================================================
 
   const [searchTerm, setSearchTerm] =
     useState('')
 
   const [sortOption, setSortOption] =
     useState<SortOption>('newest')
+
+  const [isSortMenuOpen, setIsSortMenuOpen] =
+    useState(false)
 
   const [isFilterOpen, setIsFilterOpen] =
     useState(false)
@@ -303,6 +369,10 @@ function HistoryPage() {
   const [filterHasHighlights, setFilterHasHighlights] =
     useState(false)
 
+  // ==========================================================
+  // CARGA
+  // ==========================================================
+
   useEffect(() => {
     async function loadGenerations() {
       try {
@@ -322,242 +392,209 @@ function HistoryPage() {
     void loadGenerations()
   }, [])
 
-  /*
-   * =====================================================
-   * RESULTADOS FILTRADOS Y ORDENADOS
-   * =====================================================
-   */
+  // ==========================================================
+  // RESULTADOS FILTRADOS Y ORDENADOS
+  // ==========================================================
 
-  const processedGenerations = useMemo(() => {
-    const normalizedSearch =
-      searchTerm.trim().toLowerCase()
+  const processedGenerations =
+    useMemo(() => {
+      const normalizedSearch =
+        searchTerm
+          .trim()
+          .toLowerCase()
 
-    const filtered = generations.filter(
-      (generation) => {
-        /*
-         * Búsqueda por título del anuncio.
-         * Permite coincidencias parciales.
-         */
-        if (
-          normalizedSearch &&
-          !generation.title
-            .toLowerCase()
-            .includes(normalizedSearch)
-        ) {
-          return false
-        }
+      const filtered =
+        generations.filter(
+          (generation) => {
+            if (
+              normalizedSearch &&
+              !generation.title
+                .toLowerCase()
+                .includes(
+                  normalizedSearch,
+                )
+            ) {
+              return false
+            }
 
-        const property =
-          generation.property
+            const property =
+              generation.property
 
-        /*
-         * Operación.
-         */
-        if (
-          filterOperation &&
-          property?.operation?.toLowerCase() !==
-            filterOperation.toLowerCase()
-        ) {
-          return false
-        }
+            if (
+              filterOperation &&
+              property?.operation?.toLowerCase() !==
+              filterOperation.toLowerCase()
+            ) {
+              return false
+            }
 
-        /*
-         * Tipo de inmueble.
-         */
-        if (
-          filterPropertyType &&
-          property?.type?.toLowerCase() !==
-            filterPropertyType.toLowerCase()
-        ) {
-          return false
-        }
+            if (
+              filterPropertyType &&
+              property?.type?.toLowerCase() !==
+              filterPropertyType.toLowerCase()
+            ) {
+              return false
+            }
 
-        /*
-         * Ciudad.
-         */
-        if (
-          filterCity &&
-          !property?.city
-            ?.toLowerCase()
-            .includes(
-              filterCity.trim().toLowerCase(),
-            )
-        ) {
-          return false
-        }
+            if (
+              filterCity &&
+              !property?.city
+                ?.toLowerCase()
+                .includes(
+                  filterCity
+                    .trim()
+                    .toLowerCase(),
+                )
+            ) {
+              return false
+            }
 
-        /*
-         * Proveedor.
-         */
-        if (
-          filterProvider &&
-          generation.provider
-            ?.toLowerCase()
-            .includes(
-              filterProvider
-                .trim()
-                .toLowerCase(),
-            ) !== true
-        ) {
-          return false
-        }
+            if (
+              filterProvider &&
+              generation.provider
+                ?.toLowerCase()
+                .includes(
+                  filterProvider
+                    .trim()
+                    .toLowerCase(),
+                ) !== true
+            ) {
+              return false
+            }
 
-        /*
-         * Tono.
-         */
-        if (
-          filterTone &&
-          generation.tone?.toLowerCase() !==
-            filterTone.toLowerCase()
-        ) {
-          return false
-        }
+            if (
+              filterTone &&
+              generation.tone?.toLowerCase() !==
+              filterTone.toLowerCase()
+            ) {
+              return false
+            }
 
-        /*
-         * Idioma.
-         */
-        if (
-          filterLanguage &&
-          generation.language?.toLowerCase() !==
-            filterLanguage.toLowerCase()
-        ) {
-          return false
-        }
+            if (
+              filterLanguage &&
+              generation.language?.toLowerCase() !==
+              filterLanguage.toLowerCase()
+            ) {
+              return false
+            }
 
-        /*
-         * Precio.
-         */
-        if (
-          !matchesNumberFilter(
-            property?.price,
-            filterPrice,
-          )
-        ) {
-          return false
-        }
+            if (
+              !matchesNumberFilter(
+                property?.price,
+                filterPrice,
+              )
+            ) {
+              return false
+            }
 
-        /*
-         * Superficie.
-         */
-        if (
-          !matchesNumberFilter(
-            property?.area,
-            filterArea,
-          )
-        ) {
-          return false
-        }
+            if (
+              !matchesNumberFilter(
+                property?.area,
+                filterArea,
+              )
+            ) {
+              return false
+            }
 
-        /*
-         * Habitaciones.
-         */
-        if (
-          !matchesNumberFilter(
-            property?.bedrooms,
-            filterBedrooms,
-          )
-        ) {
-          return false
-        }
+            if (
+              !matchesNumberFilter(
+                property?.bedrooms,
+                filterBedrooms,
+              )
+            ) {
+              return false
+            }
 
-        /*
-         * Baños.
-         */
-        if (
-          !matchesNumberFilter(
-            property?.bathrooms,
-            filterBathrooms,
-          )
-        ) {
-          return false
-        }
+            if (
+              !matchesNumberFilter(
+                property?.bathrooms,
+                filterBathrooms,
+              )
+            ) {
+              return false
+            }
 
-        /*
-         * Solo anuncios con características destacadas.
-         */
-        if (filterHasHighlights) {
-          const highlights =
-            parseHighlights(
-              generation.highlights,
-            )
+            if (filterHasHighlights) {
+              const highlights =
+                parseHighlights(
+                  generation.highlights,
+                )
 
-          if (highlights.length === 0) {
-            return false
+              if (
+                highlights.length === 0
+              ) {
+                return false
+              }
+            }
+
+            return true
+          },
+        )
+
+      return [...filtered].sort(
+        (a, b) => {
+          if (
+            sortOption === 'newest' ||
+            sortOption === 'oldest'
+          ) {
+            const dateA =
+              new Date(
+                a.createdAt,
+              ).getTime()
+
+            const dateB =
+              new Date(
+                b.createdAt,
+              ).getTime()
+
+            return sortOption ===
+              'newest'
+              ? dateB - dateA
+              : dateA - dateB
           }
-        }
 
-        return true
-      },
-    )
+          const priceA =
+            getNumberValue(
+              a.property?.price,
+            ) ?? 0
 
-    /*
-     * Ordenación.
-     */
-    return [...filtered].sort(
-      (a, b) => {
-        if (
-          sortOption === 'newest' ||
-          sortOption === 'oldest'
-        ) {
-          const dateA =
-            new Date(
-              a.createdAt,
-            ).getTime()
+          const priceB =
+            getNumberValue(
+              b.property?.price,
+            ) ?? 0
 
-          const dateB =
-            new Date(
-              b.createdAt,
-            ).getTime()
+          return sortOption ===
+            'price-desc'
+            ? priceB - priceA
+            : priceA - priceB
+        },
+      )
+    }, [
+      generations,
+      searchTerm,
+      sortOption,
+      filterOperation,
+      filterPropertyType,
+      filterCity,
+      filterProvider,
+      filterTone,
+      filterLanguage,
+      filterPrice,
+      filterArea,
+      filterBedrooms,
+      filterBathrooms,
+      filterHasHighlights,
+    ])
 
-          return sortOption === 'newest'
-            ? dateB - dateA
-            : dateA - dateB
-        }
-
-        const priceA =
-          getNumberValue(
-            a.property?.price,
-          ) ?? 0
-
-        const priceB =
-          getNumberValue(
-            b.property?.price,
-          ) ?? 0
-
-        return sortOption ===
-          'price-desc'
-          ? priceB - priceA
-          : priceA - priceB
-      },
-    )
-  }, [
-    generations,
-    searchTerm,
-    sortOption,
-    filterOperation,
-    filterPropertyType,
-    filterCity,
-    filterProvider,
-    filterTone,
-    filterLanguage,
-    filterPrice,
-    filterArea,
-    filterBedrooms,
-    filterBathrooms,
-    filterHasHighlights,
-  ])
-
-  /*
-   * =====================================================
-   * PAGINACIÓN
-   * =====================================================
-   */
+  // ==========================================================
+  // PAGINACIÓN
+  // ==========================================================
 
   const totalPages = Math.max(
     1,
     Math.ceil(
       processedGenerations.length /
-        itemsPerPage,
+      itemsPerPage,
     ),
   )
 
@@ -573,10 +610,6 @@ function HistoryPage() {
       indexOfLastItem,
     )
 
-  /*
-   * Cuando cambian los resultados, volvemos
-   * automáticamente a la primera página.
-   */
   useEffect(() => {
     setCurrentPage(1)
   }, [
@@ -595,10 +628,6 @@ function HistoryPage() {
     filterHasHighlights,
   ])
 
-  /*
-   * Evita quedarse en una página inexistente
-   * después de borrar o filtrar.
-   */
   useEffect(() => {
     setCurrentPage(
       (previousPage) =>
@@ -618,11 +647,9 @@ function HistoryPage() {
     })
   }, [currentPage])
 
-  /*
-   * =====================================================
-   * SELECCIÓN
-   * =====================================================
-   */
+  // ==========================================================
+  // SELECCIÓN
+  // ==========================================================
 
   const currentPageIds = useMemo(
     () =>
@@ -641,7 +668,7 @@ function HistoryPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-      currentPageIds.length
+    currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -656,7 +683,9 @@ function HistoryPage() {
     setSelectedIds((previous) => {
       const next = new Set(previous)
 
-      if (next.has(generationId)) {
+      if (
+        next.has(generationId)
+      ) {
         next.delete(generationId)
       } else {
         next.add(generationId)
@@ -688,11 +717,9 @@ function HistoryPage() {
     setDeleteError(null)
   }
 
-  /*
-   * =====================================================
-   * BORRADO
-   * =====================================================
-   */
+  // ==========================================================
+  // BORRADO
+  // ==========================================================
 
   const handleDeleteSelected =
     async () => {
@@ -708,10 +735,9 @@ function HistoryPage() {
 
       const confirmed =
         window.confirm(
-          `¿Seguro que quieres eliminar ${count} ${
-            count === 1
-              ? 'anuncio'
-              : 'anuncios'
+          `¿Seguro que quieres eliminar ${count} ${count === 1
+            ? 'anuncio'
+            : 'anuncios'
           } seleccionados? Esta acción no se puede deshacer.`,
         )
 
@@ -738,7 +764,7 @@ function HistoryPage() {
             1,
             Math.ceil(
               result.length /
-                itemsPerPage,
+              itemsPerPage,
             ),
           )
 
@@ -763,11 +789,9 @@ function HistoryPage() {
       }
     }
 
-  /*
-   * =====================================================
-   * FILTROS
-   * =====================================================
-   */
+  // ==========================================================
+  // FILTROS
+  // ==========================================================
 
   const clearFilters = () => {
     setFilterOperation('')
@@ -821,9 +845,6 @@ function HistoryPage() {
         : '',
     ].filter(Boolean).length
 
-  /*
-   * Opciones dinámicas disponibles en los datos.
-   */
   const operationOptions =
     useMemo(() => {
       return Array.from(
@@ -831,7 +852,8 @@ function HistoryPage() {
           generations
             .map(
               (generation) =>
-                generation.property
+                generation
+                  .property
                   ?.operation,
             )
             .filter(Boolean),
@@ -846,7 +868,8 @@ function HistoryPage() {
           generations
             .map(
               (generation) =>
-                generation.property
+                generation
+                  .property
                   ?.type,
             )
             .filter(Boolean),
@@ -896,11 +919,9 @@ function HistoryPage() {
       ) as string[]
     }, [generations])
 
-  /*
-   * =====================================================
-   * ESTADOS DE CARGA / ERROR
-   * =====================================================
-   */
+  // ==========================================================
+  // ESTADOS DE CARGA / ERROR
+  // ==========================================================
 
   if (loading) {
     return (
@@ -930,11 +951,9 @@ function HistoryPage() {
     )
   }
 
-  /*
-   * =====================================================
-   * RENDER
-   * =====================================================
-   */
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
     <>
@@ -946,6 +965,8 @@ function HistoryPage() {
         }
       >
         <div className="max-w-6xl">
+          {/* CABECERA */}
+
           <div>
             <h1 className="text-3xl font-bold">
               Historial
@@ -965,7 +986,8 @@ function HistoryPage() {
             </div>
           )}
 
-          {generations.length === 0 ? (
+          {generations.length ===
+            0 ? (
             <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
               <h2 className="font-semibold">
                 Todavía no hay anuncios
@@ -991,8 +1013,9 @@ function HistoryPage() {
                   ================================================= */}
 
               <div className="mt-8 rounded-lg border bg-card p-4">
-                <div className="flex flex-col gap-3 lg:flex-row">
-                  {/* Buscador */}
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  {/* BUSCADOR */}
+
                   <div className="min-w-0 flex-1">
                     <label
                       htmlFor="history-search"
@@ -1007,7 +1030,8 @@ function HistoryPage() {
                       value={searchTerm}
                       onChange={(event) =>
                         setSearchTerm(
-                          event.target.value,
+                          event.target
+                            .value,
                         )
                       }
                       placeholder="Buscar por título del anuncio..."
@@ -1015,83 +1039,172 @@ function HistoryPage() {
                     />
                   </div>
 
-                  {/* Ordenar */}
-                  <select
-                    value={sortOption}
-                    onChange={(event) =>
-                      setSortOption(
-                        event.target
-                          .value as SortOption,
-                      )
-                    }
-                    aria-label="Ordenar anuncios"
-                    className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  >
-                    <option value="newest">
-                      Más nuevos
-                    </option>
+                  {/* CONTROLES */}
 
-                    <option value="oldest">
-                      Más antiguos
-                    </option>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* ORDENAR */}
 
-                    <option value="price-desc">
-                      Más caros
-                    </option>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setIsSortMenuOpen(
+                            (current) =>
+                              !current,
+                          )
+                        }
+                        aria-expanded={
+                          isSortMenuOpen
+                        }
+                        className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted"
+                      >
+                        Ordenar
 
-                    <option value="price-asc">
-                      Más baratos
-                    </option>
-                  </select>
+                        <span className="text-muted-foreground">
+                          ·
+                        </span>
 
-                  {/* Filtros */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setIsFilterOpen(true)
-                    }
-                    className="relative h-10 rounded-md border px-4 text-sm font-medium transition hover:bg-muted"
-                  >
-                    Filtrar
+                        <span>
+                          {sortOption ===
+                            'newest'
+                            ? 'Más nuevos'
+                            : sortOption ===
+                              'oldest'
+                              ? 'Más antiguos'
+                              : sortOption ===
+                                'price-desc'
+                                ? 'Más caros'
+                                : 'Más baratos'}
+                        </span>
 
-                    {activeFilterCount >
-                      0 && (
-                      <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                        {activeFilterCount}
-                      </span>
-                    )}
-                  </button>
-                </div>
+                        <span className="text-xs">
+                          ↓
+                        </span>
+                      </button>
 
-                {/* Resultado */}
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    {processedGenerations.length}{' '}
-                    {processedGenerations.length ===
-                    1
-                      ? 'anuncio encontrado'
-                      : 'anuncios encontrados'}
-                  </p>
+                      {isSortMenuOpen && (
+                        <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-md border bg-card p-1 shadow-lg">
+                          {(
+                            [
+                              [
+                                'newest',
+                                'Más nuevos',
+                              ],
+                              [
+                                'oldest',
+                                'Más antiguos',
+                              ],
+                              [
+                                'price-desc',
+                                'Más caros',
+                              ],
+                              [
+                                'price-asc',
+                                'Más baratos',
+                              ],
+                            ] as [
+                              SortOption,
+                              string,
+                            ][]
+                          ).map(
+                            ([
+                              value,
+                              label,
+                            ]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                onClick={() => {
+                                  setSortOption(
+                                    value,
+                                  )
 
-                  {(searchTerm ||
-                    activeFilterCount >
-                      0) && (
+                                  setIsSortMenuOpen(
+                                    false,
+                                  )
+                                }}
+                                className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
+                                    value
+                                    ? 'bg-muted font-medium'
+                                    : ''
+                                  }`}
+                              >
+                                {label}
+                              </button>
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* FILTROS */}
+
                     <button
                       type="button"
-                      onClick={() => {
-                        setSearchTerm('')
-                        clearFilters()
-                      }}
-                      className="text-xs font-medium text-primary hover:underline"
+                      onClick={() =>
+                        setIsFilterOpen(
+                          true,
+                        )
+                      }
+                      className="relative h-10 rounded-md border px-4 text-sm font-medium transition hover:bg-muted"
                     >
-                      Limpiar búsqueda y filtros
+                      Filtrar
+
+                      {activeFilterCount >
+                        0 && (
+                          <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                            {
+                              activeFilterCount
+                            }
+                          </span>
+                        )}
                     </button>
-                  )}
+                  </div>
                 </div>
+
+                {/* LIMPIAR */}
+
+                {(searchTerm ||
+                  activeFilterCount >
+                  0) && (
+                    <div className="mt-3 border-t pt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm(
+                            '',
+                          )
+
+                          clearFilters()
+                        }}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        Limpiar búsqueda y
+                        filtros
+                      </button>
+                    </div>
+                  )}
+              </div>
+
+              {/* RESULTADOS */}
+
+              <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  <span className="font-medium text-foreground">
+                    {
+                      processedGenerations.length
+                    }{' '}
+                  </span>
+
+                  {processedGenerations.length ===
+                    1
+                    ? 'anuncio encontrado'
+                    : 'anuncios encontrados'}
+                </span>
               </div>
 
               {/* =================================================
-                  BARRA DE SELECCIÓN
+                  SELECCIÓN
                   ================================================= */}
 
               <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
@@ -1139,21 +1252,24 @@ function HistoryPage() {
                     }
                     disabled={
                       deleting ||
-                      selectedCount === 0
+                      selectedCount ===
+                      0
                     }
                     aria-hidden={
-                      selectedCount === 0
+                      selectedCount ===
+                      0
                     }
                     tabIndex={
-                      selectedCount === 0
+                      selectedCount ===
+                        0
                         ? -1
                         : 0
                     }
-                    className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      selectedCount > 0
+                    className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount >
+                        0
                         ? 'visible'
                         : 'pointer-events-none invisible'
-                    }`}
+                      }`}
                   >
                     {deleting
                       ? 'Eliminando...'
@@ -1163,14 +1279,15 @@ function HistoryPage() {
               </div>
 
               {/* =================================================
-                  LISTA DE ANUNCIOS
+                  RESULTADOS
                   ================================================= */}
 
               {currentGenerations.length ===
-              0 ? (
+                0 ? (
                 <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                   <h2 className="font-semibold">
-                    No hay anuncios que coincidan
+                    No hay anuncios que
+                    coincidan
                   </h2>
 
                   <p className="mt-2 text-sm text-muted-foreground">
@@ -1181,7 +1298,10 @@ function HistoryPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSearchTerm('')
+                      setSearchTerm(
+                        '',
+                      )
+
                       clearFilters()
                     }}
                     className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
@@ -1193,23 +1313,71 @@ function HistoryPage() {
                 <div className="mt-8 space-y-4">
                   {currentGenerations.map(
                     (generation) => {
-
                       const isSelected =
                         selectedIds.has(
                           generation.id,
                         )
 
+                      // IMPORTANTE:
+                      // buildPropertyHighlights puede devolver
+                      // highlights repetidos. Aquí los deduplicamos
+                      // exclusivamente para las píldoras de HistoryPage.
+                      const shortHighlights =
+                        generation.property
+                          ? deduplicateHighlights(
+                            buildPropertyHighlights(
+                              generation.property,
+                            ).filter((highlight) => {
+                              const normalized =
+                                highlight.trim().toLowerCase()
+
+                              // No repetir datos que ya aparecen
+                              // en las píldoras básicas del inmueble.
+                              if (
+                                normalized ===
+                                `${generation.property?.area} m²`.toLowerCase()
+                              ) {
+                                return false
+                              }
+
+                              if (
+                                normalized ===
+                                `${generation.property?.bedrooms} ${generation.property?.bedrooms === 1
+                                    ? 'habitación'
+                                    : 'habitaciones'
+                                  }`.toLowerCase()
+                              ) {
+                                return false
+                              }
+
+                              if (
+                                normalized ===
+                                `${generation.property?.bathrooms} ${generation.property?.bathrooms === 1
+                                    ? 'baño'
+                                    : 'baños'
+                                  }`.toLowerCase()
+                              ) {
+                                return false
+                              }
+
+                              return true
+                            }),
+                          )
+                          : []
+
                       return (
                         <div
-                          key={generation.id}
-                          className={`relative rounded-lg border bg-card transition ${
-                            isSelected
+                          key={
+                            generation.id
+                          }
+                          className={`relative rounded-lg border bg-card transition ${isSelected
                               ? 'border-primary ring-2 ring-primary/25'
                               : 'border-border'
-                          }`}
+                            }`}
                         >
-                          {/* Botón superior de selección */}
-                          <div className="relative w-full overflow-hidden rounded-t-lg group">
+                          {/* SELECTOR SUPERIOR */}
+
+                          <div className="group relative w-full overflow-hidden rounded-t-lg">
                             <input
                               type="checkbox"
                               aria-label={`Seleccionar anuncio ${generation.title}`}
@@ -1224,19 +1392,17 @@ function HistoryPage() {
                               disabled={
                                 deleting
                               }
-                              className={`block h-8 w-full appearance-none border-0 cursor-pointer focus:outline-none transition-colors ${
-                                isSelected
-                                  ? 'bg-foreground cursor-default'
+                              className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
+                                  ? 'cursor-default bg-foreground'
                                   : 'bg-accent group-hover:bg-primary'
-                              }`}
+                                }`}
                             />
 
                             <div
-                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
-                                isSelected
-                                  ? 'text-background font-semibold'
-                                  : 'text-muted-foreground group-hover:text-primary-foreground group-hover:font-semibold'
-                              }`}
+                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
+                                  ? 'font-semibold text-background'
+                                  : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
+                                }`}
                             >
                               {isSelected
                                 ? '✓ Seleccionado'
@@ -1244,7 +1410,8 @@ function HistoryPage() {
                             </div>
                           </div>
 
-                          {/* Bloque central */}
+                          {/* CONTENIDO */}
+
                           <div className="p-5">
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                               <div className="min-w-0 flex-1">
@@ -1262,35 +1429,70 @@ function HistoryPage() {
                               </div>
 
                               <div className="flex shrink-0 flex-wrap gap-2">
-                                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                                  {
-                                    generation.provider
-                                  }
+                                <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                  {generation.provider
+                                    ? generation.provider
+                                      .charAt(
+                                        0,
+                                      )
+                                      .toUpperCase() +
+                                    generation.provider.slice(
+                                      1,
+                                    )
+                                    : ''}
                                 </span>
 
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                  {getToneLabel(
-                                    generation.tone,
-                                  )}
+                                  {(() => {
+                                    const tone =
+                                      getToneLabel(
+                                        generation.tone,
+                                      )
+
+                                    return tone
+                                      ? tone
+                                        .charAt(
+                                          0,
+                                        )
+                                        .toUpperCase() +
+                                      tone.slice(
+                                        1,
+                                      )
+                                      : ''
+                                  })()}
                                 </span>
 
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                  {getLanguageLabel(
-                                    generation.language,
-                                  )}
+                                  {(() => {
+                                    const lang =
+                                      getLanguageLabel(
+                                        generation.language,
+                                      )
+
+                                    return lang
+                                      ? lang
+                                        .charAt(
+                                          0,
+                                        )
+                                        .toUpperCase() +
+                                      lang.slice(
+                                        1,
+                                      )
+                                      : ''
+                                  })()}
                                 </span>
                               </div>
                             </div>
 
-                            {/* Inmueble */}
+                            {/* INMUEBLE */}
+
                             <div className="mt-5">
                               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Inmueble
+                                Inmueble asociado
                               </p>
 
                               <p className="mt-1 text-sm font-medium">
-                                {generation
-                                  .property
+                                {generation.property
                                   ?.title ||
                                   'Sin título'}
 
@@ -1311,98 +1513,129 @@ function HistoryPage() {
                                 {generation
                                   .property
                                   ?.operation && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {getOperationLabel(
-                                      generation
-                                        .property
-                                        .operation,
-                                    )}
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {getOperationLabel(
+                                        generation
+                                          .property
+                                          .operation,
+                                      )}
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.type && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {getPropertyTypeLabel(
-                                      generation
-                                        .property
-                                        .type,
-                                    )}
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {getPropertyTypeLabel(
+                                        generation
+                                          .property
+                                          .type,
+                                      )}
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.price !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {generation.property.price.toLocaleString(
-                                      'es-ES',
-                                    )}{' '}
-                                    €
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {generation.property.price.toLocaleString(
+                                        'es-ES',
+                                      )}{' '}
+                                      €
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.area !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation
-                                        .property
-                                        .area
-                                    }{' '}
-                                    m²
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {
+                                        generation
+                                          .property
+                                          .area
+                                      }{' '}
+                                      m²
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.bedrooms !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {
+                                        generation
+                                          .property
+                                          .bedrooms
+                                      }{' '}
+                                      {generation
                                         .property
-                                        .bedrooms
-                                    }{' '}
-                                    {generation
-                                      .property
-                                      .bedrooms ===
-                                    1
-                                      ? 'habitación'
-                                      : 'habitaciones'}
-                                  </span>
-                                )}
+                                        .bedrooms ===
+                                        1
+                                        ? 'habitación'
+                                        : 'habitaciones'}
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.bathrooms !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {
+                                        generation
+                                          .property
+                                          .bathrooms
+                                      }{' '}
+                                      {generation
                                         .property
-                                        .bathrooms
-                                    }{' '}
-                                    {generation
-                                      .property
-                                      .bathrooms ===
-                                    1
-                                      ? 'baño'
-                                      : 'baños'}
-                                  </span>
-                                )}
+                                        .bathrooms ===
+                                        1
+                                        ? 'baño'
+                                        : 'baños'}
+                                    </span>
+                                  )}
                               </div>
+
+                              {/* HIGHLIGHTS CORTOS DEL INMUEBLE */}
+
+                              {shortHighlights.length >
+                                0 && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {shortHighlights
+                                      .slice(
+                                        0,
+                                        5,
+                                      )
+                                      .map(
+                                        (
+                                          highlight,
+                                        ) => (
+                                          <span
+                                            key={
+                                              highlight
+                                            }
+                                            className="rounded-md bg-muted px-2 py-1 text-xs"
+                                          >
+                                            {
+                                              highlight
+                                            }
+                                          </span>
+                                        ),
+                                      )}
+                                  </div>
+                                )}
                             </div>
 
                             {/* CTA */}
+
                             {generation.callToAction && (
                               <div className="mt-5">
                                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                  Llamada a la acción
+                                  Llamada a la
+                                  acción
                                 </p>
 
                                 <p className="mt-1 text-sm">
@@ -1425,19 +1658,20 @@ function HistoryPage() {
                             </div>
                           </div>
 
-                          {/* Ver anuncio */}
+                          {/* VER ANUNCIO */}
+
                           <Link
                             to={`/historial/${generation.id}`}
-                            className="block group"
+                            className="group block"
                           >
                             <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
                               <button
                                 type="button"
                                 aria-label="Ver anuncio"
-                                className="block h-full w-full border-0 bg-accent group-hover:bg-primary group-hover:text-primary-foreground cursor-pointer focus:outline-none transition-colors"
+                                className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary group-hover:text-primary-foreground focus:outline-none"
                               />
 
-                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground group-hover:text-primary-foreground group-hover:font-semibold transition-colors">
+                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground transition-colors group-hover:font-semibold group-hover:text-primary-foreground">
                                 Ver anuncio
                               </div>
                             </div>
@@ -1449,9 +1683,7 @@ function HistoryPage() {
                 </div>
               )}
 
-              {/* =================================================
-                  PAGINACIÓN
-                  ================================================= */}
+              {/* PAGINACIÓN */}
 
               {totalPages > 1 && (
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
@@ -1469,10 +1701,11 @@ function HistoryPage() {
                       }
                     }}
                     disabled={
-                      currentPage === 1 ||
+                      currentPage ===
+                      1 ||
                       deleting
                     }
-                    className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                    className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                   >
                     Anterior
                   </button>
@@ -1504,10 +1737,10 @@ function HistoryPage() {
                     }}
                     disabled={
                       currentPage ===
-                        totalPages ||
+                      totalPages ||
                       deleting
                     }
-                    className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted"
+                    className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                   >
                     Siguiente
                   </button>
@@ -1519,7 +1752,7 @@ function HistoryPage() {
       </div>
 
       {/* =====================================================
-          PANEL DE FILTROS SUPERPUESTO
+          PANEL DE FILTROS
           ===================================================== */}
 
       {isFilterOpen && (
@@ -1530,7 +1763,8 @@ function HistoryPage() {
             aria-labelledby="history-filter-title"
             className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border bg-card shadow-2xl"
           >
-            {/* Cabecera */}
+            {/* CABECERA */}
+
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-5 py-4">
               <div>
                 <h2
@@ -1548,7 +1782,9 @@ function HistoryPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setIsFilterOpen(false)
+                  setIsFilterOpen(
+                    false,
+                  )
                 }
                 className="rounded-md px-3 py-1.5 text-sm font-medium hover:bg-muted"
               >
@@ -1558,6 +1794,7 @@ function HistoryPage() {
 
             <div className="space-y-6 p-5">
               {/* Operación + tipo */}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label
@@ -1569,10 +1806,13 @@ function HistoryPage() {
 
                   <select
                     id="filter-operation"
-                    value={filterOperation}
+                    value={
+                      filterOperation
+                    }
                     onChange={(event) =>
                       setFilterOperation(
-                        event.target.value,
+                        event.target
+                          .value,
                       )
                     }
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -1611,7 +1851,8 @@ function HistoryPage() {
                     }
                     onChange={(event) =>
                       setFilterPropertyType(
-                        event.target.value,
+                        event.target
+                          .value,
                       )
                     }
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -1637,6 +1878,7 @@ function HistoryPage() {
               </div>
 
               {/* Ciudad + proveedor */}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label
@@ -1649,10 +1891,13 @@ function HistoryPage() {
                   <input
                     id="filter-city"
                     type="text"
-                    value={filterCity}
+                    value={
+                      filterCity
+                    }
                     onChange={(event) =>
                       setFilterCity(
-                        event.target.value,
+                        event.target
+                          .value,
                       )
                     }
                     placeholder="Ej. Madrid"
@@ -1670,10 +1915,13 @@ function HistoryPage() {
 
                   <select
                     id="filter-provider"
-                    value={filterProvider}
+                    value={
+                      filterProvider
+                    }
                     onChange={(event) =>
                       setFilterProvider(
-                        event.target.value,
+                        event.target
+                          .value,
                       )
                     }
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -1697,6 +1945,7 @@ function HistoryPage() {
               </div>
 
               {/* Tono + idioma */}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label
@@ -1711,7 +1960,8 @@ function HistoryPage() {
                     value={filterTone}
                     onChange={(event) =>
                       setFilterTone(
-                        event.target.value,
+                        event.target
+                          .value,
                       )
                     }
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -1726,7 +1976,9 @@ function HistoryPage() {
                           key={tone}
                           value={tone}
                         >
-                          {getToneLabel(tone)}
+                          {getToneLabel(
+                            tone,
+                          )}
                         </option>
                       ),
                     )}
@@ -1743,10 +1995,13 @@ function HistoryPage() {
 
                   <select
                     id="filter-language"
-                    value={filterLanguage}
+                    value={
+                      filterLanguage
+                    }
                     onChange={(event) =>
                       setFilterLanguage(
-                        event.target.value,
+                        event.target
+                          .value,
                       )
                     }
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -1772,6 +2027,7 @@ function HistoryPage() {
               </div>
 
               {/* Precio */}
+
               <div>
                 <p className="mb-2 text-sm font-medium">
                   Precio (€)
@@ -1781,12 +2037,16 @@ function HistoryPage() {
                   <input
                     type="number"
                     min="0"
-                    value={filterPrice.min}
+                    value={
+                      filterPrice.min
+                    }
                     onChange={(event) =>
                       setFilterPrice(
                         (previous) => ({
                           ...previous,
-                          min: event.target.value,
+                          min: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1797,12 +2057,16 @@ function HistoryPage() {
                   <input
                     type="number"
                     min="0"
-                    value={filterPrice.max}
+                    value={
+                      filterPrice.max
+                    }
                     onChange={(event) =>
                       setFilterPrice(
                         (previous) => ({
                           ...previous,
-                          max: event.target.value,
+                          max: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1813,6 +2077,7 @@ function HistoryPage() {
               </div>
 
               {/* Superficie */}
+
               <div>
                 <p className="mb-2 text-sm font-medium">
                   Superficie (m²)
@@ -1822,12 +2087,16 @@ function HistoryPage() {
                   <input
                     type="number"
                     min="0"
-                    value={filterArea.min}
+                    value={
+                      filterArea.min
+                    }
                     onChange={(event) =>
                       setFilterArea(
                         (previous) => ({
                           ...previous,
-                          min: event.target.value,
+                          min: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1838,12 +2107,16 @@ function HistoryPage() {
                   <input
                     type="number"
                     min="0"
-                    value={filterArea.max}
+                    value={
+                      filterArea.max
+                    }
                     onChange={(event) =>
                       setFilterArea(
                         (previous) => ({
                           ...previous,
-                          max: event.target.value,
+                          max: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1854,6 +2127,7 @@ function HistoryPage() {
               </div>
 
               {/* Habitaciones */}
+
               <div>
                 <p className="mb-2 text-sm font-medium">
                   Habitaciones
@@ -1871,7 +2145,9 @@ function HistoryPage() {
                       setFilterBedrooms(
                         (previous) => ({
                           ...previous,
-                          min: event.target.value,
+                          min: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1890,7 +2166,9 @@ function HistoryPage() {
                       setFilterBedrooms(
                         (previous) => ({
                           ...previous,
-                          max: event.target.value,
+                          max: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1901,6 +2179,7 @@ function HistoryPage() {
               </div>
 
               {/* Baños */}
+
               <div>
                 <p className="mb-2 text-sm font-medium">
                   Baños
@@ -1918,7 +2197,9 @@ function HistoryPage() {
                       setFilterBathrooms(
                         (previous) => ({
                           ...previous,
-                          min: event.target.value,
+                          min: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1937,7 +2218,9 @@ function HistoryPage() {
                       setFilterBathrooms(
                         (previous) => ({
                           ...previous,
-                          max: event.target.value,
+                          max: event
+                            .target
+                            .value,
                         }),
                       )
                     }
@@ -1948,11 +2231,14 @@ function HistoryPage() {
               </div>
             </div>
 
-            {/* Pie */}
+            {/* PIE */}
+
             <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-card p-4 sm:flex-row sm:justify-between">
               <button
                 type="button"
-                onClick={clearFilters}
+                onClick={
+                  clearFilters
+                }
                 className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
               >
                 Limpiar filtros
@@ -1961,7 +2247,9 @@ function HistoryPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setIsFilterOpen(false)
+                  setIsFilterOpen(
+                    false,
+                  )
                 }
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
               >

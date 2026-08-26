@@ -2224,22 +2224,43 @@ function getPropertyTypeLabel(type: string | undefined): string {
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                                    {
-                                      generation.provider
-                                    }
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {generation.provider
+                                    ? generation.provider
+                                      .charAt(
+                                        0,
+                                      )
+                                      .toUpperCase() +
+                                    generation.provider.slice(
+                                      1,
+                                    )
+                                    : ''}
                                   </span>
 
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation.tone
-                                    }
+                                    {generation.tone
+                                    ? generation.tone
+                                      .charAt(
+                                        0,
+                                      )
+                                      .toUpperCase() +
+                                    generation.tone.slice(
+                                      1,
+                                    )
+                                    : ''}
                                   </span>
 
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation.language
-                                    }
+                                    {generation.language
+                                    ? generation.language
+                                      .charAt(
+                                        0,
+                                      )
+                                      .toUpperCase() +
+                                    generation.language.slice(
+                                      1,
+                                    )
+                                    : ''}
                                   </span>
                                 </div>
 
