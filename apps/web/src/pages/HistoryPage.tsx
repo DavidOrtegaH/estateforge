@@ -148,7 +148,7 @@ function getOperationLabel(
 
   return (
     operationLabels[
-      operation.toLowerCase()
+    operation.toLowerCase()
     ] || operation
   )
 }
@@ -160,7 +160,7 @@ function getPropertyTypeLabel(
 
   return (
     propertyTypeLabels[
-      type.toLowerCase()
+    type.toLowerCase()
     ] || type
   )
 }
@@ -240,15 +240,15 @@ function matchesNumberFilter(
       filter.min.trim() === ''
         ? null
         : Number(
-            filter.min.replace(',', '.'),
-          )
+          filter.min.replace(',', '.'),
+        )
 
     const max =
       filter.max.trim() === ''
         ? null
         : Number(
-            filter.max.replace(',', '.'),
-          )
+          filter.max.replace(',', '.'),
+        )
 
     if (
       min !== null &&
@@ -378,7 +378,7 @@ function HistoryPage() {
   const [currentPage, setCurrentPage] =
     useState(1)
 
-  const itemsPerPage = 3
+  const itemsPerPage = 4
 
   // ==========================================================
   // BÚSQUEDA / ORDENACIÓN
@@ -512,7 +512,7 @@ function HistoryPage() {
               filterOperation &&
               property?.operation
                 ?.toLowerCase() !==
-                filterOperation.toLowerCase()
+              filterOperation.toLowerCase()
             ) {
               return false
             }
@@ -522,7 +522,7 @@ function HistoryPage() {
               filterPropertyType &&
               property?.type
                 ?.toLowerCase() !==
-                filterPropertyType.toLowerCase()
+              filterPropertyType.toLowerCase()
             ) {
               return false
             }
@@ -560,7 +560,7 @@ function HistoryPage() {
               filterTone &&
               generation.tone
                 ?.toLowerCase() !==
-                filterTone.toLowerCase()
+              filterTone.toLowerCase()
             ) {
               return false
             }
@@ -570,7 +570,7 @@ function HistoryPage() {
               filterLanguage &&
               generation.language
                 ?.toLowerCase() !==
-                filterLanguage.toLowerCase()
+              filterLanguage.toLowerCase()
             ) {
               return false
             }
@@ -706,7 +706,7 @@ function HistoryPage() {
     1,
     Math.ceil(
       processedGenerations.length /
-        itemsPerPage,
+      itemsPerPage,
     ),
   )
 
@@ -780,7 +780,7 @@ function HistoryPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-      currentPageIds.length
+    currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -847,10 +847,9 @@ function HistoryPage() {
 
       const confirmed =
         window.confirm(
-          `¿Seguro que quieres eliminar ${count} ${
-            count === 1
-              ? 'anuncio'
-              : 'anuncios'
+          `¿Seguro que quieres eliminar ${count} ${count === 1
+            ? 'anuncio'
+            : 'anuncios'
           } seleccionados? Esta acción no se puede deshacer.`,
         )
 
@@ -877,7 +876,7 @@ function HistoryPage() {
             1,
             Math.ceil(
               result.length /
-                itemsPerPage,
+              itemsPerPage,
             ),
           )
 
@@ -1325,15 +1324,15 @@ function HistoryPage() {
 
                         <span>
                           {sortOption ===
-                          'newest'
+                            'newest'
                             ? 'Más nuevos'
                             : sortOption ===
                               'oldest'
-                            ? 'Más antiguos'
-                            : sortOption ===
-                              'price-desc'
-                            ? 'Más caros'
-                            : 'Más baratos'}
+                              ? 'Más antiguos'
+                              : sortOption ===
+                                'price-desc'
+                                ? 'Más caros'
+                                : 'Más baratos'}
                         </span>
 
                         <span className="text-xs">
@@ -1382,12 +1381,11 @@ function HistoryPage() {
                                     false,
                                   )
                                 }}
-                                className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${
-                                  sortOption ===
+                                className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
                                   value
-                                    ? 'bg-muted font-medium'
-                                    : ''
-                                }`}
+                                  ? 'bg-muted font-medium'
+                                  : ''
+                                  }`}
                               >
                                 {label}
                               </button>
@@ -1410,33 +1408,33 @@ function HistoryPage() {
 
                       {activeFilterCount >
                         0 && (
-                        <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                          {
-                            activeFilterCount
-                          }
-                        </span>
-                      )}
+                          <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                            {
+                              activeFilterCount
+                            }
+                          </span>
+                        )}
                     </button>
                   </div>
                 </div>
 
                 {(searchTerm ||
                   activeFilterCount >
-                    0) && (
-                  <div className="mt-3 border-t pt-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchTerm('')
-                        clearFilters()
-                      }}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      Limpiar búsqueda y
-                      filtros
-                    </button>
-                  </div>
-                )}
+                  0) && (
+                    <div className="mt-3 border-t pt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm('')
+                          clearFilters()
+                        }}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        Limpiar búsqueda y
+                        filtros
+                      </button>
+                    </div>
+                  )}
               </div>
 
               {/* RESULTADOS */}
@@ -1450,10 +1448,10 @@ function HistoryPage() {
                   </span>
 
                   {processedGenerations.length ===
-                  1
+                    1
                     ? 'anuncio encontrado'
                     : 'anuncios encontrados'}
-              </span>
+                </span>
               </div>
 
               {/* SELECCIÓN */}
@@ -1513,11 +1511,10 @@ function HistoryPage() {
                         ? -1
                         : 0
                     }
-                    className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      selectedCount > 0
-                        ? 'visible'
-                        : 'pointer-events-none invisible'
-                    }`}
+                    className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
+                      ? 'visible'
+                      : 'pointer-events-none invisible'
+                      }`}
                   >
                     {deleting
                       ? 'Eliminando...'
@@ -1529,7 +1526,7 @@ function HistoryPage() {
               {/* RESULTADOS */}
 
               {currentGenerations.length ===
-              0 ? (
+                0 ? (
                 <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                   <h2 className="font-semibold">
                     No hay anuncios que
@@ -1553,7 +1550,7 @@ function HistoryPage() {
                   </button>
                 </div>
               ) : (
-                <div className="mt-8 space-y-4">
+                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {currentGenerations.map(
                     (generation) => {
                       const isSelected =
@@ -1564,56 +1561,54 @@ function HistoryPage() {
                       const shortHighlights =
                         generation.property
                           ? deduplicateHighlights(
-                              buildPropertyHighlights(
-                                generation.property,
-                              ).filter(
-                                (
-                                  highlight,
-                                ) => {
-                                  const normalized =
-                                    highlight
-                                      .trim()
-                                      .toLowerCase()
+                            buildPropertyHighlights(
+                              generation.property,
+                            ).filter(
+                              (
+                                highlight,
+                              ) => {
+                                const normalized =
+                                  highlight
+                                    .trim()
+                                    .toLowerCase()
 
-                                  if (
-                                    normalized ===
-                                    `${generation.property.area} m²`.toLowerCase()
-                                  ) {
-                                    return false
-                                  }
+                                if (
+                                  normalized ===
+                                  `${generation.property.area} m²`.toLowerCase()
+                                ) {
+                                  return false
+                                }
 
-                                  if (
-                                    normalized ===
-                                    `${generation.property.bedrooms} ${
-                                      generation
-                                        .property
-                                        .bedrooms ===
-                                      1
-                                        ? 'habitación'
-                                        : 'habitaciones'
+                                if (
+                                  normalized ===
+                                  `${generation.property.bedrooms} ${generation
+                                    .property
+                                    .bedrooms ===
+                                    1
+                                    ? 'habitación'
+                                    : 'habitaciones'
                                     }`.toLowerCase()
-                                  ) {
-                                    return false
-                                  }
+                                ) {
+                                  return false
+                                }
 
-                                  if (
-                                    normalized ===
-                                    `${generation.property.bathrooms} ${
-                                      generation
-                                        .property
-                                        .bathrooms ===
-                                      1
-                                        ? 'baño'
-                                        : 'baños'
+                                if (
+                                  normalized ===
+                                  `${generation.property.bathrooms} ${generation
+                                    .property
+                                    .bathrooms ===
+                                    1
+                                    ? 'baño'
+                                    : 'baños'
                                     }`.toLowerCase()
-                                  ) {
-                                    return false
-                                  }
+                                ) {
+                                  return false
+                                }
 
-                                  return true
-                                },
-                              ),
-                            )
+                                return true
+                              },
+                            ),
+                          )
                           : []
 
                       return (
@@ -1621,11 +1616,10 @@ function HistoryPage() {
                           key={
                             generation.id
                           }
-                          className={`relative rounded-lg border bg-card transition ${
-                            isSelected
-                              ? 'border-primary ring-2 ring-primary/25'
-                              : 'border-border'
-                          }`}
+                          className={`relative rounded-lg border bg-card transition ${isSelected
+                            ? 'border-primary ring-2 ring-primary/25'
+                            : 'border-border'
+                            }`}
                         >
                           {/* SELECTOR */}
 
@@ -1644,19 +1638,17 @@ function HistoryPage() {
                               disabled={
                                 deleting
                               }
-                              className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${
-                                isSelected
-                                  ? 'cursor-default bg-foreground'
-                                  : 'bg-accent group-hover:bg-primary'
-                              }`}
+                              className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
+                                ? 'cursor-default bg-foreground'
+                                : 'bg-accent group-hover:bg-primary'
+                                }`}
                             />
 
                             <div
-                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
-                                isSelected
-                                  ? 'font-semibold text-background'
-                                  : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                              }`}
+                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
+                                ? 'font-semibold text-background'
+                                : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
+                                }`}
                             >
                               {isSelected
                                 ? '✓ Seleccionado'
@@ -1668,14 +1660,14 @@ function HistoryPage() {
 
                           <div className="p-5">
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                              <div className="min-w-0 flex-1">
+                              <div className="min-w-0 flex-1 ">
                                 <h2 className="text-lg font-semibold">
                                   {
                                     generation.title
                                   }
                                 </h2>
 
-                                <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                                <p className="mt-2 line-clamp-4 text-sm leading-6 text-muted-foreground text-justify">
                                   {
                                     generation.description
                                   }
@@ -1686,13 +1678,13 @@ function HistoryPage() {
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs">
                                   {generation.provider
                                     ? generation.provider
-                                        .charAt(
-                                          0,
-                                        )
-                                        .toUpperCase() +
-                                      generation.provider.slice(
-                                        1,
+                                      .charAt(
+                                        0,
                                       )
+                                      .toUpperCase() +
+                                    generation.provider.slice(
+                                      1,
+                                    )
                                     : ''}
                                 </span>
 
@@ -1740,120 +1732,120 @@ function HistoryPage() {
                                 {generation
                                   .property
                                   ?.operation && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {getOperationLabel(
-                                      generation
-                                        .property
-                                        .operation,
-                                    )}
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {getOperationLabel(
+                                        generation
+                                          .property
+                                          .operation,
+                                      )}
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.type && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {getPropertyTypeLabel(
-                                      generation
-                                        .property
-                                        .type,
-                                    )}
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {getPropertyTypeLabel(
+                                        generation
+                                          .property
+                                          .type,
+                                      )}
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.price !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {generation.property.price.toLocaleString(
-                                      'es-ES',
-                                    )}{' '}
-                                    €
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {generation.property.price.toLocaleString(
+                                        'es-ES',
+                                      )}{' '}
+                                      €
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.area !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation
-                                        .property
-                                        .area
-                                    }{' '}
-                                    m²
-                                  </span>
-                                )}
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {
+                                        generation
+                                          .property
+                                          .area
+                                      }{' '}
+                                      m²
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.bedrooms !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {
+                                        generation
+                                          .property
+                                          .bedrooms
+                                      }{' '}
+                                      {generation
                                         .property
-                                        .bedrooms
-                                    }{' '}
-                                    {generation
-                                      .property
-                                      .bedrooms ===
-                                    1
-                                      ? 'habitación'
-                                      : 'habitaciones'}
-                                  </span>
-                                )}
+                                        .bedrooms ===
+                                        1
+                                        ? 'habitación'
+                                        : 'habitaciones'}
+                                    </span>
+                                  )}
 
                                 {generation
                                   .property
                                   ?.bathrooms !==
                                   undefined && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {
-                                      generation
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                      {
+                                        generation
+                                          .property
+                                          .bathrooms
+                                      }{' '}
+                                      {generation
                                         .property
-                                        .bathrooms
-                                    }{' '}
-                                    {generation
-                                      .property
-                                      .bathrooms ===
-                                    1
-                                      ? 'baño'
-                                      : 'baños'}
-                                  </span>
-                                )}
+                                        .bathrooms ===
+                                        1
+                                        ? 'baño'
+                                        : 'baños'}
+                                    </span>
+                                  )}
                               </div>
 
                               {/* CARACTERÍSTICAS */}
 
                               {shortHighlights.length >
                                 0 && (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {shortHighlights
-                                    .slice(
-                                      0,
-                                      5,
-                                    )
-                                    .map(
-                                      (
-                                        highlight,
-                                      ) => (
-                                        <span
-                                          key={
-                                            highlight
-                                          }
-                                          className="rounded-md bg-muted px-2 py-1 text-xs"
-                                        >
-                                          {
-                                            highlight
-                                          }
-                                        </span>
-                                      ),
-                                    )}
-                                </div>
-                              )}
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {shortHighlights
+                                      .slice(
+                                        0,
+                                        5,
+                                      )
+                                      .map(
+                                        (
+                                          highlight,
+                                        ) => (
+                                          <span
+                                            key={
+                                              highlight
+                                            }
+                                            className="rounded-md bg-muted px-2 py-1 text-xs"
+                                          >
+                                            {
+                                              highlight
+                                            }
+                                          </span>
+                                        ),
+                                      )}
+                                  </div>
+                                )}
                             </div>
 
                             {/* CTA */}
@@ -1963,7 +1955,7 @@ function HistoryPage() {
                     }}
                     disabled={
                       currentPage ===
-                        totalPages ||
+                      totalPages ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -2317,7 +2309,7 @@ function HistoryPage() {
                           type="checkbox"
                           checked={
                             filterFeatures[
-                              field
+                            field
                             ]
                           }
                           onChange={() =>
@@ -2349,103 +2341,91 @@ function HistoryPage() {
                     {hasNumericFilter(
                       filterPrice,
                     ) && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Precio{' '}
-                        {filterPrice.operator ===
-                        'range'
-                          ? `entre ${
-                              filterPrice
-                                .min ||
-                              '—'
-                            } y ${
-                              filterPrice
-                                .max ||
-                              '—'
+                        <span className="rounded-md bg-background px-2 py-1 text-xs">
+                          Precio{' '}
+                          {filterPrice.operator ===
+                            'range'
+                            ? `entre ${filterPrice
+                              .min ||
+                            '—'
+                            } y ${filterPrice
+                              .max ||
+                            '—'
                             } €`
-                          : `${getOperatorLabel(
+                            : `${getOperatorLabel(
                               filterPrice
                                 .operator,
-                            )} ${
-                              filterPrice
-                                .value
+                            )} ${filterPrice
+                              .value
                             } €`}
-                      </span>
-                    )}
+                        </span>
+                      )}
 
                     {hasNumericFilter(
                       filterArea,
                     ) && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Superficie{' '}
-                        {filterArea.operator ===
-                        'range'
-                          ? `entre ${
-                              filterArea.min ||
-                              '—'
-                            } y ${
-                              filterArea.max ||
-                              '—'
+                        <span className="rounded-md bg-background px-2 py-1 text-xs">
+                          Superficie{' '}
+                          {filterArea.operator ===
+                            'range'
+                            ? `entre ${filterArea.min ||
+                            '—'
+                            } y ${filterArea.max ||
+                            '—'
                             } m²`
-                          : `${getOperatorLabel(
+                            : `${getOperatorLabel(
                               filterArea
                                 .operator,
-                            )} ${
-                              filterArea.value
+                            )} ${filterArea.value
                             } m²`}
-                      </span>
-                    )}
+                        </span>
+                      )}
 
                     {hasNumericFilter(
                       filterBedrooms,
                     ) && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Habitaciones{' '}
-                        {filterBedrooms.operator ===
-                        'range'
-                          ? `entre ${
-                              filterBedrooms
-                                .min ||
-                              '—'
-                            } y ${
-                              filterBedrooms
-                                .max ||
-                              '—'
+                        <span className="rounded-md bg-background px-2 py-1 text-xs">
+                          Habitaciones{' '}
+                          {filterBedrooms.operator ===
+                            'range'
+                            ? `entre ${filterBedrooms
+                              .min ||
+                            '—'
+                            } y ${filterBedrooms
+                              .max ||
+                            '—'
                             }`
-                          : `${getOperatorLabel(
+                            : `${getOperatorLabel(
                               filterBedrooms
                                 .operator,
-                            )} ${
-                              filterBedrooms
-                                .value
+                            )} ${filterBedrooms
+                              .value
                             }`}
-                      </span>
-                    )}
+                        </span>
+                      )}
 
                     {hasNumericFilter(
                       filterBathrooms,
                     ) && (
-                      <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Baños{' '}
-                        {filterBathrooms.operator ===
-                        'range'
-                          ? `entre ${
-                              filterBathrooms
-                                .min ||
-                              '—'
-                            } y ${
-                              filterBathrooms
-                                .max ||
-                              '—'
+                        <span className="rounded-md bg-background px-2 py-1 text-xs">
+                          Baños{' '}
+                          {filterBathrooms.operator ===
+                            'range'
+                            ? `entre ${filterBathrooms
+                              .min ||
+                            '—'
+                            } y ${filterBathrooms
+                              .max ||
+                            '—'
                             }`
-                          : `${getOperatorLabel(
+                            : `${getOperatorLabel(
                               filterBathrooms
                                 .operator,
-                            )} ${
-                              filterBathrooms
-                                .value
+                            )} ${filterBathrooms
+                              .value
                             }`}
-                      </span>
-                    )}
+                        </span>
+                      )}
 
                     {(
                       Object.entries(
@@ -2471,7 +2451,7 @@ function HistoryPage() {
                           >
                             {
                               featureLabels[
-                                field
+                              field
                               ]
                             }
                           </span>

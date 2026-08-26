@@ -138,7 +138,7 @@ function getPropertyOperation(
 
   return (
     propertyOperationLabels[
-      operation.toLowerCase()
+    operation.toLowerCase()
     ] || operation
   )
 }
@@ -164,7 +164,7 @@ function getPropertyCondition(
 
   return (
     propertyConditionLabels[
-      normalizedCondition
+    normalizedCondition
     ] || condition
   )
 }
@@ -314,10 +314,9 @@ function getPropertyHighlights(
             roomsMatch[1]
 
           extracted.push(
-            `${count} ${
-              Number(count) === 1
-                ? 'habitación'
-                : 'habitaciones'
+            `${count} ${Number(count) === 1
+              ? 'habitación'
+              : 'habitaciones'
             }`,
           )
         }
@@ -332,10 +331,9 @@ function getPropertyHighlights(
             bathsMatch[1]
 
           extracted.push(
-            `${count} ${
-              Number(count) === 1
-                ? 'baño'
-                : 'baños'
+            `${count} ${Number(count) === 1
+              ? 'baño'
+              : 'baños'
             }`,
           )
         }
@@ -785,7 +783,7 @@ function PropertiesPage() {
               filters.operation &&
               property.operation
                 ?.toLowerCase() !==
-                filters.operation.toLowerCase()
+              filters.operation.toLowerCase()
             ) {
               return false
             }
@@ -794,7 +792,7 @@ function PropertiesPage() {
               filters.type &&
               property.type
                 ?.toLowerCase() !==
-                filters.type.toLowerCase()
+              filters.type.toLowerCase()
             ) {
               return false
             }
@@ -807,12 +805,12 @@ function PropertiesPage() {
                   /_/g,
                   '-',
                 ) !==
-                filters.condition
-                  .toLowerCase()
-                  .replace(
-                    /_/g,
-                    '-',
-                  )
+              filters.condition
+                .toLowerCase()
+                .replace(
+                  /_/g,
+                  '-',
+                )
             ) {
               return false
             }
@@ -926,7 +924,7 @@ function PropertiesPage() {
     1,
     Math.ceil(
       filteredAndSortedProperties.length /
-        itemsPerPage,
+      itemsPerPage,
     ),
   )
 
@@ -974,7 +972,7 @@ function PropertiesPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-      currentPageIds.length
+    currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -1066,10 +1064,9 @@ function PropertiesPage() {
 
       const confirmed =
         window.confirm(
-          `¿Seguro que quieres eliminar ${count} ${
-            count === 1
-              ? 'inmueble'
-              : 'inmuebles'
+          `¿Seguro que quieres eliminar ${count} ${count === 1
+            ? 'inmueble'
+            : 'inmuebles'
           } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
         )
 
@@ -1096,7 +1093,7 @@ function PropertiesPage() {
             1,
             Math.ceil(
               result.length /
-                itemsPerPage,
+              itemsPerPage,
             ),
           )
 
@@ -1160,12 +1157,12 @@ function PropertiesPage() {
         operator,
         ...(operator === 'range'
           ? {
-              value: '',
-            }
+            value: '',
+          }
           : {
-              min: '',
-              max: '',
-            }),
+            min: '',
+            max: '',
+          }),
       },
     }))
   }
@@ -1193,13 +1190,13 @@ function PropertiesPage() {
     NumericOperator,
     string,
   ][] = [
-    ['lt', 'Menor que'],
-    ['lte', 'Menor o igual que'],
-    ['eq', 'Igual a'],
-    ['gte', 'Mayor o igual que'],
-    ['gt', 'Mayor que'],
-    ['range', 'Entre'],
-  ]
+      ['lt', 'Menor que'],
+      ['lte', 'Menor o igual que'],
+      ['eq', 'Igual a'],
+      ['gte', 'Mayor o igual que'],
+      ['gt', 'Mayor que'],
+      ['range', 'Entre'],
+    ]
 
   // ==========================================================
   // ESTADOS
@@ -1336,7 +1333,7 @@ function PropertiesPage() {
                     <span>
                       {
                         sortLabels[
-                          sortOption
+                        sortOption
                         ]
                       }
                     </span>
@@ -1372,12 +1369,11 @@ function PropertiesPage() {
                                 false,
                               )
                             }}
-                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${
-                              sortOption ===
-                              value
+                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
+                                value
                                 ? 'bg-muted font-medium'
                                 : ''
-                            }`}
+                              }`}
                           >
                             {label}
                           </button>
@@ -1394,23 +1390,22 @@ function PropertiesPage() {
                   onClick={() =>
                     setIsFilterOpen(true)
                   }
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${
-                    hasActiveFilters(
-                      filters,
-                    )
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${hasActiveFilters(
+                    filters,
+                  )
                       ? 'border-primary bg-primary/5 text-primary'
                       : ''
-                  }`}
+                    }`}
                 >
                   Filtrar
 
                   {hasActiveFilters(
                     filters,
                   ) && (
-                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                      Activos
-                    </span>
-                  )}
+                      <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                        Activos
+                      </span>
+                    )}
                 </button>
               </div>
             </div>
@@ -1426,7 +1421,7 @@ function PropertiesPage() {
                 </span>
 
                 {filteredAndSortedProperties.length ===
-                1
+                  1
                   ? 'inmueble encontrado'
                   : 'inmuebles encontrados'}
               </span>
@@ -1435,18 +1430,18 @@ function PropertiesPage() {
                 hasActiveFilters(
                   filters,
                 )) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm('')
-                    handleResetFilters()
-                  }}
-                  className="w-fit text-sm font-medium text-primary hover:underline"
-                >
-                  Limpiar búsqueda y
-                  filtros
-                </button>
-              )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('')
+                      handleResetFilters()
+                    }}
+                    className="w-fit text-sm font-medium text-primary hover:underline"
+                  >
+                    Limpiar búsqueda y
+                    filtros
+                  </button>
+                )}
             </div>
 
             {/* SELECCIÓN */}
@@ -1471,7 +1466,7 @@ function PropertiesPage() {
                   disabled={
                     deleting ||
                     currentProperties.length ===
-                      0
+                    0
                   }
                   className="h-4 w-4 cursor-pointer"
                 />
@@ -1510,11 +1505,10 @@ function PropertiesPage() {
                       ? -1
                       : 0
                   }
-                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    selectedCount > 0
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
                       ? 'visible'
                       : 'pointer-events-none invisible'
-                  }`}
+                    }`}
                 >
                   {deleting
                     ? 'Eliminando...'
@@ -1526,7 +1520,7 @@ function PropertiesPage() {
             {/* RESULTADOS */}
 
             {currentProperties.length ===
-            0 ? (
+              0 ? (
               <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                 <h2 className="font-semibold">
                   No hay inmuebles que coincidan
@@ -1572,11 +1566,10 @@ function PropertiesPage() {
                         key={
                           property.id
                         }
-                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${
-                          isSelected
+                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
                             ? 'border-primary ring-2 ring-primary/25'
                             : 'border-border'
-                        }`}
+                          }`}
                       >
                         {/* SELECTOR */}
 
@@ -1585,10 +1578,9 @@ function PropertiesPage() {
                             type="checkbox"
                             aria-label={`Seleccionar ${getPropertyTypeLabel(
                               property.type,
-                            )} en ${
-                              property.city ||
+                            )} en ${property.city ||
                               'Sin ciudad'
-                            }`}
+                              }`}
                             checked={
                               isSelected
                             }
@@ -1600,19 +1592,17 @@ function PropertiesPage() {
                             disabled={
                               deleting
                             }
-                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${
-                              isSelected
+                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
                                 ? 'cursor-default bg-foreground'
                                 : 'bg-accent group-hover:bg-primary'
-                            }`}
+                              }`}
                           />
 
                           <div
-                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
-                              isSelected
+                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
                                 ? 'font-semibold text-background'
                                 : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                            }`}
+                              }`}
                           >
                             {isSelected
                               ? '✓ Seleccionado'
@@ -1642,98 +1632,71 @@ function PropertiesPage() {
                             </div>
                           </div>
 
-                          <div className="mt-auto">
+                          <div className="mt-4">
                             <div className="flex min-h-21 flex-col justify-end pb-4">
                               <div className="flex flex-wrap items-end gap-2">
-                                {highlights
-                                  .slice(
-                                    0,
-                                    5,
-                                  )
-                                  .map(
-                                    (
-                                      highlight,
-                                    ) => (
-                                      <span
-                                        key={
-                                          highlight
-                                        }
-                                        className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
-                                      >
-                                        {
-                                          highlight
-                                        }
-                                      </span>
-                                    ),
-                                  )}
-
+                                {/* 1. Datos más relevantes: Condición, Operación y Tipo */}
                                 {property.condition && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyCondition(
-                                      property.condition,
-                                    )}
+                                    {getPropertyCondition(property.condition)}
                                   </span>
                                 )}
 
                                 {property.operation && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyOperation(
-                                      property.operation,
-                                    )}
+                                    {getPropertyOperation(property.operation)}
                                   </span>
                                 )}
 
                                 {property.type && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyTypeLabel(
-                                      property.type,
-                                    )}
+                                    {getPropertyTypeLabel(property.type)}
                                   </span>
                                 )}
 
+                                {/* 2. Ubicación: Ciudad, Vecindario, Dirección */}
                                 {property.city && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(
-                                      property.city,
-                                    )}
+                                    {capitalizeFirstLetter(property.city)}
                                   </span>
                                 )}
 
                                 {property.neighborhood && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(
-                                      property.neighborhood,
-                                    )}
+                                    {capitalizeFirstLetter(property.neighborhood)}
                                   </span>
                                 )}
 
                                 {property.address && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(
-                                      property.address,
-                                    )}
+                                    {capitalizeFirstLetter(property.address)}
                                   </span>
                                 )}
+
+                                {/* 3. Highlights generales */}
+                                {highlights
+                                  .slice(0, 5)
+                                  .map((highlight) => (
+                                    <span
+                                      key={highlight}
+                                      className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                    >
+                                      {highlight}
+                                    </span>
+                                  ))}
                               </div>
                             </div>
 
                             {/* FECHA + ANUNCIOS */}
-
                             <div className="flex justify-between border-t pt-4">
                               <div>
                                 <p className="text-xs text-muted-foreground">
-                                  Anuncios
-                                  generados
+                                  Anuncios generados
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium">
-                                  {
-                                    generationCount
-                                  }{' '}
-                                  {generationCount ===
-                                  1
-                                    ? 'anuncio'
-                                    : 'anuncios'}
+                                  {generationCount}{' '}
+                                  {generationCount === 1 ? 'anuncio' : 'anuncios'}
                                 </p>
                               </div>
 
@@ -1743,11 +1706,7 @@ function PropertiesPage() {
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium">
-                                  {new Date(
-                                    property.createdAt,
-                                  ).toLocaleString(
-                                    'es-ES',
-                                  )}
+                                  {new Date(property.createdAt).toLocaleString('es-ES')}
                                 </p>
                               </div>
                             </div>
@@ -1783,7 +1742,7 @@ function PropertiesPage() {
 
             {totalPages > 1 &&
               currentProperties.length >
-                0 && (
+              0 && (
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
                   <button
                     type="button"
@@ -1792,7 +1751,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                        1 ||
+                      1 ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1818,7 +1777,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                        totalPages ||
+                      totalPages ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1974,7 +1933,7 @@ function PropertiesPage() {
                           </select>
 
                           {filter.operator ===
-                          'range' ? (
+                            'range' ? (
                             <div className="mt-2 grid grid-cols-2 gap-2">
                               <input
                                 type="number"
@@ -2256,7 +2215,7 @@ function PropertiesPage() {
                             type="checkbox"
                             checked={
                               filters[
-                                filterField
+                              filterField
                               ]
                             }
                             onChange={() =>
@@ -2282,82 +2241,79 @@ function PropertiesPage() {
               {hasActiveFilters(
                 filters,
               ) && (
-                <div className="mt-6 rounded-md bg-muted/50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Filtros activos
-                  </p>
+                  <div className="mt-6 rounded-md bg-muted/50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Filtros activos
+                    </p>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(
-                      [
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(
                         [
-                          'Precio',
-                          filters.price,
-                          '€',
-                        ],
-                        [
-                          'Superficie',
-                          filters.area,
-                          'm²',
-                        ],
-                        [
-                          'Habitaciones',
-                          filters.bedrooms,
-                          '',
-                        ],
-                        [
-                          'Baños',
-                          filters.bathrooms,
-                          '',
-                        ],
-                      ] as [
-                        string,
-                        NumericFilter,
-                        string,
-                      ][]
-                    ).map(
-                      ([
-                        label,
-                        filter,
-                        suffix,
-                      ]) => {
-                        if (
-                          !hasActiveNumericFilter(
-                            filter,
-                          )
-                        ) {
-                          return null
-                        }
+                          [
+                            'Precio',
+                            filters.price,
+                            '€',
+                          ],
+                          [
+                            'Superficie',
+                            filters.area,
+                            'm²',
+                          ],
+                          [
+                            'Habitaciones',
+                            filters.bedrooms,
+                            '',
+                          ],
+                          [
+                            'Baños',
+                            filters.bathrooms,
+                            '',
+                          ],
+                        ] as [
+                          string,
+                          NumericFilter,
+                          string,
+                        ][]
+                      ).map(
+                        ([
+                          label,
+                          filter,
+                          suffix,
+                        ]) => {
+                          if (
+                            !hasActiveNumericFilter(
+                              filter,
+                            )
+                          ) {
+                            return null
+                          }
 
-                        const text =
-                          filter.operator ===
-                          'range'
-                            ? `${label} entre ${
-                                filter.min ||
-                                'sin mínimo'
-                              } y ${
-                                filter.max ||
-                                'sin máximo'
+                          const text =
+                            filter.operator ===
+                              'range'
+                              ? `${label} entre ${filter.min ||
+                              'sin mínimo'
+                              } y ${filter.max ||
+                              'sin máximo'
                               }${suffix ? ` ${suffix}` : ''}`
-                            : `${label} ${getOperatorLabel(
+                              : `${label} ${getOperatorLabel(
                                 filter.operator,
-                              )} ${
-                                filter.value
+                              )} ${filter.value
                               }${suffix ? ` ${suffix}` : ''}`
 
-                        return (
-                          <span
-                            key={label}
-                            className="rounded-md bg-background px-2 py-1 text-xs"
-                          >
-                            {text}
-                          </span>
-                        )
-                      },
-                    )}
+                          return (
+                            <span
+                              key={label}
+                              className="rounded-md bg-background px-2 py-1 text-xs"
+                            >
+                              {text}
+                            </span>
+                          )
+                        },
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* PIE */}
