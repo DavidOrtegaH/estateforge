@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
-import { buildPropertyHighlights } from "@/utils/propertyHighlights";
+import { buildPropertyHighlights } from '@/utils/propertyHighlights'
 
 import {
   deleteProperties,
@@ -9,7 +9,10 @@ import {
   type PropertyItem,
 } from '@/services/propertyService'
 
-// Diccionario de traducción para los tipos de inmueble
+// ============================================================
+// DICCIONARIOS
+// ============================================================
+
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
   flat: 'Piso',
@@ -23,13 +26,11 @@ const propertyTypeLabels: Record<string, string> = {
   land: 'Terreno',
 }
 
-// Diccionario de traducción para las operaciones
 const propertyOperationLabels: Record<string, string> = {
   sale: 'Venta',
   rent: 'Alquiler',
 }
 
-// Diccionario de traducción para el estado
 const propertyConditionLabels: Record<string, string> = {
   new: 'Obra nueva',
   good: 'Buen estado',
@@ -37,6 +38,10 @@ const propertyConditionLabels: Record<string, string> = {
   'needs-renovation': 'Necesita reforma',
   'to-renovate': 'Necesita reforma',
 }
+
+// ============================================================
+// TIPOS
+// ============================================================
 
 type SortOption =
   | 'newest'
@@ -50,11 +55,30 @@ type NumericOperator =
   | 'eq'
   | 'gte'
   | 'gt'
+  | 'range'
 
 type NumericFilter = {
   operator: NumericOperator
   value: string
+  min: string
+  max: string
 }
+
+type NumericFilterField =
+  | 'price'
+  | 'area'
+  | 'bedrooms'
+  | 'bathrooms'
+
+type BooleanFilterField =
+  | 'pool'
+  | 'garden'
+  | 'terrace'
+  | 'balcony'
+  | 'garage'
+  | 'elevator'
+  | 'airConditioning'
+  | 'heating'
 
 type PropertyFilters = {
   price: NumericFilter
@@ -74,9 +98,15 @@ type PropertyFilters = {
   heating: boolean
 }
 
+// ============================================================
+// FILTROS NUMÉRICOS
+// ============================================================
+
 const emptyNumericFilter = (): NumericFilter => ({
   operator: 'lte',
   value: '',
+  min: '',
+  max: '',
 })
 
 const createDefaultFilters = (): PropertyFilters => ({
@@ -97,14 +127,19 @@ const createDefaultFilters = (): PropertyFilters => ({
   heating: false,
 })
 
+// ============================================================
+// ETIQUETAS
+// ============================================================
+
 function getPropertyOperation(
-  type: string | undefined,
+  operation: string | undefined,
 ): string {
-  if (!type) return 'No indicado'
+  if (!operation) return 'No indicado'
 
   return (
-    propertyOperationLabels[type.toLowerCase()] ||
-    type
+    propertyOperationLabels[
+      operation.toLowerCase()
+    ] || operation
   )
 }
 
@@ -124,13 +159,13 @@ function getPropertyCondition(
 ): string {
   if (!condition) return ''
 
-  const normalizedCondition = condition
-    .toLowerCase()
-    .replace(/_/g, '-')
+  const normalizedCondition =
+    condition.toLowerCase().replace(/_/g, '-')
 
   return (
-    propertyConditionLabels[normalizedCondition] ||
-    condition
+    propertyConditionLabels[
+      normalizedCondition
+    ] || condition
   )
 }
 
@@ -144,6 +179,10 @@ function capitalizeFirstLetter(
     text.slice(1)
   )
 }
+
+// ============================================================
+// HIGHLIGHTS
+// ============================================================
 
 function parseHighlights(
   highlights: unknown,
@@ -183,71 +222,195 @@ function parseHighlights(
   return []
 }
 
-function getPropertyHighlights(property: PropertyItem): string[] {
+function getPropertyHighlights(
+  property: PropertyItem,
+): string[] {
   const highlights: string[] = []
 
   for (const generation of property.generations) {
-    const currentGenerationHighlights: string[] = []
+    const currentGenerationHighlights: string[] =
+      []
 
-    // 1. Obtenemos los highlights estructurados (si existen)
-    const structured = buildPropertyHighlights(generation)
-    if (structured && structured.length > 0) {
-      currentGenerationHighlights.push(...structured)
+    const structured =
+      buildPropertyHighlights(generation)
+
+    if (
+      structured &&
+      structured.length > 0
+    ) {
+      currentGenerationHighlights.push(
+        ...structured,
+      )
     }
 
-    // 2. Obtenemos también los highlights del texto plano o JSON de la generación
     let rawHighlights: string[] = []
-    if (typeof generation.highlights === "string") {
+
+    if (
+      typeof generation.highlights ===
+      'string'
+    ) {
       try {
-        rawHighlights = JSON.parse(generation.highlights)
-      } catch (e) {
-        rawHighlights = [generation.highlights]
+        const parsed: unknown =
+          JSON.parse(
+            generation.highlights,
+          )
+
+        if (Array.isArray(parsed)) {
+          rawHighlights = parsed.filter(
+            (
+              item,
+            ): item is string =>
+              typeof item === 'string',
+          )
+        } else {
+          rawHighlights = [
+            generation.highlights,
+          ]
+        }
+      } catch {
+        rawHighlights = [
+          generation.highlights,
+        ]
       }
-    } else if (Array.isArray(generation.highlights)) {
-      rawHighlights = generation.highlights
+    } else if (
+      Array.isArray(generation.highlights)
+    ) {
+      rawHighlights =
+        generation.highlights
     }
 
-    // 3. Extraemos datos clave del texto por si faltaban en los estructurados
-    const extractedFromText = rawHighlights.flatMap(item => {
-      if (typeof item !== "string") return []
+    const extractedFromText =
+      rawHighlights.flatMap((item) => {
+        if (
+          typeof item !== 'string'
+        ) {
+          return []
+        }
 
-      if (item.length < 50) {
-        return [item]
-      }
+        if (item.length < 50) {
+          return [item]
+        }
 
-      const extracted: string[] = []
+        const extracted: string[] = []
 
-      const areaMatch = item.match(/(\d+)\s*m[²2]/i)
-      if (areaMatch) extracted.push(`${areaMatch[1]} m²`)
+        const areaMatch =
+          item.match(
+            /(\d+)\s*m[²2]/i,
+          )
 
-      const roomsMatch = item.match(/(\d+)\s*(hab[a-z]*|habitaci[oó]n[a-z]*)/i)
-      if (roomsMatch) {
-        const count = roomsMatch[1]
-        extracted.push(`${count} ${Number(count) === 1 ? 'habitación' : 'habitaciones'}`)
-      }
+        if (areaMatch) {
+          extracted.push(
+            `${areaMatch[1]} m²`,
+          )
+        }
 
-      const bathsMatch = item.match(/(\d+)\s*(ba[nñ]o[s]?)/i)
-      if (bathsMatch) {
-        const count = bathsMatch[1]
-        extracted.push(`${count} ${Number(count) === 1 ? 'baño' : 'baños'}`)
-      }
+        const roomsMatch =
+          item.match(
+            /(\d+)\s*(hab[a-z]*|habitaci[oó]n[a-z]*)/i,
+          )
 
-      if (item.toLowerCase().includes('piscina')) extracted.push('Piscina')
-      if (item.toLowerCase().includes('terraza')) extracted.push('Terraza')
-      if (item.toLowerCase().includes('garaje') || item.toLowerCase().includes('parking')) extracted.push('Garaje')
-      if (item.toLowerCase().includes('ascensor')) extracted.push('Ascensor')
-      if (item.toLowerCase().includes('aire acondicionado')) extracted.push('Aire acondicionado')
-      if (item.toLowerCase().includes('trastero')) extracted.push('Trastero')
+        if (roomsMatch) {
+          const count =
+            roomsMatch[1]
 
-      return extracted
-    })
+          extracted.push(
+            `${count} ${
+              Number(count) === 1
+                ? 'habitación'
+                : 'habitaciones'
+            }`,
+          )
+        }
 
-    // Añadimos lo extraído del texto a la lista de esta generación
-    currentGenerationHighlights.push(...extractedFromText)
+        const bathsMatch =
+          item.match(
+            /(\d+)\s*(ba[nñ]o[s]?)/i,
+          )
 
-    // 4. Parseamos y añadimos al array final evitando duplicados globales
-    for (const highlight of parseHighlights(currentGenerationHighlights)) {
-      if (!highlights.includes(highlight)) {
+        if (bathsMatch) {
+          const count =
+            bathsMatch[1]
+
+          extracted.push(
+            `${count} ${
+              Number(count) === 1
+                ? 'baño'
+                : 'baños'
+            }`,
+          )
+        }
+
+        const normalized =
+          item.toLowerCase()
+
+        if (
+          normalized.includes(
+            'piscina',
+          )
+        ) {
+          extracted.push('Piscina')
+        }
+
+        if (
+          normalized.includes(
+            'terraza',
+          )
+        ) {
+          extracted.push('Terraza')
+        }
+
+        if (
+          normalized.includes(
+            'garaje',
+          ) ||
+          normalized.includes(
+            'parking',
+          )
+        ) {
+          extracted.push('Garaje')
+        }
+
+        if (
+          normalized.includes(
+            'ascensor',
+          )
+        ) {
+          extracted.push('Ascensor')
+        }
+
+        if (
+          normalized.includes(
+            'aire acondicionado',
+          )
+        ) {
+          extracted.push(
+            'Aire acondicionado',
+          )
+        }
+
+        if (
+          normalized.includes(
+            'trastero',
+          )
+        ) {
+          extracted.push('Trastero')
+        }
+
+        return extracted
+      })
+
+    currentGenerationHighlights.push(
+      ...extractedFromText,
+    )
+
+    for (
+      const highlight of parseHighlights(
+        currentGenerationHighlights,
+      )
+    ) {
+      if (
+        !highlights.includes(highlight)
+      ) {
         highlights.push(highlight)
       }
     }
@@ -256,40 +419,91 @@ function getPropertyHighlights(property: PropertyItem): string[] {
   return highlights
 }
 
-/**
- * Convierte la fecha de creación a timestamp.
- *
- * PropertyItem.createdAt es string, por lo que no utilizamos
- * "instanceof Date", evitando el error de TypeScript:
- * "The left-hand side of an 'instanceof' expression..."
- */
+// ============================================================
+// FECHAS
+// ============================================================
+
 function getCreatedAtTimestamp(
   createdAt: string | undefined,
 ): number {
-  if (!createdAt) {
-    return 0
-  }
+  if (!createdAt) return 0
 
-  const timestamp = new Date(
-    createdAt,
-  ).getTime()
+  const timestamp =
+    new Date(createdAt).getTime()
 
   return Number.isNaN(timestamp)
     ? 0
     : timestamp
 }
 
+// ============================================================
+// FILTROS NUMÉRICOS
+// ============================================================
+
+function getNumericFilterValue(
+  value: string,
+): number | null {
+  if (value.trim() === '') {
+    return null
+  }
+
+  const normalized =
+    value.replace(',', '.')
+
+  const parsed = Number(normalized)
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : null
+}
+
 function compareNumericValue(
   propertyValue: number,
   filter: NumericFilter,
 ): boolean {
-  if (filter.value.trim() === '') {
+  if (
+    filter.operator === 'range'
+  ) {
+    const min =
+      getNumericFilterValue(
+        filter.min,
+      )
+
+    const max =
+      getNumericFilterValue(
+        filter.max,
+      )
+
+    if (
+      min === null &&
+      max === null
+    ) {
+      return true
+    }
+
+    if (
+      min !== null &&
+      propertyValue < min
+    ) {
+      return false
+    }
+
+    if (
+      max !== null &&
+      propertyValue > max
+    ) {
+      return false
+    }
+
     return true
   }
 
-  const value = Number(filter.value)
+  const value =
+    getNumericFilterValue(
+      filter.value,
+    )
 
-  if (!Number.isFinite(value)) {
+  if (value === null) {
     return true
   }
 
@@ -333,19 +547,45 @@ function getOperatorLabel(
     case 'gt':
       return 'Mayor que'
 
+    case 'range':
+      return 'Entre'
+
     default:
       return 'Menor o igual que'
   }
+}
+
+function hasActiveNumericFilter(
+  filter: NumericFilter,
+): boolean {
+  if (
+    filter.operator === 'range'
+  ) {
+    return (
+      filter.min.trim() !== '' ||
+      filter.max.trim() !== ''
+    )
+  }
+
+  return filter.value.trim() !== ''
 }
 
 function hasActiveFilters(
   filters: PropertyFilters,
 ): boolean {
   return (
-    filters.price.value.trim() !== '' ||
-    filters.area.value.trim() !== '' ||
-    filters.bedrooms.value.trim() !== '' ||
-    filters.bathrooms.value.trim() !== '' ||
+    hasActiveNumericFilter(
+      filters.price,
+    ) ||
+    hasActiveNumericFilter(
+      filters.area,
+    ) ||
+    hasActiveNumericFilter(
+      filters.bedrooms,
+    ) ||
+    hasActiveNumericFilter(
+      filters.bathrooms,
+    ) ||
     filters.operation !== '' ||
     filters.type !== '' ||
     filters.condition !== '' ||
@@ -359,6 +599,10 @@ function hasActiveFilters(
     filters.heating
   )
 }
+
+// ============================================================
+// COMPONENTE
+// ============================================================
 
 function PropertiesPage() {
   const [properties, setProperties] =
@@ -376,29 +620,23 @@ function PropertiesPage() {
   const [deleteError, setDeleteError] =
     useState<string | null>(null)
 
-  // IDs seleccionados.
-  // Se mantienen aunque cambiemos de página.
   const [selectedIds, setSelectedIds] =
     useState<Set<string>>(new Set())
 
-  // Estados para la paginación
   const [currentPage, setCurrentPage] =
     useState(1)
 
   const itemsPerPage = 6
 
-  // Búsqueda por título
   const [searchTerm, setSearchTerm] =
     useState('')
 
-  // Ordenación
   const [sortOption, setSortOption] =
     useState<SortOption>('newest')
 
   const [isSortMenuOpen, setIsSortMenuOpen] =
     useState(false)
 
-  // Filtros
   const [isFilterOpen, setIsFilterOpen] =
     useState(false)
 
@@ -406,6 +644,10 @@ function PropertiesPage() {
     useState<PropertyFilters>(
       createDefaultFilters,
     )
+
+  // ==========================================================
+  // CARGA
+  // ==========================================================
 
   useEffect(() => {
     async function loadProperties() {
@@ -426,23 +668,30 @@ function PropertiesPage() {
     void loadProperties()
   }, [])
 
-  // Evitamos que la página del fondo se desplace
-  // mientras el menú de filtros está abierto.
+  // ==========================================================
+  // MODAL DE FILTROS
+  // ==========================================================
+
   useEffect(() => {
     if (!isFilterOpen) {
-      document.body.style.overflow = ''
+      document.body.style.overflow =
+        ''
       return
     }
 
-    document.body.style.overflow = 'hidden'
+    document.body.style.overflow =
+      'hidden'
 
     return () => {
-      document.body.style.overflow = ''
+      document.body.style.overflow =
+        ''
     }
   }, [isFilterOpen])
 
-  // Al cambiar la búsqueda, el orden o los filtros,
-  // volvemos a la primera página.
+  // ==========================================================
+  // PAGINACIÓN
+  // ==========================================================
+
   useEffect(() => {
     setCurrentPage(1)
   }, [
@@ -451,185 +700,182 @@ function PropertiesPage() {
     filters,
   ])
 
-  // Scroll instantáneo al cambiar de página
   useEffect(() => {
     window.scrollTo({
-      top: document.documentElement.scrollHeight,
+      top:
+        document.documentElement
+          .scrollHeight,
       behavior: 'instant',
     })
   }, [currentPage])
 
-  /**
-   * Propiedades filtradas y ordenadas.
-   */
+  // ==========================================================
+  // FILTRADO Y ORDENACIÓN
+  // ==========================================================
+
   const filteredAndSortedProperties =
     useMemo(() => {
       const normalizedSearch =
         searchTerm
           .trim()
-          .toLocaleLowerCase('es-ES')
+          .toLocaleLowerCase(
+            'es-ES',
+          )
 
       const filtered =
-        properties.filter((property) => {
-          // -----------------------------
-          // Búsqueda por título
-          // -----------------------------
-          if (normalizedSearch) {
-            const title =
-              (
-                property.title || ''
-              ).toLocaleLowerCase(
-                'es-ES',
-              )
+        properties.filter(
+          (property) => {
+            if (
+              normalizedSearch
+            ) {
+              const title =
+                (
+                  property.title ||
+                  ''
+                ).toLocaleLowerCase(
+                  'es-ES',
+                )
+
+              if (
+                !title.includes(
+                  normalizedSearch,
+                )
+              ) {
+                return false
+              }
+            }
 
             if (
-              !title.includes(
-                normalizedSearch,
+              !compareNumericValue(
+                property.price,
+                filters.price,
               )
             ) {
               return false
             }
-          }
 
-          // -----------------------------
-          // Filtros numéricos
-          // -----------------------------
-          if (
-            !compareNumericValue(
-              property.price,
-              filters.price,
-            )
-          ) {
-            return false
-          }
+            if (
+              !compareNumericValue(
+                property.area,
+                filters.area,
+              )
+            ) {
+              return false
+            }
 
-          if (
-            !compareNumericValue(
-              property.area,
-              filters.area,
-            )
-          ) {
-            return false
-          }
+            if (
+              !compareNumericValue(
+                property.bedrooms,
+                filters.bedrooms,
+              )
+            ) {
+              return false
+            }
 
-          if (
-            !compareNumericValue(
-              property.bedrooms,
-              filters.bedrooms,
-            )
-          ) {
-            return false
-          }
+            if (
+              !compareNumericValue(
+                property.bathrooms,
+                filters.bathrooms,
+              )
+            ) {
+              return false
+            }
 
-          if (
-            !compareNumericValue(
-              property.bathrooms,
-              filters.bathrooms,
-            )
-          ) {
-            return false
-          }
+            if (
+              filters.operation &&
+              property.operation
+                ?.toLowerCase() !==
+                filters.operation.toLowerCase()
+            ) {
+              return false
+            }
 
-          // -----------------------------
-          // Operación
-          // -----------------------------
-          if (
-            filters.operation &&
-            property.operation
-              ?.toLowerCase() !==
-            filters.operation.toLowerCase()
-          ) {
-            return false
-          }
+            if (
+              filters.type &&
+              property.type
+                ?.toLowerCase() !==
+                filters.type.toLowerCase()
+            ) {
+              return false
+            }
 
-          // -----------------------------
-          // Tipo de inmueble
-          // -----------------------------
-          if (
-            filters.type &&
-            property.type
-              ?.toLowerCase() !==
-            filters.type.toLowerCase()
-          ) {
-            return false
-          }
+            if (
+              filters.condition &&
+              property.condition
+                ?.toLowerCase()
+                .replace(
+                  /_/g,
+                  '-',
+                ) !==
+                filters.condition
+                  .toLowerCase()
+                  .replace(
+                    /_/g,
+                    '-',
+                  )
+            ) {
+              return false
+            }
 
-          // -----------------------------
-          // Estado
-          // -----------------------------
-          if (
-            filters.condition &&
-            property.condition
-              ?.toLowerCase()
-              .replace(/_/g, '-') !==
-            filters.condition
-              .toLowerCase()
-              .replace(/_/g, '-')
-          ) {
-            return false
-          }
+            if (
+              filters.pool &&
+              !property.pool
+            ) {
+              return false
+            }
 
-          // -----------------------------
-          // Características
-          // -----------------------------
-          if (
-            filters.pool &&
-            !property.pool
-          ) {
-            return false
-          }
+            if (
+              filters.garden &&
+              !property.garden
+            ) {
+              return false
+            }
 
-          if (
-            filters.garden &&
-            !property.garden
-          ) {
-            return false
-          }
+            if (
+              filters.terrace &&
+              !property.terrace
+            ) {
+              return false
+            }
 
-          if (
-            filters.terrace &&
-            !property.terrace
-          ) {
-            return false
-          }
+            if (
+              filters.balcony &&
+              !property.balcony
+            ) {
+              return false
+            }
 
-          if (
-            filters.balcony &&
-            !property.balcony
-          ) {
-            return false
-          }
+            if (
+              filters.garage &&
+              !property.garage
+            ) {
+              return false
+            }
 
-          if (
-            filters.garage &&
-            !property.garage
-          ) {
-            return false
-          }
+            if (
+              filters.elevator &&
+              !property.elevator
+            ) {
+              return false
+            }
 
-          if (
-            filters.elevator &&
-            !property.elevator
-          ) {
-            return false
-          }
+            if (
+              filters.airConditioning &&
+              !property.airConditioning
+            ) {
+              return false
+            }
 
-          if (
-            filters.airConditioning &&
-            !property.airConditioning
-          ) {
-            return false
-          }
+            if (
+              filters.heating &&
+              !property.heating
+            ) {
+              return false
+            }
 
-          if (
-            filters.heating &&
-            !property.heating
-          ) {
-            return false
-          }
-
-          return true
-        })
+            return true
+          },
+        )
 
       return [...filtered].sort(
         (a, b) => {
@@ -655,10 +901,14 @@ function PropertiesPage() {
               )
 
             case 'most-expensive':
-              return b.price - a.price
+              return (
+                b.price - a.price
+              )
 
             case 'cheapest':
-              return a.price - b.price
+              return (
+                a.price - b.price
+              )
 
             default:
               return 0
@@ -672,13 +922,11 @@ function PropertiesPage() {
       filters,
     ])
 
-  // Cálculos de paginación sobre el resultado
-  // ya filtrado y ordenado.
   const totalPages = Math.max(
     1,
     Math.ceil(
       filteredAndSortedProperties.length /
-      itemsPerPage,
+        itemsPerPage,
     ),
   )
 
@@ -686,7 +934,8 @@ function PropertiesPage() {
     currentPage * itemsPerPage
 
   const indexOfFirstItem =
-    indexOfLastItem - itemsPerPage
+    indexOfLastItem -
+    itemsPerPage
 
   const currentProperties =
     filteredAndSortedProperties.slice(
@@ -694,11 +943,25 @@ function PropertiesPage() {
       indexOfLastItem,
     )
 
-  // IDs seleccionados que pertenecen a la página actual
+  useEffect(() => {
+    setCurrentPage(
+      (previousPage) =>
+        Math.min(
+          previousPage,
+          totalPages,
+        ),
+    )
+  }, [totalPages])
+
+  // ==========================================================
+  // SELECCIÓN
+  // ==========================================================
+
   const currentPageIds = useMemo(
     () =>
       currentProperties.map(
-        (property) => property.id,
+        (property) =>
+          property.id,
       ),
     [currentProperties],
   )
@@ -711,7 +974,7 @@ function PropertiesPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-    currentPageIds.length
+      currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -726,7 +989,9 @@ function PropertiesPage() {
     setSelectedIds((previous) => {
       const next = new Set(previous)
 
-      if (next.has(propertyId)) {
+      if (
+        next.has(propertyId)
+      ) {
         next.delete(propertyId)
       } else {
         next.add(propertyId)
@@ -738,113 +1003,141 @@ function PropertiesPage() {
     setDeleteError(null)
   }
 
-  const handleToggleCurrentPage = () => {
-    setSelectedIds((previous) => {
-      const next = new Set(previous)
+  const handleToggleCurrentPage =
+    () => {
+      setSelectedIds((previous) => {
+        const next = new Set(previous)
 
-      if (allCurrentPageSelected) {
-        currentPageIds.forEach((id) => {
-          next.delete(id)
-        })
-      } else {
-        currentPageIds.forEach((id) => {
-          next.add(id)
-        })
-      }
+        if (
+          allCurrentPageSelected
+        ) {
+          currentPageIds.forEach(
+            (id) =>
+              next.delete(id),
+          )
+        } else {
+          currentPageIds.forEach(
+            (id) =>
+              next.add(id),
+          )
+        }
 
-      return next
-    })
+        return next
+      })
 
-    setDeleteError(null)
-  }
+      setDeleteError(null)
+    }
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1)
+    if (
+      currentPage < totalPages
+    ) {
+      setCurrentPage(
+        (previous) =>
+          previous + 1,
+      )
     }
   }
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1)
+      setCurrentPage(
+        (previous) =>
+          previous - 1,
+      )
     }
   }
 
-  const handleDeleteSelected = async () => {
-    if (
-      selectedIds.size === 0 ||
-      deleting
-    ) {
-      return
+  // ==========================================================
+  // BORRADO
+  // ==========================================================
+
+  const handleDeleteSelected =
+    async () => {
+      if (
+        selectedIds.size === 0 ||
+        deleting
+      ) {
+        return
+      }
+
+      const count =
+        selectedIds.size
+
+      const confirmed =
+        window.confirm(
+          `¿Seguro que quieres eliminar ${count} ${
+            count === 1
+              ? 'inmueble'
+              : 'inmuebles'
+          } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
+        )
+
+      if (!confirmed) {
+        return
+      }
+
+      setDeleting(true)
+      setDeleteError(null)
+
+      try {
+        await deleteProperties(
+          Array.from(selectedIds),
+        )
+
+        const result =
+          await getProperties()
+
+        setProperties(result)
+        setSelectedIds(new Set())
+
+        const newTotalPages =
+          Math.max(
+            1,
+            Math.ceil(
+              result.length /
+                itemsPerPage,
+            ),
+          )
+
+        setCurrentPage(
+          (previousPage) =>
+            Math.min(
+              previousPage,
+              newTotalPages,
+            ),
+        )
+      } catch (deleteError) {
+        console.error(
+          'Error eliminando inmuebles:',
+          deleteError,
+        )
+
+        setDeleteError(
+          'No se han podido eliminar los inmuebles seleccionados.',
+        )
+      } finally {
+        setDeleting(false)
+      }
     }
 
-    const count = selectedIds.size
-
-    const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${count === 1
-        ? 'inmueble'
-        : 'inmuebles'
-      } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
-    )
-
-    if (!confirmed) {
-      return
-    }
-
-    setDeleting(true)
-    setDeleteError(null)
-
-    try {
-      await deleteProperties(
-        Array.from(selectedIds),
-      )
-
-      const result =
-        await getProperties()
-
-      setProperties(result)
-      setSelectedIds(new Set())
-
-      const newTotalPages = Math.max(
-        1,
-        Math.ceil(
-          result.length / itemsPerPage,
-        ),
-      )
-
-      setCurrentPage((previousPage) =>
-        Math.min(
-          previousPage,
-          newTotalPages,
-        ),
-      )
-    } catch (error) {
-      console.error(
-        'Error eliminando inmuebles:',
-        error,
-      )
-
-      setDeleteError(
-        'No se han podido eliminar los inmuebles seleccionados.',
-      )
-    } finally {
-      setDeleting(false)
-    }
-  }
+  // ==========================================================
+  // FILTROS
+  // ==========================================================
 
   const handleResetFilters = () => {
-    setFilters(createDefaultFilters())
+    setFilters(
+      createDefaultFilters(),
+    )
   }
 
   const updateNumericFilter = (
-    field:
-      | 'price'
-      | 'area'
-      | 'bedrooms'
-      | 'bathrooms',
+    field: NumericFilterField,
     property:
       | 'operator'
-      | 'value',
+      | 'value'
+      | 'min'
+      | 'max',
     value: string,
   ) => {
     setFilters((current) => ({
@@ -856,16 +1149,29 @@ function PropertiesPage() {
     }))
   }
 
+  const updateNumericOperator = (
+    field: NumericFilterField,
+    operator: NumericOperator,
+  ) => {
+    setFilters((current) => ({
+      ...current,
+      [field]: {
+        ...current[field],
+        operator,
+        ...(operator === 'range'
+          ? {
+              value: '',
+            }
+          : {
+              min: '',
+              max: '',
+            }),
+      },
+    }))
+  }
+
   const toggleBooleanFilter = (
-    field:
-      | 'pool'
-      | 'garden'
-      | 'terrace'
-      | 'balcony'
-      | 'garage'
-      | 'elevator'
-      | 'airConditioning'
-      | 'heating',
+    field: BooleanFilterField,
   ) => {
     setFilters((current) => ({
       ...current,
@@ -882,6 +1188,22 @@ function PropertiesPage() {
     'most-expensive': 'Más caros',
     cheapest: 'Más baratos',
   }
+
+  const numericOperators: [
+    NumericOperator,
+    string,
+  ][] = [
+    ['lt', 'Menor que'],
+    ['lte', 'Menor o igual que'],
+    ['eq', 'Igual a'],
+    ['gte', 'Mayor o igual que'],
+    ['gt', 'Mayor que'],
+    ['range', 'Entre'],
+  ]
+
+  // ==========================================================
+  // ESTADOS
+  // ==========================================================
 
   if (loading) {
     return (
@@ -911,9 +1233,15 @@ function PropertiesPage() {
     )
   }
 
+  // ==========================================================
+  // RENDER
+  // ==========================================================
+
   return (
     <>
       <div className="max-w-6xl">
+        {/* CABECERA */}
+
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-3xl font-bold">
@@ -962,9 +1290,11 @@ function PropertiesPage() {
           </div>
         ) : (
           <div>
-            {/* Barra de búsqueda, ordenación y filtros */}
+            {/* ==================================================
+                BÚSQUEDA / ORDENACIÓN / FILTROS
+                ================================================== */}
+
             <div className="mt-8 flex flex-col gap-3 rounded-lg border bg-card p-4 lg:flex-row lg:items-center">
-              {/* Buscador */}
               <div className="relative flex-1">
                 <input
                   type="search"
@@ -981,7 +1311,8 @@ function PropertiesPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {/* Ordenar */}
+                {/* ORDENAR */}
+
                 <div className="relative">
                   <button
                     type="button"
@@ -997,14 +1328,19 @@ function PropertiesPage() {
                     className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted"
                   >
                     Ordenar
+
                     <span className="text-muted-foreground">
                       ·
                     </span>
+
                     <span>
-                      {sortLabels[
-                        sortOption
-                      ]}
+                      {
+                        sortLabels[
+                          sortOption
+                        ]
+                      }
                     </span>
+
                     <span className="text-xs">
                       ↓
                     </span>
@@ -1031,15 +1367,17 @@ function PropertiesPage() {
                               setSortOption(
                                 value,
                               )
+
                               setIsSortMenuOpen(
                                 false,
                               )
                             }}
-                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
-                                value
+                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${
+                              sortOption ===
+                              value
                                 ? 'bg-muted font-medium'
                                 : ''
-                              }`}
+                            }`}
                           >
                             {label}
                           </button>
@@ -1049,39 +1387,46 @@ function PropertiesPage() {
                   )}
                 </div>
 
-                {/* Filtros */}
+                {/* FILTRAR */}
+
                 <button
                   type="button"
                   onClick={() =>
                     setIsFilterOpen(true)
                   }
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${hasActiveFilters(
-                    filters,
-                  )
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${
+                    hasActiveFilters(
+                      filters,
+                    )
                       ? 'border-primary bg-primary/5 text-primary'
                       : ''
-                    }`}
+                  }`}
                 >
                   Filtrar
+
                   {hasActiveFilters(
                     filters,
                   ) && (
-                      <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                        Activos
-                      </span>
-                    )}
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                      Activos
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
 
-            {/* Información de resultados */}
+            {/* RESULTADOS */}
+
             <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
               <span>
                 <span className="font-medium text-foreground">
-                  {properties.length}{' '}
-                </span>{' '}
-                {properties.length ===
-                  1
+                  {
+                    filteredAndSortedProperties.length
+                  }{' '}
+                </span>
+
+                {filteredAndSortedProperties.length ===
+                1
                   ? 'inmueble encontrado'
                   : 'inmuebles encontrados'}
               </span>
@@ -1090,20 +1435,22 @@ function PropertiesPage() {
                 hasActiveFilters(
                   filters,
                 )) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm('')
-                      handleResetFilters()
-                    }}
-                    className="w-fit text-sm font-medium text-primary hover:underline"
-                  >
-                    Limpiar búsqueda y filtros
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('')
+                    handleResetFilters()
+                  }}
+                  className="w-fit text-sm font-medium text-primary hover:underline"
+                >
+                  Limpiar búsqueda y
+                  filtros
+                </button>
+              )}
             </div>
 
-            {/* Barra de selección */}
+            {/* SELECCIÓN */}
+
             <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-3">
                 <input
@@ -1124,7 +1471,7 @@ function PropertiesPage() {
                   disabled={
                     deleting ||
                     currentProperties.length ===
-                    0
+                      0
                   }
                   className="h-4 w-4 cursor-pointer"
                 />
@@ -1163,10 +1510,11 @@ function PropertiesPage() {
                       ? -1
                       : 0
                   }
-                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selectedCount > 0
                       ? 'visible'
                       : 'pointer-events-none invisible'
-                    }`}
+                  }`}
                 >
                   {deleting
                     ? 'Eliminando...'
@@ -1175,8 +1523,10 @@ function PropertiesPage() {
               </div>
             </div>
 
+            {/* RESULTADOS */}
+
             {currentProperties.length ===
-              0 ? (
+            0 ? (
               <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                 <h2 className="font-semibold">
                   No hay inmuebles que coincidan
@@ -1195,7 +1545,8 @@ function PropertiesPage() {
                   }}
                   className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                 >
-                  Limpiar búsqueda y filtros
+                  Limpiar búsqueda y
+                  filtros
                 </button>
               </div>
             ) : (
@@ -1218,21 +1569,26 @@ function PropertiesPage() {
 
                     return (
                       <div
-                        key={property.id}
-                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
+                        key={
+                          property.id
+                        }
+                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${
+                          isSelected
                             ? 'border-primary ring-2 ring-primary/25'
                             : 'border-border'
-                          }`}
+                        }`}
                       >
-                        {/* Selector superior */}
+                        {/* SELECTOR */}
+
                         <div className="group relative w-full overflow-hidden rounded-t-lg">
                           <input
                             type="checkbox"
                             aria-label={`Seleccionar ${getPropertyTypeLabel(
                               property.type,
-                            )} en ${property.city ||
+                            )} en ${
+                              property.city ||
                               'Sin ciudad'
-                              }`}
+                            }`}
                             checked={
                               isSelected
                             }
@@ -1244,17 +1600,19 @@ function PropertiesPage() {
                             disabled={
                               deleting
                             }
-                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
+                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${
+                              isSelected
                                 ? 'cursor-default bg-foreground'
                                 : 'bg-accent group-hover:bg-primary'
-                              }`}
+                            }`}
                           />
 
                           <div
-                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
+                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
+                              isSelected
                                 ? 'font-semibold text-background'
                                 : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                              }`}
+                            }`}
                           >
                             {isSelected
                               ? '✓ Seleccionado'
@@ -1262,13 +1620,16 @@ function PropertiesPage() {
                           </div>
                         </div>
 
-                        {/* Contenido central */}
+                        {/* CONTENIDO */}
+
                         <div className="flex flex-1 flex-col p-5">
                           <div>
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0">
-                                <h2 className="mt-1 pb-12 text-lg font-semibold">
-                                  {property.title}
+                                <h2 className="mt-1 text-lg font-semibold">
+                                  {
+                                    property.title
+                                  }
                                 </h2>
                               </div>
 
@@ -1281,7 +1642,6 @@ function PropertiesPage() {
                             </div>
                           </div>
 
-                          {/* Zona de highlights */}
                           <div className="mt-auto">
                             <div className="flex min-h-21 flex-col justify-end pb-4">
                               <div className="flex flex-wrap items-end gap-2">
@@ -1357,26 +1717,31 @@ function PropertiesPage() {
                               </div>
                             </div>
 
-                            {/* Línea divisoria + anuncios */}
-                            <div className="border-t pt-4 flex justify-between">
+                            {/* FECHA + ANUNCIOS */}
+
+                            <div className="flex justify-between border-t pt-4">
                               <div>
                                 <p className="text-xs text-muted-foreground">
-                                  Anuncios generados
+                                  Anuncios
+                                  generados
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium">
-                                  {generationCount}{' '}
+                                  {
+                                    generationCount
+                                  }{' '}
                                   {generationCount ===
-                                    1
+                                  1
                                     ? 'anuncio'
                                     : 'anuncios'}
                                 </p>
                               </div>
-                              <div className="">
 
+                              <div>
                                 <p className="text-xs text-muted-foreground">
                                   Generado el:
                                 </p>
+
                                 <p className="mt-1 text-sm font-medium">
                                   {new Date(
                                     property.createdAt,
@@ -1389,7 +1754,8 @@ function PropertiesPage() {
                           </div>
                         </div>
 
-                        {/* Ver detalles */}
+                        {/* CTA */}
+
                         <Link
                           to={`/inmuebles/${property.id}`}
                           className="group mt-auto block"
@@ -1413,10 +1779,11 @@ function PropertiesPage() {
               </div>
             )}
 
-            {/* Controles de paginación */}
+            {/* PAGINACIÓN */}
+
             {totalPages > 1 &&
               currentProperties.length >
-              0 && (
+                0 && (
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
                   <button
                     type="button"
@@ -1425,7 +1792,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                      1 ||
+                        1 ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1451,7 +1818,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                      totalPages ||
+                        totalPages ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1464,9 +1831,10 @@ function PropertiesPage() {
         )}
       </div>
 
-      {/* =========================================================
+      {/* ======================================================
           MODAL DE FILTROS
-          ========================================================= */}
+          ====================================================== */}
+
       {isFilterOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
@@ -1483,7 +1851,8 @@ function PropertiesPage() {
           }}
         >
           <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
-            {/* Cabecera */}
+            {/* CABECERA */}
+
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div>
                 <h2
@@ -1503,7 +1872,9 @@ function PropertiesPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setIsFilterOpen(false)
+                  setIsFilterOpen(
+                    false,
+                  )
                 }
                 aria-label="Cerrar filtros"
                 className="rounded-md px-2 py-1 text-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -1512,260 +1883,188 @@ function PropertiesPage() {
               </button>
             </div>
 
-            {/* Contenido */}
             <div className="overflow-y-auto p-6">
               <div className="grid gap-6 md:grid-cols-2">
-                {/* Precio */}
-                <div>
-                  <label
-                    htmlFor="filter-price"
-                    className="text-sm font-medium"
-                  >
-                    Precio
-                  </label>
+                {/* PRECIO */}
 
-                  <div className="mt-2 flex gap-2">
-                    <select
-                      value={
-                        filters.price.operator
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'price',
-                          'operator',
-                          event.target
-                            .value as NumericOperator,
-                        )
-                      }
-                      className="w-40 rounded-md border bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="lt">
-                        Menor que
-                      </option>
-                      <option value="lte">
-                        Menor o igual
-                      </option>
-                      <option value="eq">
-                        Igual a
-                      </option>
-                      <option value="gte">
-                        Mayor o igual
-                      </option>
-                      <option value="gt">
-                        Mayor que
-                      </option>
-                    </select>
+                {(
+                  [
+                    [
+                      'price',
+                      'Precio',
+                      'Ej. 150000',
+                      false,
+                    ],
+                    [
+                      'area',
+                      'Superficie (m²)',
+                      'Ej. 42',
+                      false,
+                    ],
+                    [
+                      'bedrooms',
+                      'Habitaciones',
+                      'Ej. 3',
+                      true,
+                    ],
+                    [
+                      'bathrooms',
+                      'Baños',
+                      'Ej. 2',
+                      true,
+                    ],
+                  ] as [
+                    NumericFilterField,
+                    string,
+                    string,
+                    boolean,
+                  ][]
+                ).map(
+                  ([
+                    field,
+                    label,
+                    placeholder,
+                    integer,
+                  ]) => {
+                    const filter =
+                      filters[field]
 
-                    <input
-                      id="filter-price"
-                      type="number"
-                      min="0"
-                      value={
-                        filters.price.value
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'price',
-                          'value',
-                          event.target.value,
-                        )
-                      }
-                      placeholder="Ej. 150000"
-                      className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
+                    return (
+                      <div key={field}>
+                        <label className="text-sm font-medium">
+                          {label}
+                        </label>
 
-                {/* Superficie */}
-                <div>
-                  <label
-                    htmlFor="filter-area"
-                    className="text-sm font-medium"
-                  >
-                    Superficie (m²)
-                  </label>
+                        <div className="mt-2">
+                          <select
+                            value={
+                              filter.operator
+                            }
+                            onChange={(
+                              event,
+                            ) =>
+                              updateNumericOperator(
+                                field,
+                                event
+                                  .target
+                                  .value as NumericOperator,
+                              )
+                            }
+                            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                          >
+                            {numericOperators.map(
+                              ([
+                                value,
+                                operatorLabel,
+                              ]) => (
+                                <option
+                                  key={
+                                    value
+                                  }
+                                  value={
+                                    value
+                                  }
+                                >
+                                  {
+                                    operatorLabel
+                                  }
+                                </option>
+                              ),
+                            )}
+                          </select>
 
-                  <div className="mt-2 flex gap-2">
-                    <select
-                      value={
-                        filters.area.operator
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'area',
-                          'operator',
-                          event.target
-                            .value as NumericOperator,
-                        )
-                      }
-                      className="w-40 rounded-md border bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="lt">
-                        Menor que
-                      </option>
-                      <option value="lte">
-                        Menor o igual
-                      </option>
-                      <option value="eq">
-                        Igual a
-                      </option>
-                      <option value="gte">
-                        Mayor o igual
-                      </option>
-                      <option value="gt">
-                        Mayor que
-                      </option>
-                    </select>
+                          {filter.operator ===
+                          'range' ? (
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step={
+                                  integer
+                                    ? '1'
+                                    : undefined
+                                }
+                                value={
+                                  filter.min
+                                }
+                                onChange={(
+                                  event,
+                                ) =>
+                                  updateNumericFilter(
+                                    field,
+                                    'min',
+                                    event
+                                      .target
+                                      .value,
+                                  )
+                                }
+                                placeholder="Mínimo"
+                                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                              />
 
-                    <input
-                      id="filter-area"
-                      type="number"
-                      min="0"
-                      value={
-                        filters.area.value
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'area',
-                          'value',
-                          event.target.value,
-                        )
-                      }
-                      placeholder="Ej. 42"
-                      className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
+                              <input
+                                type="number"
+                                min="0"
+                                step={
+                                  integer
+                                    ? '1'
+                                    : undefined
+                                }
+                                value={
+                                  filter.max
+                                }
+                                onChange={(
+                                  event,
+                                ) =>
+                                  updateNumericFilter(
+                                    field,
+                                    'max',
+                                    event
+                                      .target
+                                      .value,
+                                  )
+                                }
+                                placeholder="Máximo"
+                                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                              />
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              min="0"
+                              step={
+                                integer
+                                  ? '1'
+                                  : undefined
+                              }
+                              value={
+                                filter.value
+                              }
+                              onChange={(
+                                event,
+                              ) =>
+                                updateNumericFilter(
+                                  field,
+                                  'value',
+                                  event
+                                    .target
+                                    .value,
+                                )
+                              }
+                              placeholder={
+                                placeholder
+                              }
+                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  },
+                )}
 
-                {/* Habitaciones */}
-                <div>
-                  <label
-                    htmlFor="filter-bedrooms"
-                    className="text-sm font-medium"
-                  >
-                    Habitaciones
-                  </label>
+                {/* OPERACIÓN */}
 
-                  <div className="mt-2 flex gap-2">
-                    <select
-                      value={
-                        filters.bedrooms
-                          .operator
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'bedrooms',
-                          'operator',
-                          event.target
-                            .value as NumericOperator,
-                        )
-                      }
-                      className="w-40 rounded-md border bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="lt">
-                        Menor que
-                      </option>
-                      <option value="lte">
-                        Menor o igual
-                      </option>
-                      <option value="eq">
-                        Igual a
-                      </option>
-                      <option value="gte">
-                        Mayor o igual
-                      </option>
-                      <option value="gt">
-                        Mayor que
-                      </option>
-                    </select>
-
-                    <input
-                      id="filter-bedrooms"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={
-                        filters.bedrooms
-                          .value
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'bedrooms',
-                          'value',
-                          event.target.value,
-                        )
-                      }
-                      placeholder="Ej. 3"
-                      className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-
-                {/* Baños */}
-                <div>
-                  <label
-                    htmlFor="filter-bathrooms"
-                    className="text-sm font-medium"
-                  >
-                    Baños
-                  </label>
-
-                  <div className="mt-2 flex gap-2">
-                    <select
-                      value={
-                        filters.bathrooms
-                          .operator
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'bathrooms',
-                          'operator',
-                          event.target
-                            .value as NumericOperator,
-                        )
-                      }
-                      className="w-40 rounded-md border bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="lt">
-                        Menor que
-                      </option>
-                      <option value="lte">
-                        Menor o igual
-                      </option>
-                      <option value="eq">
-                        Igual a
-                      </option>
-                      <option value="gte">
-                        Mayor o igual
-                      </option>
-                      <option value="gt">
-                        Mayor que
-                      </option>
-                    </select>
-
-                    <input
-                      id="filter-bathrooms"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={
-                        filters.bathrooms
-                          .value
-                      }
-                      onChange={(event) =>
-                        updateNumericFilter(
-                          'bathrooms',
-                          'value',
-                          event.target.value,
-                        )
-                      }
-                      placeholder="Ej. 2"
-                      className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-
-                {/* Operación */}
                 <div>
                   <label
                     htmlFor="filter-operation"
@@ -1794,16 +2093,19 @@ function PropertiesPage() {
                     <option value="">
                       Cualquier operación
                     </option>
+
                     <option value="sale">
                       Venta
                     </option>
+
                     <option value="rent">
                       Alquiler
                     </option>
                   </select>
                 </div>
 
-                {/* Tipo */}
+                {/* TIPO */}
+
                 <div>
                   <label
                     htmlFor="filter-type"
@@ -1819,7 +2121,8 @@ function PropertiesPage() {
                       setFilters(
                         (current) => ({
                           ...current,
-                          type: event.target
+                          type: event
+                            .target
                             .value,
                         }),
                       )
@@ -1848,7 +2151,8 @@ function PropertiesPage() {
                   </select>
                 </div>
 
-                {/* Estado */}
+                {/* ESTADO */}
+
                 <div>
                   <label
                     htmlFor="filter-condition"
@@ -1897,7 +2201,8 @@ function PropertiesPage() {
                 </div>
               </div>
 
-              {/* Características */}
+              {/* CARACTERÍSTICAS */}
+
               <div className="mt-7 border-t pt-6">
                 <h3 className="text-sm font-semibold">
                   Características
@@ -1940,15 +2245,7 @@ function PropertiesPage() {
                   ].map(
                     ([field, label]) => {
                       const filterField =
-                        field as
-                        | 'pool'
-                        | 'garden'
-                        | 'terrace'
-                        | 'balcony'
-                        | 'garage'
-                        | 'elevator'
-                        | 'airConditioning'
-                        | 'heating'
+                        field as BooleanFilterField
 
                       return (
                         <label
@@ -1959,7 +2256,7 @@ function PropertiesPage() {
                             type="checkbox"
                             checked={
                               filters[
-                              filterField
+                                filterField
                               ]
                             }
                             onChange={() =>
@@ -1980,79 +2277,91 @@ function PropertiesPage() {
                 </div>
               </div>
 
-              {/* Resumen de filtros numéricos */}
+              {/* RESUMEN */}
+
               {hasActiveFilters(
                 filters,
               ) && (
-                  <div className="mt-6 rounded-md bg-muted/50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Filtros activos
-                    </p>
+                <div className="mt-6 rounded-md bg-muted/50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Filtros activos
+                  </p>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {filters.price.value && (
-                        <span className="rounded-md bg-background px-2 py-1 text-xs">
-                          Precio{' '}
-                          {getOperatorLabel(
-                            filters.price
-                              .operator,
-                          )}{' '}
-                          {
-                            filters.price
-                              .value
-                          } €
-                        </span>
-                      )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(
+                      [
+                        [
+                          'Precio',
+                          filters.price,
+                          '€',
+                        ],
+                        [
+                          'Superficie',
+                          filters.area,
+                          'm²',
+                        ],
+                        [
+                          'Habitaciones',
+                          filters.bedrooms,
+                          '',
+                        ],
+                        [
+                          'Baños',
+                          filters.bathrooms,
+                          '',
+                        ],
+                      ] as [
+                        string,
+                        NumericFilter,
+                        string,
+                      ][]
+                    ).map(
+                      ([
+                        label,
+                        filter,
+                        suffix,
+                      ]) => {
+                        if (
+                          !hasActiveNumericFilter(
+                            filter,
+                          )
+                        ) {
+                          return null
+                        }
 
-                      {filters.area.value && (
-                        <span className="rounded-md bg-background px-2 py-1 text-xs">
-                          Superficie{' '}
-                          {getOperatorLabel(
-                            filters.area
-                              .operator,
-                          )}{' '}
-                          {
-                            filters.area
-                              .value
-                          } m²
-                        </span>
-                      )}
+                        const text =
+                          filter.operator ===
+                          'range'
+                            ? `${label} entre ${
+                                filter.min ||
+                                'sin mínimo'
+                              } y ${
+                                filter.max ||
+                                'sin máximo'
+                              }${suffix ? ` ${suffix}` : ''}`
+                            : `${label} ${getOperatorLabel(
+                                filter.operator,
+                              )} ${
+                                filter.value
+                              }${suffix ? ` ${suffix}` : ''}`
 
-                      {filters.bedrooms
-                        .value && (
-                          <span className="rounded-md bg-background px-2 py-1 text-xs">
-                            Habitaciones{' '}
-                            {getOperatorLabel(
-                              filters.bedrooms
-                                .operator,
-                            )}{' '}
-                            {
-                              filters.bedrooms
-                                .value
-                            }
+                        return (
+                          <span
+                            key={label}
+                            className="rounded-md bg-background px-2 py-1 text-xs"
+                          >
+                            {text}
                           </span>
-                        )}
-
-                      {filters.bathrooms
-                        .value && (
-                          <span className="rounded-md bg-background px-2 py-1 text-xs">
-                            Baños{' '}
-                            {getOperatorLabel(
-                              filters.bathrooms
-                                .operator,
-                            )}{' '}
-                            {
-                              filters.bathrooms
-                                .value
-                            }
-                          </span>
-                        )}
-                    </div>
+                        )
+                      },
+                    )}
                   </div>
-                )}
+                </div>
+              )}
             </div>
 
-            {/* Pie del modal */}
+            {/* PIE */}
+
             <div className="flex flex-col-reverse gap-3 border-t px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
@@ -2072,7 +2381,9 @@ function PropertiesPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setIsFilterOpen(false)
+                  setIsFilterOpen(
+                    false,
+                  )
                 }
                 className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
               >

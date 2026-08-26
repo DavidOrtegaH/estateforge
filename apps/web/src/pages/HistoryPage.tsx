@@ -48,6 +48,21 @@ const propertyTypeLabels: Record<string, string> = {
   land: 'Terreno',
 }
 
+const featureLabels: Record<
+  BooleanFilterField,
+  string
+> = {
+  pool: 'Piscina',
+  garden: 'Jardín',
+  terrace: 'Terraza',
+  balcony: 'Balcón',
+  garage: 'Garaje',
+  elevator: 'Ascensor',
+  airConditioning:
+    'Aire acondicionado',
+  heating: 'Calefacción',
+}
+
 // ============================================================
 // TIPOS
 // ============================================================
@@ -58,10 +73,31 @@ type SortOption =
   | 'price-desc'
   | 'price-asc'
 
+type NumericOperator =
+  | 'lt'
+  | 'lte'
+  | 'eq'
+  | 'gte'
+  | 'gt'
+  | 'range'
+
 type NumberFilter = {
+  operator: NumericOperator
+  value: string
   min: string
   max: string
 }
+
+
+type BooleanFilterField =
+  | 'pool'
+  | 'garden'
+  | 'terrace'
+  | 'balcony'
+  | 'garage'
+  | 'elevator'
+  | 'airConditioning'
+  | 'heating'
 
 // ============================================================
 // ETIQUETAS
@@ -112,7 +148,7 @@ function getOperationLabel(
 
   return (
     operationLabels[
-    operation.toLowerCase()
+      operation.toLowerCase()
     ] || operation
   )
 }
@@ -124,7 +160,7 @@ function getPropertyTypeLabel(
 
   return (
     propertyTypeLabels[
-    type.toLowerCase()
+      type.toLowerCase()
     ] || type
   )
 }
@@ -133,54 +169,7 @@ function getPropertyTypeLabel(
 // HIGHLIGHTS
 // ============================================================
 
-function parseHighlights(
-  highlights: unknown,
-): string[] {
-  if (Array.isArray(highlights)) {
-    return highlights.filter(
-      (item): item is string =>
-        typeof item === 'string',
-    )
-  }
 
-  if (typeof highlights === 'string') {
-    try {
-      const parsed: unknown =
-        JSON.parse(highlights)
-
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (item): item is string =>
-            typeof item === 'string',
-        )
-      }
-    } catch {
-      if (highlights.trim().length > 0) {
-        return highlights
-          .split('\n')
-          .map((item) =>
-            item
-              .replace(/^[-•*]\s*/, '')
-              .trim(),
-          )
-          .filter(Boolean)
-      }
-    }
-  }
-
-  return []
-}
-
-/**
- * Elimina highlights duplicados para su representación
- * como píldoras en HistoryPage.
- *
- * La comparación ignora:
- * - espacios al principio/final
- * - diferencias de mayúsculas/minúsculas
- *
- * Se conserva el primer texto original encontrado.
- */
 function deduplicateHighlights(
   highlights: string[],
 ): string[] {
@@ -242,42 +231,125 @@ function matchesNumberFilter(
 
   if (numericValue === null) {
     return (
-      filter.min.trim() === '' &&
-      filter.max.trim() === ''
+      !hasNumericFilter(filter)
     )
   }
 
-  const min =
-    filter.min.trim() === ''
-      ? null
-      : Number(
-        filter.min.replace(',', '.'),
-      )
+  if (filter.operator === 'range') {
+    const min =
+      filter.min.trim() === ''
+        ? null
+        : Number(
+            filter.min.replace(',', '.'),
+          )
 
-  const max =
-    filter.max.trim() === ''
-      ? null
-      : Number(
-        filter.max.replace(',', '.'),
-      )
+    const max =
+      filter.max.trim() === ''
+        ? null
+        : Number(
+            filter.max.replace(',', '.'),
+          )
 
-  if (
-    min !== null &&
-    Number.isFinite(min) &&
-    numericValue < min
-  ) {
-    return false
+    if (
+      min !== null &&
+      Number.isFinite(min) &&
+      numericValue < min
+    ) {
+      return false
+    }
+
+    if (
+      max !== null &&
+      Number.isFinite(max) &&
+      numericValue > max
+    ) {
+      return false
+    }
+
+    return true
   }
 
-  if (
-    max !== null &&
-    Number.isFinite(max) &&
-    numericValue > max
-  ) {
-    return false
+  if (filter.value.trim() === '') {
+    return true
   }
 
-  return true
+  const filterValue =
+    Number(
+      filter.value.replace(',', '.'),
+    )
+
+  if (!Number.isFinite(filterValue)) {
+    return true
+  }
+
+  switch (filter.operator) {
+    case 'lt':
+      return numericValue < filterValue
+
+    case 'lte':
+      return numericValue <= filterValue
+
+    case 'eq':
+      return numericValue === filterValue
+
+    case 'gte':
+      return numericValue >= filterValue
+
+    case 'gt':
+      return numericValue > filterValue
+
+    default:
+      return true
+  }
+}
+
+function hasNumericFilter(
+  filter: NumberFilter,
+): boolean {
+  if (filter.operator === 'range') {
+    return (
+      filter.min.trim() !== '' ||
+      filter.max.trim() !== ''
+    )
+  }
+
+  return filter.value.trim() !== ''
+}
+
+function getOperatorLabel(
+  operator: NumericOperator,
+): string {
+  switch (operator) {
+    case 'lt':
+      return 'Menor que'
+
+    case 'lte':
+      return 'Menor o igual que'
+
+    case 'eq':
+      return 'Igual a'
+
+    case 'gte':
+      return 'Mayor o igual que'
+
+    case 'gt':
+      return 'Mayor que'
+
+    case 'range':
+      return 'Entre'
+
+    default:
+      return 'Menor o igual que'
+  }
+}
+
+function emptyNumberFilter(): NumberFilter {
+  return {
+    operator: 'lte',
+    value: '',
+    min: '',
+    max: '',
+  }
 }
 
 // ============================================================
@@ -309,7 +381,7 @@ function HistoryPage() {
   const itemsPerPage = 3
 
   // ==========================================================
-  // BÚSQUEDA, ORDENACIÓN Y FILTROS
+  // BÚSQUEDA / ORDENACIÓN
   // ==========================================================
 
   const [searchTerm, setSearchTerm] =
@@ -323,6 +395,10 @@ function HistoryPage() {
 
   const [isFilterOpen, setIsFilterOpen] =
     useState(false)
+
+  // ==========================================================
+  // FILTROS
+  // ==========================================================
 
   const [filterOperation, setFilterOperation] =
     useState('')
@@ -343,31 +419,41 @@ function HistoryPage() {
     useState('')
 
   const [filterPrice, setFilterPrice] =
-    useState<NumberFilter>({
-      min: '',
-      max: '',
-    })
+    useState<NumberFilter>(
+      emptyNumberFilter(),
+    )
 
   const [filterArea, setFilterArea] =
-    useState<NumberFilter>({
-      min: '',
-      max: '',
-    })
+    useState<NumberFilter>(
+      emptyNumberFilter(),
+    )
 
   const [filterBedrooms, setFilterBedrooms] =
-    useState<NumberFilter>({
-      min: '',
-      max: '',
-    })
+    useState<NumberFilter>(
+      emptyNumberFilter(),
+    )
 
   const [filterBathrooms, setFilterBathrooms] =
-    useState<NumberFilter>({
-      min: '',
-      max: '',
-    })
+    useState<NumberFilter>(
+      emptyNumberFilter(),
+    )
 
-  const [filterHasHighlights, setFilterHasHighlights] =
-    useState(false)
+  const [filterFeatures, setFilterFeatures] =
+    useState<
+      Record<
+        BooleanFilterField,
+        boolean
+      >
+    >({
+      pool: false,
+      garden: false,
+      terrace: false,
+      balcony: false,
+      garage: false,
+      elevator: false,
+      airConditioning: false,
+      heating: false,
+    })
 
   // ==========================================================
   // CARGA
@@ -393,7 +479,7 @@ function HistoryPage() {
   }, [])
 
   // ==========================================================
-  // RESULTADOS FILTRADOS Y ORDENADOS
+  // RESULTADOS
   // ==========================================================
 
   const processedGenerations =
@@ -406,6 +492,7 @@ function HistoryPage() {
       const filtered =
         generations.filter(
           (generation) => {
+            // Búsqueda
             if (
               normalizedSearch &&
               !generation.title
@@ -420,22 +507,27 @@ function HistoryPage() {
             const property =
               generation.property
 
+            // Operación
             if (
               filterOperation &&
-              property?.operation?.toLowerCase() !==
-              filterOperation.toLowerCase()
+              property?.operation
+                ?.toLowerCase() !==
+                filterOperation.toLowerCase()
             ) {
               return false
             }
 
+            // Tipo
             if (
               filterPropertyType &&
-              property?.type?.toLowerCase() !==
-              filterPropertyType.toLowerCase()
+              property?.type
+                ?.toLowerCase() !==
+                filterPropertyType.toLowerCase()
             ) {
               return false
             }
 
+            // Ciudad
             if (
               filterCity &&
               !property?.city
@@ -449,6 +541,7 @@ function HistoryPage() {
               return false
             }
 
+            // Proveedor
             if (
               filterProvider &&
               generation.provider
@@ -462,22 +555,27 @@ function HistoryPage() {
               return false
             }
 
+            // Tono
             if (
               filterTone &&
-              generation.tone?.toLowerCase() !==
-              filterTone.toLowerCase()
+              generation.tone
+                ?.toLowerCase() !==
+                filterTone.toLowerCase()
             ) {
               return false
             }
 
+            // Idioma
             if (
               filterLanguage &&
-              generation.language?.toLowerCase() !==
-              filterLanguage.toLowerCase()
+              generation.language
+                ?.toLowerCase() !==
+                filterLanguage.toLowerCase()
             ) {
               return false
             }
 
+            // Precio
             if (
               !matchesNumberFilter(
                 property?.price,
@@ -487,6 +585,7 @@ function HistoryPage() {
               return false
             }
 
+            // Superficie
             if (
               !matchesNumberFilter(
                 property?.area,
@@ -496,6 +595,7 @@ function HistoryPage() {
               return false
             }
 
+            // Habitaciones
             if (
               !matchesNumberFilter(
                 property?.bedrooms,
@@ -505,6 +605,7 @@ function HistoryPage() {
               return false
             }
 
+            // Baños
             if (
               !matchesNumberFilter(
                 property?.bathrooms,
@@ -514,14 +615,25 @@ function HistoryPage() {
               return false
             }
 
-            if (filterHasHighlights) {
-              const highlights =
-                parseHighlights(
-                  generation.highlights,
-                )
+            // Características
+            const featureFields: BooleanFilterField[] =
+              [
+                'pool',
+                'garden',
+                'terrace',
+                'balcony',
+                'garage',
+                'elevator',
+                'airConditioning',
+                'heating',
+              ]
 
+            for (
+              const field of featureFields
+            ) {
               if (
-                highlights.length === 0
+                filterFeatures[field] &&
+                !property?.[field]
               ) {
                 return false
               }
@@ -583,7 +695,7 @@ function HistoryPage() {
       filterArea,
       filterBedrooms,
       filterBathrooms,
-      filterHasHighlights,
+      filterFeatures,
     ])
 
   // ==========================================================
@@ -594,7 +706,7 @@ function HistoryPage() {
     1,
     Math.ceil(
       processedGenerations.length /
-      itemsPerPage,
+        itemsPerPage,
     ),
   )
 
@@ -625,7 +737,7 @@ function HistoryPage() {
     filterArea,
     filterBedrooms,
     filterBathrooms,
-    filterHasHighlights,
+    filterFeatures,
   ])
 
   useEffect(() => {
@@ -668,7 +780,7 @@ function HistoryPage() {
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-    currentPageIds.length
+      currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -702,13 +814,13 @@ function HistoryPage() {
       const next = new Set(previous)
 
       if (allCurrentPageSelected) {
-        currentPageIds.forEach((id) => {
-          next.delete(id)
-        })
+        currentPageIds.forEach((id) =>
+          next.delete(id),
+        )
       } else {
-        currentPageIds.forEach((id) => {
-          next.add(id)
-        })
+        currentPageIds.forEach((id) =>
+          next.add(id),
+        )
       }
 
       return next
@@ -735,9 +847,10 @@ function HistoryPage() {
 
       const confirmed =
         window.confirm(
-          `¿Seguro que quieres eliminar ${count} ${count === 1
-            ? 'anuncio'
-            : 'anuncios'
+          `¿Seguro que quieres eliminar ${count} ${
+            count === 1
+              ? 'anuncio'
+              : 'anuncios'
           } seleccionados? Esta acción no se puede deshacer.`,
         )
 
@@ -764,7 +877,7 @@ function HistoryPage() {
             1,
             Math.ceil(
               result.length /
-              itemsPerPage,
+                itemsPerPage,
             ),
           )
 
@@ -801,27 +914,58 @@ function HistoryPage() {
     setFilterTone('')
     setFilterLanguage('')
 
-    setFilterPrice({
-      min: '',
-      max: '',
-    })
+    setFilterPrice(
+      emptyNumberFilter(),
+    )
 
-    setFilterArea({
-      min: '',
-      max: '',
-    })
+    setFilterArea(
+      emptyNumberFilter(),
+    )
 
-    setFilterBedrooms({
-      min: '',
-      max: '',
-    })
+    setFilterBedrooms(
+      emptyNumberFilter(),
+    )
 
-    setFilterBathrooms({
-      min: '',
-      max: '',
-    })
+    setFilterBathrooms(
+      emptyNumberFilter(),
+    )
 
-    setFilterHasHighlights(false)
+    setFilterFeatures({
+      pool: false,
+      garden: false,
+      terrace: false,
+      balcony: false,
+      garage: false,
+      elevator: false,
+      airConditioning: false,
+      heating: false,
+    })
+  }
+
+  const updateNumberFilter = (
+    setter: React.Dispatch<
+      React.SetStateAction<NumberFilter>
+    >,
+    field:
+      | 'operator'
+      | 'value'
+      | 'min'
+      | 'max',
+    value: string,
+  ) => {
+    setter((previous) => ({
+      ...previous,
+      [field]: value,
+    }))
+  }
+
+  const toggleFeatureFilter = (
+    field: BooleanFilterField,
+  ) => {
+    setFilterFeatures((previous) => ({
+      ...previous,
+      [field]: !previous[field],
+    }))
   }
 
   const activeFilterCount =
@@ -832,17 +976,29 @@ function HistoryPage() {
       filterProvider,
       filterTone,
       filterLanguage,
-      filterPrice.min,
-      filterPrice.max,
-      filterArea.min,
-      filterArea.max,
-      filterBedrooms.min,
-      filterBedrooms.max,
-      filterBathrooms.min,
-      filterBathrooms.max,
-      filterHasHighlights
-        ? 'highlights'
+
+      hasNumericFilter(filterPrice)
+        ? 'price'
         : '',
+      hasNumericFilter(filterArea)
+        ? 'area'
+        : '',
+      hasNumericFilter(
+        filterBedrooms,
+      )
+        ? 'bedrooms'
+        : '',
+      hasNumericFilter(
+        filterBathrooms,
+      )
+        ? 'bathrooms'
+        : '',
+
+      ...Object.values(
+        filterFeatures,
+      ).map((active) =>
+        active ? 'feature' : '',
+      ),
     ].filter(Boolean).length
 
   const operationOptions =
@@ -852,8 +1008,7 @@ function HistoryPage() {
           generations
             .map(
               (generation) =>
-                generation
-                  .property
+                generation.property
                   ?.operation,
             )
             .filter(Boolean),
@@ -868,8 +1023,7 @@ function HistoryPage() {
           generations
             .map(
               (generation) =>
-                generation
-                  .property
+                generation.property
                   ?.type,
             )
             .filter(Boolean),
@@ -918,6 +1072,119 @@ function HistoryPage() {
         ),
       ) as string[]
     }, [generations])
+
+  // ==========================================================
+  // COMPONENTE FILTRO NUMÉRICO
+  // ==========================================================
+
+  const renderNumericFilter = (
+    label: string,
+    filter: NumberFilter,
+    setter: React.Dispatch<
+      React.SetStateAction<NumberFilter>
+    >,
+    unit?: string,
+    step = '1',
+  ) => {
+    const isRange =
+      filter.operator === 'range'
+
+    return (
+      <div>
+        <p className="mb-2 text-sm font-medium">
+          {label}
+        </p>
+
+        <select
+          value={filter.operator}
+          onChange={(event) =>
+            updateNumberFilter(
+              setter,
+              'operator',
+              event.target.value,
+            )
+          }
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+        >
+          <option value="lt">
+            Menor que
+          </option>
+
+          <option value="lte">
+            Menor o igual
+          </option>
+
+          <option value="eq">
+            Igual a
+          </option>
+
+          <option value="gte">
+            Mayor o igual
+          </option>
+
+          <option value="gt">
+            Mayor que
+          </option>
+
+          <option value="range">
+            Entre / rango
+          </option>
+        </select>
+
+        {isRange ? (
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <input
+              type="number"
+              min="0"
+              step={step}
+              value={filter.min}
+              onChange={(event) =>
+                updateNumberFilter(
+                  setter,
+                  'min',
+                  event.target.value,
+                )
+              }
+              placeholder={`Mínimo${unit ? ` (${unit})` : ''}`}
+              className="h-10 rounded-md border bg-background px-3 text-sm"
+            />
+
+            <input
+              type="number"
+              min="0"
+              step={step}
+              value={filter.max}
+              onChange={(event) =>
+                updateNumberFilter(
+                  setter,
+                  'max',
+                  event.target.value,
+                )
+              }
+              placeholder={`Máximo${unit ? ` (${unit})` : ''}`}
+              className="h-10 rounded-md border bg-background px-3 text-sm"
+            />
+          </div>
+        ) : (
+          <input
+            type="number"
+            min="0"
+            step={step}
+            value={filter.value}
+            onChange={(event) =>
+              updateNumberFilter(
+                setter,
+                'value',
+                event.target.value,
+              )
+            }
+            placeholder={`Valor${unit ? ` (${unit})` : ''}`}
+            className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"
+          />
+        )}
+      </div>
+    )
+  }
 
   // ==========================================================
   // ESTADOS DE CARGA / ERROR
@@ -986,8 +1253,7 @@ function HistoryPage() {
             </div>
           )}
 
-          {generations.length ===
-            0 ? (
+          {generations.length === 0 ? (
             <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
               <h2 className="font-semibold">
                 Todavía no hay anuncios
@@ -1008,14 +1274,10 @@ function HistoryPage() {
             </div>
           ) : (
             <div>
-              {/* =================================================
-                  BÚSQUEDA / ORDENAR / FILTRAR
-                  ================================================= */}
+              {/* BÚSQUEDA / ORDENAR / FILTRAR */}
 
               <div className="mt-8 rounded-lg border bg-card p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                  {/* BUSCADOR */}
-
                   <div className="min-w-0 flex-1">
                     <label
                       htmlFor="history-search"
@@ -1030,16 +1292,13 @@ function HistoryPage() {
                       value={searchTerm}
                       onChange={(event) =>
                         setSearchTerm(
-                          event.target
-                            .value,
+                          event.target.value,
                         )
                       }
                       placeholder="Buscar por título del anuncio..."
                       className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
-
-                  {/* CONTROLES */}
 
                   <div className="flex flex-wrap items-center gap-2">
                     {/* ORDENAR */}
@@ -1066,15 +1325,15 @@ function HistoryPage() {
 
                         <span>
                           {sortOption ===
-                            'newest'
+                          'newest'
                             ? 'Más nuevos'
                             : sortOption ===
                               'oldest'
-                              ? 'Más antiguos'
-                              : sortOption ===
-                                'price-desc'
-                                ? 'Más caros'
-                                : 'Más baratos'}
+                            ? 'Más antiguos'
+                            : sortOption ===
+                              'price-desc'
+                            ? 'Más caros'
+                            : 'Más baratos'}
                         </span>
 
                         <span className="text-xs">
@@ -1123,11 +1382,12 @@ function HistoryPage() {
                                     false,
                                   )
                                 }}
-                                className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
+                                className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${
+                                  sortOption ===
                                   value
-                                  ? 'bg-muted font-medium'
-                                  : ''
-                                  }`}
+                                    ? 'bg-muted font-medium'
+                                    : ''
+                                }`}
                               >
                                 {label}
                               </button>
@@ -1137,14 +1397,12 @@ function HistoryPage() {
                       )}
                     </div>
 
-                    {/* FILTROS */}
+                    {/* FILTRAR */}
 
                     <button
                       type="button"
                       onClick={() =>
-                        setIsFilterOpen(
-                          true,
-                        )
+                        setIsFilterOpen(true)
                       }
                       className="relative h-10 rounded-md border px-4 text-sm font-medium transition hover:bg-muted"
                     >
@@ -1152,38 +1410,33 @@ function HistoryPage() {
 
                       {activeFilterCount >
                         0 && (
-                          <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                            {
-                              activeFilterCount
-                            }
-                          </span>
-                        )}
+                        <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                          {
+                            activeFilterCount
+                          }
+                        </span>
+                      )}
                     </button>
                   </div>
                 </div>
 
-                {/* LIMPIAR */}
-
                 {(searchTerm ||
                   activeFilterCount >
-                  0) && (
-                    <div className="mt-3 border-t pt-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchTerm(
-                            '',
-                          )
-
-                          clearFilters()
-                        }}
-                        className="text-xs font-medium text-primary hover:underline"
-                      >
-                        Limpiar búsqueda y
-                        filtros
-                      </button>
-                    </div>
-                  )}
+                    0) && (
+                  <div className="mt-3 border-t pt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('')
+                        clearFilters()
+                      }}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Limpiar búsqueda y
+                      filtros
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* RESULTADOS */}
@@ -1197,15 +1450,13 @@ function HistoryPage() {
                   </span>
 
                   {processedGenerations.length ===
-                    1
+                  1
                     ? 'anuncio encontrado'
                     : 'anuncios encontrados'}
-                </span>
+              </span>
               </div>
 
-              {/* =================================================
-                  SELECCIÓN
-                  ================================================= */}
+              {/* SELECCIÓN */}
 
               <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
@@ -1252,24 +1503,21 @@ function HistoryPage() {
                     }
                     disabled={
                       deleting ||
-                      selectedCount ===
-                      0
+                      selectedCount === 0
                     }
                     aria-hidden={
-                      selectedCount ===
-                      0
+                      selectedCount === 0
                     }
                     tabIndex={
-                      selectedCount ===
-                        0
+                      selectedCount === 0
                         ? -1
                         : 0
                     }
-                    className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount >
-                      0
-                      ? 'visible'
-                      : 'pointer-events-none invisible'
-                      }`}
+                    className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+                      selectedCount > 0
+                        ? 'visible'
+                        : 'pointer-events-none invisible'
+                    }`}
                   >
                     {deleting
                       ? 'Eliminando...'
@@ -1278,12 +1526,10 @@ function HistoryPage() {
                 </div>
               </div>
 
-              {/* =================================================
-                  RESULTADOS
-                  ================================================= */}
+              {/* RESULTADOS */}
 
               {currentGenerations.length ===
-                0 ? (
+              0 ? (
                 <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                   <h2 className="font-semibold">
                     No hay anuncios que
@@ -1298,10 +1544,7 @@ function HistoryPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSearchTerm(
-                        '',
-                      )
-
+                      setSearchTerm('')
                       clearFilters()
                     }}
                     className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
@@ -1318,51 +1561,59 @@ function HistoryPage() {
                           generation.id,
                         )
 
-                      // IMPORTANTE:
-                      // buildPropertyHighlights puede devolver
-                      // highlights repetidos. Aquí los deduplicamos
-                      // exclusivamente para las píldoras de HistoryPage.
                       const shortHighlights =
                         generation.property
                           ? deduplicateHighlights(
-                            buildPropertyHighlights(
-                              generation.property,
-                            ).filter((highlight) => {
-                              const normalized =
-                                highlight.trim().toLowerCase()
+                              buildPropertyHighlights(
+                                generation.property,
+                              ).filter(
+                                (
+                                  highlight,
+                                ) => {
+                                  const normalized =
+                                    highlight
+                                      .trim()
+                                      .toLowerCase()
 
-                              // No repetir datos que ya aparecen
-                              // en las píldoras básicas del inmueble.
-                              if (
-                                normalized ===
-                                `${generation.property?.area} m²`.toLowerCase()
-                              ) {
-                                return false
-                              }
+                                  if (
+                                    normalized ===
+                                    `${generation.property.area} m²`.toLowerCase()
+                                  ) {
+                                    return false
+                                  }
 
-                              if (
-                                normalized ===
-                                `${generation.property?.bedrooms} ${generation.property?.bedrooms === 1
-                                  ? 'habitación'
-                                  : 'habitaciones'
-                                  }`.toLowerCase()
-                              ) {
-                                return false
-                              }
+                                  if (
+                                    normalized ===
+                                    `${generation.property.bedrooms} ${
+                                      generation
+                                        .property
+                                        .bedrooms ===
+                                      1
+                                        ? 'habitación'
+                                        : 'habitaciones'
+                                    }`.toLowerCase()
+                                  ) {
+                                    return false
+                                  }
 
-                              if (
-                                normalized ===
-                                `${generation.property?.bathrooms} ${generation.property?.bathrooms === 1
-                                  ? 'baño'
-                                  : 'baños'
-                                  }`.toLowerCase()
-                              ) {
-                                return false
-                              }
+                                  if (
+                                    normalized ===
+                                    `${generation.property.bathrooms} ${
+                                      generation
+                                        .property
+                                        .bathrooms ===
+                                      1
+                                        ? 'baño'
+                                        : 'baños'
+                                    }`.toLowerCase()
+                                  ) {
+                                    return false
+                                  }
 
-                              return true
-                            }),
-                          )
+                                  return true
+                                },
+                              ),
+                            )
                           : []
 
                       return (
@@ -1370,12 +1621,13 @@ function HistoryPage() {
                           key={
                             generation.id
                           }
-                          className={`relative rounded-lg border bg-card transition ${isSelected
-                            ? 'border-primary ring-2 ring-primary/25'
-                            : 'border-border'
-                            }`}
+                          className={`relative rounded-lg border bg-card transition ${
+                            isSelected
+                              ? 'border-primary ring-2 ring-primary/25'
+                              : 'border-border'
+                          }`}
                         >
-                          {/* SELECTOR SUPERIOR */}
+                          {/* SELECTOR */}
 
                           <div className="group relative w-full overflow-hidden rounded-t-lg">
                             <input
@@ -1392,17 +1644,19 @@ function HistoryPage() {
                               disabled={
                                 deleting
                               }
-                              className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
-                                ? 'cursor-default bg-foreground'
-                                : 'bg-accent group-hover:bg-primary'
-                                }`}
+                              className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${
+                                isSelected
+                                  ? 'cursor-default bg-foreground'
+                                  : 'bg-accent group-hover:bg-primary'
+                              }`}
                             />
 
                             <div
-                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
-                                ? 'font-semibold text-background'
-                                : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                                }`}
+                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
+                                isSelected
+                                  ? 'font-semibold text-background'
+                                  : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
+                              }`}
                             >
                               {isSelected
                                 ? '✓ Seleccionado'
@@ -1432,54 +1686,26 @@ function HistoryPage() {
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs">
                                   {generation.provider
                                     ? generation.provider
-                                      .charAt(
-                                        0,
+                                        .charAt(
+                                          0,
+                                        )
+                                        .toUpperCase() +
+                                      generation.provider.slice(
+                                        1,
                                       )
-                                      .toUpperCase() +
-                                    generation.provider.slice(
-                                      1,
-                                    )
                                     : ''}
                                 </span>
 
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                  {(() => {
-                                    const tone =
-                                      getToneLabel(
-                                        generation.tone,
-                                      )
-
-                                    return tone
-                                      ? tone
-                                        .charAt(
-                                          0,
-                                        )
-                                        .toUpperCase() +
-                                      tone.slice(
-                                        1,
-                                      )
-                                      : ''
-                                  })()}
+                                  {getToneLabel(
+                                    generation.tone,
+                                  )}
                                 </span>
 
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                  {(() => {
-                                    const lang =
-                                      getLanguageLabel(
-                                        generation.language,
-                                      )
-
-                                    return lang
-                                      ? lang
-                                        .charAt(
-                                          0,
-                                        )
-                                        .toUpperCase() +
-                                      lang.slice(
-                                        1,
-                                      )
-                                      : ''
-                                  })()}
+                                  {getLanguageLabel(
+                                    generation.language,
+                                  )}
                                 </span>
                               </div>
                             </div>
@@ -1492,7 +1718,8 @@ function HistoryPage() {
                               </p>
 
                               <p className="mt-1 text-sm font-medium">
-                                {generation.property
+                                {generation
+                                  .property
                                   ?.title ||
                                   'Sin título'}
 
@@ -1513,120 +1740,120 @@ function HistoryPage() {
                                 {generation
                                   .property
                                   ?.operation && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                      {getOperationLabel(
-                                        generation
-                                          .property
-                                          .operation,
-                                      )}
-                                    </span>
-                                  )}
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {getOperationLabel(
+                                      generation
+                                        .property
+                                        .operation,
+                                    )}
+                                  </span>
+                                )}
 
                                 {generation
                                   .property
                                   ?.type && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                      {getPropertyTypeLabel(
-                                        generation
-                                          .property
-                                          .type,
-                                      )}
-                                    </span>
-                                  )}
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {getPropertyTypeLabel(
+                                      generation
+                                        .property
+                                        .type,
+                                    )}
+                                  </span>
+                                )}
 
                                 {generation
                                   .property
                                   ?.price !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                      {generation.property.price.toLocaleString(
-                                        'es-ES',
-                                      )}{' '}
-                                      €
-                                    </span>
-                                  )}
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {generation.property.price.toLocaleString(
+                                      'es-ES',
+                                    )}{' '}
+                                    €
+                                  </span>
+                                )}
 
                                 {generation
                                   .property
                                   ?.area !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                      {
-                                        generation
-                                          .property
-                                          .area
-                                      }{' '}
-                                      m²
-                                    </span>
-                                  )}
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {
+                                      generation
+                                        .property
+                                        .area
+                                    }{' '}
+                                    m²
+                                  </span>
+                                )}
 
                                 {generation
                                   .property
                                   ?.bedrooms !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                      {
-                                        generation
-                                          .property
-                                          .bedrooms
-                                      }{' '}
-                                      {generation
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {
+                                      generation
                                         .property
-                                        .bedrooms ===
-                                        1
-                                        ? 'habitación'
-                                        : 'habitaciones'}
-                                    </span>
-                                  )}
+                                        .bedrooms
+                                    }{' '}
+                                    {generation
+                                      .property
+                                      .bedrooms ===
+                                    1
+                                      ? 'habitación'
+                                      : 'habitaciones'}
+                                  </span>
+                                )}
 
                                 {generation
                                   .property
                                   ?.bathrooms !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                      {
-                                        generation
-                                          .property
-                                          .bathrooms
-                                      }{' '}
-                                      {generation
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    {
+                                      generation
                                         .property
-                                        .bathrooms ===
-                                        1
-                                        ? 'baño'
-                                        : 'baños'}
-                                    </span>
-                                  )}
+                                        .bathrooms
+                                    }{' '}
+                                    {generation
+                                      .property
+                                      .bathrooms ===
+                                    1
+                                      ? 'baño'
+                                      : 'baños'}
+                                  </span>
+                                )}
                               </div>
 
-                              {/* HIGHLIGHTS CORTOS DEL INMUEBLE */}
+                              {/* CARACTERÍSTICAS */}
 
                               {shortHighlights.length >
                                 0 && (
-                                  <div className="mt-3 flex flex-wrap gap-2">
-                                    {shortHighlights
-                                      .slice(
-                                        0,
-                                        5,
-                                      )
-                                      .map(
-                                        (
-                                          highlight,
-                                        ) => (
-                                          <span
-                                            key={
-                                              highlight
-                                            }
-                                            className="rounded-md bg-muted px-2 py-1 text-xs"
-                                          >
-                                            {
-                                              highlight
-                                            }
-                                          </span>
-                                        ),
-                                      )}
-                                  </div>
-                                )}
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {shortHighlights
+                                    .slice(
+                                      0,
+                                      5,
+                                    )
+                                    .map(
+                                      (
+                                        highlight,
+                                      ) => (
+                                        <span
+                                          key={
+                                            highlight
+                                          }
+                                          className="rounded-md bg-muted px-2 py-1 text-xs"
+                                        >
+                                          {
+                                            highlight
+                                          }
+                                        </span>
+                                      ),
+                                    )}
+                                </div>
+                              )}
                             </div>
 
                             {/* CTA */}
@@ -1668,7 +1895,7 @@ function HistoryPage() {
                               <button
                                 type="button"
                                 aria-label="Ver anuncio"
-                                className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary group-hover:text-primary-foreground focus:outline-none"
+                                className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary focus:outline-none"
                               />
 
                               <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground transition-colors group-hover:font-semibold group-hover:text-primary-foreground">
@@ -1701,8 +1928,7 @@ function HistoryPage() {
                       }
                     }}
                     disabled={
-                      currentPage ===
-                      1 ||
+                      currentPage === 1 ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1737,7 +1963,7 @@ function HistoryPage() {
                     }}
                     disabled={
                       currentPage ===
-                      totalPages ||
+                        totalPages ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1751,9 +1977,9 @@ function HistoryPage() {
         </div>
       </div>
 
-      {/* =====================================================
+      {/* ======================================================
           PANEL DE FILTROS
-          ===================================================== */}
+          ====================================================== */}
 
       {isFilterOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 p-4 backdrop-blur-sm">
@@ -1761,7 +1987,7 @@ function HistoryPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="history-filter-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border bg-card shadow-2xl"
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border bg-card shadow-2xl"
           >
             {/* CABECERA */}
 
@@ -1775,16 +2001,15 @@ function HistoryPage() {
                 </h2>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Puedes combinar varios filtros.
+                  Puedes combinar varios
+                  filtros.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  setIsFilterOpen(
-                    false,
-                  )
+                  setIsFilterOpen(false)
                 }
                 className="rounded-md px-3 py-1.5 text-sm font-medium hover:bg-muted"
               >
@@ -1793,7 +2018,41 @@ function HistoryPage() {
             </div>
 
             <div className="space-y-6 p-5">
-              {/* Operación + tipo */}
+              {/* NUMÉRICOS */}
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                {renderNumericFilter(
+                  'Precio (€)',
+                  filterPrice,
+                  setFilterPrice,
+                  '€',
+                )}
+
+                {renderNumericFilter(
+                  'Superficie (m²)',
+                  filterArea,
+                  setFilterArea,
+                  'm²',
+                )}
+
+                {renderNumericFilter(
+                  'Habitaciones',
+                  filterBedrooms,
+                  setFilterBedrooms,
+                  undefined,
+                  '1',
+                )}
+
+                {renderNumericFilter(
+                  'Baños',
+                  filterBathrooms,
+                  setFilterBathrooms,
+                  undefined,
+                  '1',
+                )}
+              </div>
+
+              {/* OPERACIÓN + TIPO */}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -1877,7 +2136,7 @@ function HistoryPage() {
                 </div>
               </div>
 
-              {/* Ciudad + proveedor */}
+              {/* CIUDAD + PROVEEDOR */}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -1891,9 +2150,7 @@ function HistoryPage() {
                   <input
                     id="filter-city"
                     type="text"
-                    value={
-                      filterCity
-                    }
+                    value={filterCity}
                     onChange={(event) =>
                       setFilterCity(
                         event.target
@@ -1944,7 +2201,7 @@ function HistoryPage() {
                 </div>
               </div>
 
-              {/* Tono + idioma */}
+              {/* TONO + IDIOMA */}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -2026,209 +2283,203 @@ function HistoryPage() {
                 </div>
               </div>
 
-              {/* Precio */}
+              {/* CARACTERÍSTICAS */}
 
-              <div>
-                <p className="mb-2 text-sm font-medium">
-                  Precio (€)
+              <div className="border-t pt-6">
+                <h3 className="text-sm font-semibold">
+                  Características
+                </h3>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Se mostrarán únicamente anuncios
+                  cuyo inmueble tenga las
+                  características seleccionadas.
                 </p>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      filterPrice.min
-                    }
-                    onChange={(event) =>
-                      setFilterPrice(
-                        (previous) => ({
-                          ...previous,
-                          min: event
-                            .target
-                            .value,
-                        }),
-                      )
-                    }
-                    placeholder="Precio mínimo"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  {(
+                    Object.entries(
+                      featureLabels,
+                    ) as [
+                      BooleanFilterField,
+                      string,
+                    ][]
+                  ).map(
+                    ([
+                      field,
+                      label,
+                    ]) => (
+                      <label
+                        key={field}
+                        className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition hover:bg-muted"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            filterFeatures[
+                              field
+                            ]
+                          }
+                          onChange={() =>
+                            toggleFeatureFilter(
+                              field,
+                            )
+                          }
+                          className="h-4 w-4 cursor-pointer"
+                        />
 
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      filterPrice.max
-                    }
-                    onChange={(event) =>
-                      setFilterPrice(
-                        (previous) => ({
-                          ...previous,
-                          max: event
-                            .target
-                            .value,
-                        }),
-                      )
-                    }
-                    placeholder="Precio máximo"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
+                        <span>
+                          {label}
+                        </span>
+                      </label>
+                    ),
+                  )}
                 </div>
               </div>
 
-              {/* Superficie */}
+              {/* RESUMEN DE FILTROS */}
 
-              <div>
-                <p className="mb-2 text-sm font-medium">
-                  Superficie (m²)
-                </p>
+              {activeFilterCount > 0 && (
+                <div className="rounded-md bg-muted/50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Filtros activos
+                  </p>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      filterArea.min
-                    }
-                    onChange={(event) =>
-                      setFilterArea(
-                        (previous) => ({
-                          ...previous,
-                          min: event
-                            .target
-                            .value,
-                        }),
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {hasNumericFilter(
+                      filterPrice,
+                    ) && (
+                      <span className="rounded-md bg-background px-2 py-1 text-xs">
+                        Precio{' '}
+                        {filterPrice.operator ===
+                        'range'
+                          ? `entre ${
+                              filterPrice
+                                .min ||
+                              '—'
+                            } y ${
+                              filterPrice
+                                .max ||
+                              '—'
+                            } €`
+                          : `${getOperatorLabel(
+                              filterPrice
+                                .operator,
+                            )} ${
+                              filterPrice
+                                .value
+                            } €`}
+                      </span>
+                    )}
+
+                    {hasNumericFilter(
+                      filterArea,
+                    ) && (
+                      <span className="rounded-md bg-background px-2 py-1 text-xs">
+                        Superficie{' '}
+                        {filterArea.operator ===
+                        'range'
+                          ? `entre ${
+                              filterArea.min ||
+                              '—'
+                            } y ${
+                              filterArea.max ||
+                              '—'
+                            } m²`
+                          : `${getOperatorLabel(
+                              filterArea
+                                .operator,
+                            )} ${
+                              filterArea.value
+                            } m²`}
+                      </span>
+                    )}
+
+                    {hasNumericFilter(
+                      filterBedrooms,
+                    ) && (
+                      <span className="rounded-md bg-background px-2 py-1 text-xs">
+                        Habitaciones{' '}
+                        {filterBedrooms.operator ===
+                        'range'
+                          ? `entre ${
+                              filterBedrooms
+                                .min ||
+                              '—'
+                            } y ${
+                              filterBedrooms
+                                .max ||
+                              '—'
+                            }`
+                          : `${getOperatorLabel(
+                              filterBedrooms
+                                .operator,
+                            )} ${
+                              filterBedrooms
+                                .value
+                            }`}
+                      </span>
+                    )}
+
+                    {hasNumericFilter(
+                      filterBathrooms,
+                    ) && (
+                      <span className="rounded-md bg-background px-2 py-1 text-xs">
+                        Baños{' '}
+                        {filterBathrooms.operator ===
+                        'range'
+                          ? `entre ${
+                              filterBathrooms
+                                .min ||
+                              '—'
+                            } y ${
+                              filterBathrooms
+                                .max ||
+                              '—'
+                            }`
+                          : `${getOperatorLabel(
+                              filterBathrooms
+                                .operator,
+                            )} ${
+                              filterBathrooms
+                                .value
+                            }`}
+                      </span>
+                    )}
+
+                    {(
+                      Object.entries(
+                        filterFeatures,
+                      ) as [
+                        BooleanFilterField,
+                        boolean,
+                      ][]
+                    )
+                      .filter(
+                        ([
+                          ,
+                          active,
+                        ]) => active,
                       )
-                    }
-                    placeholder="Mínimo de m²"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
-
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      filterArea.max
-                    }
-                    onChange={(event) =>
-                      setFilterArea(
-                        (previous) => ({
-                          ...previous,
-                          max: event
-                            .target
-                            .value,
-                        }),
-                      )
-                    }
-                    placeholder="Máximo de m²"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
+                      .map(
+                        ([
+                          field,
+                        ]) => (
+                          <span
+                            key={field}
+                            className="rounded-md bg-background px-2 py-1 text-xs"
+                          >
+                            {
+                              featureLabels[
+                                field
+                              ]
+                            }
+                          </span>
+                        ),
+                      )}
+                  </div>
                 </div>
-              </div>
-
-              {/* Habitaciones */}
-
-              <div>
-                <p className="mb-2 text-sm font-medium">
-                  Habitaciones
-                </p>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={
-                      filterBedrooms.min
-                    }
-                    onChange={(event) =>
-                      setFilterBedrooms(
-                        (previous) => ({
-                          ...previous,
-                          min: event
-                            .target
-                            .value,
-                        }),
-                      )
-                    }
-                    placeholder="Mínimo"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={
-                      filterBedrooms.max
-                    }
-                    onChange={(event) =>
-                      setFilterBedrooms(
-                        (previous) => ({
-                          ...previous,
-                          max: event
-                            .target
-                            .value,
-                        }),
-                      )
-                    }
-                    placeholder="Máximo"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Baños */}
-
-              <div>
-                <p className="mb-2 text-sm font-medium">
-                  Baños
-                </p>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={
-                      filterBathrooms.min
-                    }
-                    onChange={(event) =>
-                      setFilterBathrooms(
-                        (previous) => ({
-                          ...previous,
-                          min: event
-                            .target
-                            .value,
-                        }),
-                      )
-                    }
-                    placeholder="Mínimo"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={
-                      filterBathrooms.max
-                    }
-                    onChange={(event) =>
-                      setFilterBathrooms(
-                        (previous) => ({
-                          ...previous,
-                          max: event
-                            .target
-                            .value,
-                        }),
-                      )
-                    }
-                    placeholder="Máximo"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                  />
-                </div>
-              </div>
+              )}
             </div>
 
             {/* PIE */}
@@ -2239,7 +2490,11 @@ function HistoryPage() {
                 onClick={
                   clearFilters
                 }
-                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
+                disabled={
+                  activeFilterCount ===
+                  0
+                }
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Limpiar filtros
               </button>
@@ -2247,9 +2502,7 @@ function HistoryPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setIsFilterOpen(
-                    false,
-                  )
+                  setIsFilterOpen(false)
                 }
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
               >

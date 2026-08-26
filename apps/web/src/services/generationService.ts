@@ -23,6 +23,15 @@ export interface GenerationProperty {
   area: number
   bedrooms: number
   bathrooms: number
+
+  elevator: boolean
+  terrace: boolean
+  balcony: boolean
+  garage: boolean
+  pool: boolean
+  garden: boolean
+  airConditioning: boolean
+  heating: boolean
 }
 
 export interface GenerationItem {
@@ -120,30 +129,48 @@ export async function getGeneration(
 export async function updateGeneration(
   id: string,
   data: Partial<
-    Pick<GenerationItem, 'title' | 'description' | 'highlights' | 'callToAction'>
+    Pick<
+      GenerationItem,
+      | 'title'
+      | 'description'
+      | 'highlights'
+      | 'callToAction'
+    >
   >,
 ): Promise<GenerationItem> {
-  const response = await fetch(`${API_URL}/api/generations/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${API_URL}/api/generations/${id}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     },
-    body: JSON.stringify(data),
-  })
+  )
 
   if (!response.ok) {
-    throw new Error(`Failed to update generation: ${response.status}`)
+    throw new Error(
+      `Failed to update generation: ${response.status}`,
+    )
   }
 
   return response.json() as Promise<GenerationItem>
 }
 
-export async function deleteGeneration(id: string): Promise<void> {
-  const response = await fetch(`${API_URL}/api/generations/${id}`, {
-    method: 'DELETE',
-  })
+export async function deleteGeneration(
+  id: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/api/generations/${id}`,
+    {
+      method: 'DELETE',
+    },
+  )
 
   if (!response.ok) {
-    throw new Error(`Failed to delete generation: ${response.status}`)
+    throw new Error(
+      `Failed to delete generation: ${response.status}`,
+    )
   }
 }
