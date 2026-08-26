@@ -251,34 +251,34 @@ function DashboardPage() {
     selectedRecentGenerationCount > 0 &&
     !allRecentGenerationsSelected
 
-    const propertyOperationLabels: Record<string, string> = {
-  sale: 'Venta',
-  rent: 'Alquiler',
-}
+  const propertyOperationLabels: Record<string, string> = {
+    sale: 'Venta',
+    rent: 'Alquiler',
+  }
 
-function getPropertyOperation(type: string | undefined): string {
-  if (!type) return 'No indicado'
-  return propertyOperationLabels[type.toLowerCase()] || type
-}
+  function getPropertyOperation(type: string | undefined): string {
+    if (!type) return 'No indicado'
+    return propertyOperationLabels[type.toLowerCase()] || type
+  }
 
-// Diccionario de traducción para los tipos de inmueble
-const propertyTypeLabels: Record<string, string> = {
-  apartment: 'Apartamento',
-  flat: 'Piso',
-  house: 'Casa',
-  chalet: 'Chalet',
-  penthouse: 'Ático',
-  duplex: 'Dúplex',
-  studio: 'Estudio',
-  commercial: 'Local comercial',
-  office: 'Oficina',
-  land: 'Terreno',
-}
+  // Diccionario de traducción para los tipos de inmueble
+  const propertyTypeLabels: Record<string, string> = {
+    apartment: 'Apartamento',
+    flat: 'Piso',
+    house: 'Casa',
+    chalet: 'Chalet',
+    penthouse: 'Ático',
+    duplex: 'Dúplex',
+    studio: 'Estudio',
+    commercial: 'Local comercial',
+    office: 'Oficina',
+    land: 'Terreno',
+  }
 
-function getPropertyTypeLabel(type: string | undefined): string {
-  if (!type) return 'No indicado'
-  return propertyTypeLabels[type.toLowerCase()] || type
-}
+  function getPropertyTypeLabel(type: string | undefined): string {
+    if (!type) return 'No indicado'
+    return propertyTypeLabels[type.toLowerCase()] || type
+  }
 
   /*
    * Abre el editor de un inmueble.
@@ -1385,83 +1385,83 @@ function getPropertyTypeLabel(type: string | undefined): string {
                             </button>
                           </div>
 
-{/* Contenido del inmueble */}
-                        <div className="p-5">
-                          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                            <div className="min-w-0">
-                              <h3 className="text-lg font-semibold">
-                                {property.title || 'Inmueble sin título'}
-                              </h3>
+                          {/* Contenido del inmueble */}
+                          <div className="p-5">
+                            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                              <div className="min-w-0">
+                                <h3 className="text-lg font-semibold">
+                                  {property.title || 'Inmueble sin título'}
+                                </h3>
+                              </div>
+
+                              <p className="whitespace-nowrap text-lg font-bold">
+                                {property.price.toLocaleString('es-ES')} €
+                              </p>
                             </div>
 
-                            <p className="whitespace-nowrap text-lg font-bold">
-                              {property.price.toLocaleString('es-ES')} €
-                            </p>
+                            {/* Píldoras con todos los datos (quitando título y precio) */}
+                            <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              {/* Operación */}
+                              <span className="rounded-md bg-muted px-2 py-1 font-medium">
+                                {getPropertyOperation(property.operation)}
+                              </span>
+
+                              {/* Tipo */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {getPropertyTypeLabel(property.type)}
+                              </span>
+
+                              {/* Ciudad */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.city || 'Ciudad no indicada'}
+                              </span>
+
+                              {/* Zona */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.neighborhood || 'Zona no indicada'}
+                              </span>
+
+                              {/* Superficie */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.area} m²
+                              </span>
+
+                              {/* Habitaciones */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.bedrooms} hab.
+                              </span>
+
+                              {/* Baños */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.bathrooms} baños
+                              </span>
+
+                              {/* Planta */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                Planta {property.floor ?? '—'}
+                              </span>
+
+                              {/* Estado */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.condition}
+                              </span>
+
+                              {/* Dirección */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.address || 'Dirección no indicada'}
+                              </span>
+
+                              {/* Fecha de creación */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                Creado el {new Date(property.createdAt).toLocaleDateString('es-ES')}
+                              </span>
+
+                              {/* Anuncios generados */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {property.generations?.length ?? 0} anuncios
+                              </span>
+                            </div>
                           </div>
-
-                          {/* Píldoras con todos los datos (quitando título y precio) */}
-                          <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            {/* Operación */}
-                            <span className="rounded-md bg-muted px-2 py-1 font-medium uppercase tracking-wide">
-                              {getPropertyOperation(property.operation)}
-                            </span>
-
-                            {/* Tipo */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {getPropertyTypeLabel(property.type)}
-                            </span>
-
-                            {/* Ciudad */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.city || 'Ciudad no indicada'}
-                            </span>
-
-                            {/* Zona */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.neighborhood || 'Zona no indicada'}
-                            </span>
-
-                            {/* Superficie */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.area} m²
-                            </span>
-
-                            {/* Habitaciones */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.bedrooms} hab.
-                            </span>
-
-                            {/* Baños */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.bathrooms} baños
-                            </span>
-
-                            {/* Planta */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              Planta {property.floor ?? '—'}
-                            </span>
-
-                            {/* Estado */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.condition}
-                            </span>
-
-                            {/* Dirección */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.address || 'Dirección no indicada'}
-                            </span>
-
-                            {/* Fecha de creación */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              Creado el {new Date(property.createdAt).toLocaleDateString('es-ES')}
-                            </span>
-
-                            {/* Anuncios generados */}
-                            <span className="rounded-md bg-muted px-2 py-1">
-                              {property.generations?.length ?? 0} anuncios
-                            </span>
-                          </div>
-                        </div>
 
                           {/* Acciones inferiores */}
                           <div className="grid grid-cols-3 border-t">
@@ -2090,7 +2090,7 @@ function getPropertyTypeLabel(type: string | undefined): string {
           </div>
         ) : (
           <>
-{/* Barra de selección de anuncios */}
+            {/* Barra de selección de anuncios */}
             <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-3">
                 <input
