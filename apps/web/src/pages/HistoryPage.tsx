@@ -1235,12 +1235,11 @@ function HistoryPage() {
 
           <div>
             <h1 className="text-3xl font-bold">
-              Historial
+              Anuncios
             </h1>
 
             <p className="mt-2 text-muted-foreground">
-              Consulta los anuncios generados
-              anteriormente.
+              Consulta los anuncios.
             </p>
           </div>
 

@@ -745,7 +745,7 @@ ${listingToCopy.callToAction}
                 </option>
 
                 <option value="mock">
-                  Mock
+                  Mock (no usa IA)
                 </option>
               </select>
             </label>

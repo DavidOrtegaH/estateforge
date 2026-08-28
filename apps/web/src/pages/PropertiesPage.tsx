@@ -1246,8 +1246,7 @@ function PropertiesPage() {
             </h1>
 
             <p className="mt-2 text-muted-foreground">
-              Gestiona los inmuebles y sus
-              anuncios generados.
+              Consulta los inmuebles.
             </p>
           </div>
 

@@ -2262,6 +2262,15 @@ function DashboardPage() {
                                     )
                                     : ''}
                                   </span>
+
+                                  {/* Fecha de generación */}
+                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    Generado el {new Date(
+                                      generation.createdAt,
+                                    ).toLocaleDateString(
+                                      'es-ES',
+                                    )}
+                                  </span>
                                 </div>
 
                                 <h3 className="mt-3 text-lg font-semibold">

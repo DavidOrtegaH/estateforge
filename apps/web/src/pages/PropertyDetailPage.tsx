@@ -25,6 +25,7 @@ import {
 // ============================================================
 
 const propertyTypeLabels: Record<string, string> = {
+  apartment: 'Apartamento',
   flat: 'Piso',
   house: 'Casa',
   chalet: 'Chalet',
@@ -49,6 +50,22 @@ const conditionLabels: Record<string, string> = {
   to_renovate: 'A reformar',
 }
 
+const providerLabels: Record<string, string> = {
+  gemini: 'Gemini',
+  mock: 'Mock',
+}
+
+const toneLabels: Record<string, string> = {
+  professional: 'Profesional',
+  premium: 'Premium',
+  friendly: 'Cercano',
+}
+
+const languageLabels: Record<string, string> = {
+  español: 'Español',
+  english: 'Inglés',
+}
+
 // ============================================================
 // AUXILIARES
 // ============================================================
@@ -60,7 +77,7 @@ function getPropertyTypeLabel(
 
   return (
     propertyTypeLabels[type.toLowerCase()] ||
-    type
+    capitalizeFirstLetter(type)
   )
 }
 
@@ -71,7 +88,7 @@ function getOperationLabel(
 
   return (
     operationLabels[operation.toLowerCase()] ||
-    operation
+    capitalizeFirstLetter(operation)
   )
 }
 
@@ -82,7 +99,51 @@ function getConditionLabel(
 
   return (
     conditionLabels[condition.toLowerCase()] ||
-    condition
+    capitalizeFirstLetter(condition)
+  )
+}
+
+function getProviderLabel(
+  provider: string | undefined,
+): string {
+  if (!provider) return 'No indicado'
+
+  return (
+    providerLabels[provider.toLowerCase()] ||
+    capitalizeFirstLetter(provider)
+  )
+}
+
+function getToneLabel(
+  tone: string | undefined,
+): string {
+  if (!tone) return 'No indicado'
+
+  return (
+    toneLabels[tone.toLowerCase()] ||
+    capitalizeFirstLetter(tone)
+  )
+}
+
+function getLanguageLabel(
+  language: string | undefined,
+): string {
+  if (!language) return 'No indicado'
+
+  return (
+    languageLabels[language.toLowerCase()] ||
+    capitalizeFirstLetter(language)
+  )
+}
+
+function capitalizeFirstLetter(
+  value: string,
+): string {
+  if (!value) return value
+
+  return (
+    value.charAt(0).toUpperCase() +
+    value.slice(1)
   )
 }
 
@@ -1356,16 +1417,21 @@ function PropertyDetailPage() {
                 >
                   Planta
                 </label>
+
                 <input
                   id="property-floor"
                   type="number"
                   value={editForm.floor ?? ''}
                   onChange={(event) => {
-                    const value = event.target.value;
+                    const value = event.target.value
+
                     setEditForm({
                       ...editForm,
-                      floor: value === '' ? null : Number(value),
-                    });
+                      floor:
+                        value === ''
+                          ? null
+                          : Number(value),
+                    })
                   }}
                   disabled={savingEdit}
                   className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
@@ -1819,8 +1885,8 @@ function PropertyDetailPage() {
         </div>
       )}
 
-{/* =====================================================
-          INFORMACIÓN DEL INMUEBLE (De más a menos importante)
+      {/* =====================================================
+          INFORMACIÓN DEL INMUEBLE
       ====================================================== */}
 
       <section className="mt-8 rounded-lg border bg-card p-6">
@@ -1830,129 +1896,155 @@ function PropertyDetailPage() {
 
         <dl className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {/* Precio */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Precio
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.price.toLocaleString('es-ES')} €
             </dd>
           </div>
 
           {/* Operación */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Operación
             </dt>
+
             <dd className="mt-1 font-medium">
               {getOperationLabel(property.operation)}
             </dd>
           </div>
 
           {/* Tipo */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Tipo
             </dt>
+
             <dd className="mt-1 font-medium">
               {getPropertyTypeLabel(property.type)}
             </dd>
           </div>
 
           {/* Superficie */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Superficie
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.area} m²
             </dd>
           </div>
 
           {/* Habitaciones */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Habitaciones
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.bedrooms}
             </dd>
           </div>
 
           {/* Baños */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Baños
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.bathrooms}
             </dd>
           </div>
 
           {/* Ciudad */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Ciudad
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.city || 'No indicada'}
             </dd>
           </div>
 
           {/* Zona */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Zona
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.neighborhood || 'No indicado'}
             </dd>
           </div>
 
           {/* Dirección */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Dirección
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.address || 'No indicada'}
             </dd>
           </div>
 
           {/* Estado */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Estado
             </dt>
+
             <dd className="mt-1 font-medium">
               {getConditionLabel(property.condition)}
             </dd>
           </div>
 
           {/* Planta */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Planta
             </dt>
+
             <dd className="mt-1 font-medium">
               {property.floor ?? '—'}
             </dd>
           </div>
 
           {/* Fecha de creación */}
+
           <div>
             <dt className="text-sm text-muted-foreground">
               Fecha de creación
             </dt>
+
             <dd className="mt-1 font-medium">
-              {new Date(property.createdAt).toLocaleString('es-ES')}
+              {new Date(property.createdAt).toLocaleString(
+                'es-ES',
+              )}
             </dd>
           </div>
         </dl>
       </section>
 
       {/* =====================================================
-          Extras
+          EXTRAS
       ====================================================== */}
 
       <section className="mt-6 rounded-lg border bg-card p-6">
@@ -2162,8 +2254,9 @@ function PropertyDetailPage() {
         )}
       </section>
 
-      {/* =====================================================
+{/* =====================================================
           ANUNCIOS GENERADOS
+          MISMO ESTILO VISUAL QUE DASHBOARD
       ====================================================== */}
 
       <section className="mt-8">
@@ -2174,437 +2267,367 @@ function PropertyDetailPage() {
             </h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              {totalGenerations ===
-                0
+              {totalGenerations === 0
                 ? 'Todavía no hay anuncios para este inmueble.'
-                : `${totalGenerations} ${totalGenerations ===
-                  1
-                  ? 'anuncio generado'
-                  : 'anuncios generados'
-                }.`}
+                : `${totalGenerations} ${
+                    totalGenerations === 1
+                      ? 'anuncio generado'
+                      : 'anuncios generados'
+                  }.`}
             </p>
           </div>
 
-          {totalGenerations >
-            0 && (
-              <Link
-                to="/historial"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Ver historial
-              </Link>
-            )}
+          {totalGenerations > 0 && (
+            <Link
+              to="/historial"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Ver historial
+            </Link>
+          )}
         </div>
 
-        {totalGenerations ===
-          0 ? (
+        {totalGenerations === 0 ? (
           <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Genera el primer
-              anuncio para este
-              inmueble.
+              Genera el primer anuncio para este inmueble.
             </p>
           </div>
         ) : (
-          <div>
-            <div className="mt-5 space-y-4">
-              {currentGenerations.map(
-                (generation) => {
-                  const highlights =
-                    parseHighlights(
-                      generation.highlights,
-                    )
+          <div className="mt-5 space-y-4">
+            {currentGenerations.map((generation) => {
+              const isEditingGeneration =
+                editingGenerationId === generation.id
 
-                  return (
-                    <div
-                      key={
-                        generation.id
-                      }
-                      className="rounded-lg border bg-card p-5"
-                    >
-                      {editingGenerationId ===
-                        generation.id ? (
+              const isSavingGeneration = savingGeneration
+
+              const isDeletingGeneration =
+                deletingGenerationId === generation.id
+
+              const isCopyingGeneration =
+                copyingGenerationId === generation.id
+
+              const highlights = parseHighlights(
+                generation.highlights,
+              )
+
+              return (
+                <div
+                  key={generation.id}
+                  className="rounded-lg border bg-card transition"
+                >
+                  {isEditingGeneration ? (
+                    /* =================================================
+                        EDICIÓN DEL ANUNCIO
+                    ================================================== */
+                    <div className="p-5">
+                      <div className="flex items-center justify-between gap-4">
                         <div>
-                          <div className="flex items-center justify-between gap-4">
-                            <h3 className="text-lg font-semibold">
-                              Editar anuncio
-                            </h3>
+                          <h3 className="text-lg font-semibold">
+                            Editar anuncio
+                          </h3>
 
-                            <button
-                              type="button"
-                              onClick={
-                                handleCancelEditGeneration
-                              }
-                              disabled={
-                                savingGeneration
-                              }
-                              className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-
-                          <div className="mt-5 space-y-5">
-                            {/* TÍTULO */}
-
-                            <div>
-                              <label
-                                htmlFor={`generation-title-${generation.id}`}
-                                className="text-sm font-medium"
-                              >
-                                Título
-                              </label>
-
-                              <input
-                                id={`generation-title-${generation.id}`}
-                                type="text"
-                                value={
-                                  generationEditForm.title
-                                }
-                                onChange={(
-                                  event,
-                                ) =>
-                                  setGenerationEditForm(
-                                    {
-                                      ...generationEditForm,
-                                      title:
-                                        event
-                                          .target
-                                          .value,
-                                    },
-                                  )
-                                }
-                                disabled={
-                                  savingGeneration
-                                }
-                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
-                              />
-                            </div>
-
-                            {/* DESCRIPCIÓN */}
-
-                            <div>
-                              <label
-                                htmlFor={`generation-description-${generation.id}`}
-                                className="text-sm font-medium"
-                              >
-                                Descripción
-                              </label>
-
-                              <textarea
-                                id={`generation-description-${generation.id}`}
-                                value={
-                                  generationEditForm.description
-                                }
-                                onChange={(
-                                  event,
-                                ) =>
-                                  setGenerationEditForm(
-                                    {
-                                      ...generationEditForm,
-                                      description:
-                                        event
-                                          .target
-                                          .value,
-                                    },
-                                  )
-                                }
-                                disabled={
-                                  savingGeneration
-                                }
-                                rows={
-                                  8
-                                }
-                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
-                              />
-                            </div>
-
-                            {/* HIGHLIGHTS */}
-
-                            <div>
-                              <label
-                                htmlFor={`generation-highlights-${generation.id}`}
-                                className="text-sm font-medium"
-                              >
-                                Características destacadas
-                              </label>
-
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Escribe una característica por línea.
-                              </p>
-
-                              <textarea
-                                id={`generation-highlights-${generation.id}`}
-                                value={
-                                  generationEditForm.highlights
-                                }
-                                onChange={(
-                                  event,
-                                ) =>
-                                  setGenerationEditForm(
-                                    {
-                                      ...generationEditForm,
-                                      highlights:
-                                        event
-                                          .target
-                                          .value,
-                                    },
-                                  )
-                                }
-                                disabled={
-                                  savingGeneration
-                                }
-                                rows={
-                                  5
-                                }
-                                placeholder={
-                                  '133 m²\n3 habitaciones\n2 baños\nBalcón'
-                                }
-                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
-                              />
-                            </div>
-
-                            {/* CTA */}
-
-                            <div>
-                              <label
-                                htmlFor={`generation-cta-${generation.id}`}
-                                className="text-sm font-medium"
-                              >
-                                Llamada a la acción
-                              </label>
-
-                              <textarea
-                                id={`generation-cta-${generation.id}`}
-                                value={
-                                  generationEditForm.callToAction
-                                }
-                                onChange={(
-                                  event,
-                                ) =>
-                                  setGenerationEditForm(
-                                    {
-                                      ...generationEditForm,
-                                      callToAction:
-                                        event
-                                          .target
-                                          .value,
-                                    },
-                                  )
-                                }
-                                disabled={
-                                  savingGeneration
-                                }
-                                rows={
-                                  3
-                                }
-                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
-                              />
-                            </div>
-
-                            {generationEditError && (
-                              <p className="text-sm text-destructive">
-                                {
-                                  generationEditError
-                                }
-                              </p>
-                            )}
-
-                            <div className="flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleSaveGeneration()
-                                }
-                                disabled={
-                                  savingGeneration
-                                }
-                                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {savingGeneration
-                                  ? 'Guardando...'
-                                  : 'Guardar cambios'}
-                              </button>
-                            </div>
-                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Modifica el contenido del anuncio
+                            directly desde este inmueble.
+                          </p>
                         </div>
-                      ) : (
-                        <>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                              {
-                                generation.provider
-                              }
-                            </span>
 
-                            <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                              {
-                                generation.tone
-                              }
-                            </span>
+                        <button
+                          type="button"
+                          onClick={handleCancelEditGeneration}
+                          disabled={isSavingGeneration}
+                          className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
 
-                            <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                              {
-                                generation.language
-                              }
-                            </span>
-                          </div>
+                      <div className="mt-6 space-y-5">
+                        {/* TÍTULO */}
+                        <div>
+                          <label
+                            htmlFor={`generation-title-${generation.id}`}
+                            className="text-sm font-medium"
+                          >
+                            Título
+                          </label>
 
-                          <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row">
-                            <Link
-                              to={`/historial/${generation.id}`}
-                              className="min-w-0 flex-1"
-                            >
-                              <h3 className="font-semibold hover:underline">
-                                {
-                                  generation.title
-                                }
-                              </h3>
+                          <input
+                            id={`generation-title-${generation.id}`}
+                            type="text"
+                            value={generationEditForm.title}
+                            onChange={(event) =>
+                              setGenerationEditForm(
+                                (current) => ({
+                                  ...current,
+                                  title: event.target.value,
+                                }),
+                              )
+                            }
+                            disabled={isSavingGeneration}
+                            className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                          />
+                        </div>
 
-                              <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                                {
-                                  generation.description
-                                }
-                              </p>
-                            </Link>
-                          </div>
+                        {/* DESCRIPCIÓN */}
+                        <div>
+                          <label
+                            htmlFor={`generation-description-${generation.id}`}
+                            className="text-sm font-medium"
+                          >
+                            Descripción
+                          </label>
 
-                          {highlights.length >
-                            0 && (
-                              <div className="mt-4">
-                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                  Características destacadas
-                                </p>
+                          <textarea
+                            id={`generation-description-${generation.id}`}
+                            rows={8}
+                            value={generationEditForm.description}
+                            onChange={(event) =>
+                              setGenerationEditForm(
+                                (current) => ({
+                                  ...current,
+                                  description: event.target.value,
+                                }),
+                              )
+                            }
+                            disabled={isSavingGeneration}
+                            className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                          />
+                        </div>
 
-                                <ul className="mt-2 space-y-1 text-sm">
-                                  {highlights.map(
-                                    (
-                                      highlight,
-                                    ) => (
-                                      <li
-                                        key={
-                                          highlight
-                                        }
-                                        className="text-muted-foreground"
-                                      >
-                                        •{' '}
-                                        {
-                                          highlight
-                                        }
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              </div>
-                            )}
+                        {/* HIGHLIGHTS */}
+                        <div>
+                          <label
+                            htmlFor={`generation-highlights-${generation.id}`}
+                            className="text-sm font-medium"
+                          >
+                            Características destacadas
+                          </label>
 
-                          {generationDeleteError && (
-                            <p className="mt-4 text-sm text-destructive">
-                              {
-                                generationDeleteError
-                              }
-                            </p>
-                          )}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Escribe una característica por línea.
+                          </p>
 
-                          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-                            <p className="text-xs text-muted-foreground">
-                              Generado el{' '}
-                              {new Date(
-                                generation.createdAt,
-                              ).toLocaleString(
-                                'es-ES',
-                              )}
-                            </p>
+                          <textarea
+                            id={`generation-highlights-${generation.id}`}
+                            rows={6}
+                            value={generationEditForm.highlights}
+                            onChange={(event) =>
+                              setGenerationEditForm(
+                                (current) => ({
+                                  ...current,
+                                  highlights: event.target.value,
+                                }),
+                              )
+                            }
+                            disabled={isSavingGeneration}
+                            placeholder={'133 m²\n3 habitaciones\n2 baños\nBalcón'}
+                            className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                          />
+                        </div>
 
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleStartEditGeneration(
-                                    generation,
-                                  )
-                                }
-                                disabled={
-                                  deletingGenerationId !==
-                                  null
-                                }
-                                className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Editar
-                              </button>
+                        {/* CTA */}
+                        <div>
+                          <label
+                            htmlFor={`generation-cta-${generation.id}`}
+                            className="text-sm font-medium"
+                          >
+                            Llamada a la acción
+                          </label>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleCopyGeneration(
-                                    generation.id,
-                                    generation.title,
-                                    generation.description,
-                                    generation.highlights,
-                                    generation.callToAction,
-                                  )
-                                }
-                                disabled={
-                                  copyingGenerationId !==
-                                  null ||
-                                  deletingGenerationId !==
-                                  null
-                                }
-                                className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {copyingGenerationId ===
-                                  generation.id
-                                  ? 'Copiando...'
-                                  : copySuccess ===
-                                    generation.id
-                                    ? 'Copiado'
-                                    : 'Copiar anuncio'}
-                              </button>
+                          <textarea
+                            id={`generation-cta-${generation.id}`}
+                            rows={3}
+                            value={generationEditForm.callToAction}
+                            onChange={(event) =>
+                              setGenerationEditForm(
+                                (current) => ({
+                                  ...current,
+                                  callToAction: event.target.value,
+                                }),
+                              )
+                            }
+                            disabled={isSavingGeneration}
+                            className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-primary disabled:opacity-50"
+                          />
+                        </div>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleDeleteGeneration(
-                                    generation.id,
-                                  )
-                                }
-                                disabled={
-                                  deletingGenerationId !==
-                                  null ||
-                                  copyingGenerationId !==
-                                  null
-                                }
-                                className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {deletingGenerationId ===
-                                  generation.id
-                                  ? 'Eliminando...'
-                                  : 'Eliminar'}
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      )}
+                        {generationEditError && (
+                          <p className="text-sm text-destructive">
+                            {generationEditError}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                          <button
+                            type="button"
+                            onClick={handleCancelEditGeneration}
+                            disabled={isSavingGeneration}
+                            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveGeneration()}
+                            disabled={isSavingGeneration}
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isSavingGeneration
+                              ? 'Guardando...'
+                              : 'Guardar cambios'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  )
-                },
-              )}
-            </div>
+                  ) : (
+                    <>
+                      {/* =================================================
+                          CONTENIDO DEL ANUNCIO
+                      ================================================== */}
+                      <div className="p-5">
+                        {/* METADATOS */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                            {getProviderLabel(generation.provider)}
+                          </span>
+
+                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                            {getToneLabel(generation.tone)}
+                          </span>
+
+                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                            {getLanguageLabel(generation.language)}
+                          </span>
+
+                          {/* Fecha de generación */}
+                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                            Generado el{' '}
+                            {new Date(
+                              generation.createdAt,
+                            ).toLocaleDateString('es-ES')}
+                          </span>
+                        </div>
+
+                        {/* TÍTULO Y DESCRIPCIÓN */}
+                        <div className="mt-3">
+                          <h3 className="text-lg font-semibold">
+                            {generation.title}
+                          </h3>
+
+                          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                            {generation.description}
+                          </p>
+                        </div>
+
+                        {/* CARACTERÍSTICAS DESTACADAS */}
+                        {highlights.length > 0 && (
+                          <div className="mt-4 pl-5">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Características destacadas
+                            </p>
+
+                            <ul className="mt-2 space-y-1 text-sm">
+                              {highlights.slice(0, 5).map((highlight) => (
+                                <li
+                                  key={highlight}
+                                  className="text-muted-foreground"
+                                >
+                                  • {highlight}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {generationDeleteError && (
+                          <p className="mt-4 text-sm text-destructive">
+                            {generationDeleteError}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* =================================================
+                          ACCIONES INFERIORES
+                      ================================================== */}
+                      <div className="grid grid-cols-4 border-t">
+                        <Link
+                          to={`/historial/${generation.id}`}
+                          className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted"
+                        >
+                          Ver
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStartEditGeneration(generation)
+                          }
+                          disabled={
+                            isDeletingGeneration || deleting
+                          }
+                          className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyGeneration(
+                              generation.id,
+                              generation.title,
+                              generation.description,
+                              generation.highlights,
+                              generation.callToAction,
+                            )
+                          }
+                          disabled={
+                            isCopyingGeneration ||
+                            isDeletingGeneration ||
+                            deleting
+                          }
+                          className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isCopyingGeneration
+                            ? 'Copiando...'
+                            : copySuccess === generation.id
+                            ? 'Copiado'
+                            : 'Copiar'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleDeleteGeneration(generation.id)
+                          }
+                          disabled={
+                            isDeletingGeneration || deleting
+                          }
+                          className="flex min-h-11 items-center justify-center text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isDeletingGeneration
+                            ? 'Eliminando...'
+                            : 'Eliminar'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
 
             {/* =================================================
                 PAGINACIÓN
             ================================================== */}
-
             {totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between border-t pt-4">
                 <button
                   type="button"
-                  onClick={
-                    handlePrevPage
-                  }
-                  disabled={
-                    currentPage === 1
-                  }
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
                   className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                 >
                   Anterior
@@ -2612,24 +2635,14 @@ function PropertyDetailPage() {
 
                 <span className="text-sm text-muted-foreground">
                   Página{' '}
-                  <span className="font-semibold">
-                    {currentPage}
-                  </span>{' '}
-                  de{' '}
-                  <span className="font-semibold">
-                    {totalPages}
-                  </span>
+                  <span className="font-semibold">{currentPage}</span> de{' '}
+                  <span className="font-semibold">{totalPages}</span>
                 </span>
 
                 <button
                   type="button"
-                  onClick={
-                    handleNextPage
-                  }
-                  disabled={
-                    currentPage ===
-                    totalPages
-                  }
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
                   className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                 >
                   Siguiente
