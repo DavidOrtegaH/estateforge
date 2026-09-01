@@ -30,3 +30,6 @@ Thumbs.db
 # Temporary
 *.tmp
 *.temp
+
+# Codigo del proyecto en txt exprtaciones de contenido
+codigo_proyecto.txt
