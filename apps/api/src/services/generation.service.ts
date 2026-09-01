@@ -83,7 +83,10 @@ export async function generateListing(
 
   const property = await prisma.property.create({
     data: {
-      title: result.title || "Inmueble en " + request.property.city, // Campo title añadido
+      title:
+        result.title ||
+        'Inmueble en ' + request.property.city,
+
       operation: request.property.operation,
       type: request.property.type,
       price: request.property.price,
@@ -95,15 +98,18 @@ export async function generateListing(
       bathrooms: request.property.bathrooms,
       floor: request.property.floor,
       condition: request.property.condition,
+
       elevator: request.property.elevator,
       terrace: request.property.terrace,
       balcony: request.property.balcony,
       garage: request.property.garage,
+      storageRoom: request.property.storageRoom,
       pool: request.property.pool,
       garden: request.property.garden,
       airConditioning:
         request.property.airConditioning,
       heating: request.property.heating,
+
       additionalInformation:
         request.property.additionalInformation,
     },
@@ -139,31 +145,73 @@ export async function generateListingForExistingProperty(
 
   const generationRequest: GenerationRequest = {
     property: {
-      operation: property.operation as PropertyOperation,
-      type: property.type as PropertyType,
+      operation:
+        property.operation as PropertyOperation,
+
+      type:
+        property.type as PropertyType,
+
       title: property.title,
+
       price: property.price,
+
       address: property.address,
+
       city: property.city,
+
       neighborhood: property.neighborhood,
+
       area: property.area,
+
       bedrooms: property.bedrooms,
+
       bathrooms: property.bathrooms,
-      floor: property.floor ?? undefined,
-      condition: property.condition as PropertyCondition,
-      elevator: property.elevator,
-      terrace: property.terrace,
-      balcony: property.balcony,
-      garage: property.garage,
-      pool: property.pool,
-      garden: property.garden,
-      airConditioning: property.airConditioning,
-      heating: property.heating,
-      additionalInformation: property.additionalInformation,
+
+      floor:
+        property.floor ?? undefined,
+
+      condition:
+        property.condition as PropertyCondition,
+
+      elevator:
+        property.elevator,
+
+      terrace:
+        property.terrace,
+
+      balcony:
+        property.balcony,
+
+      garage:
+        property.garage,
+
+      storageRoom:
+        property.storageRoom,
+
+      pool:
+        property.pool,
+
+      garden:
+        property.garden,
+
+      airConditioning:
+        property.airConditioning,
+
+      heating:
+        property.heating,
+
+      additionalInformation:
+        property.additionalInformation,
     },
-    provider: request.provider,
-    tone: request.tone,
-    language: request.language,
+
+    provider:
+      request.provider,
+
+    tone:
+      request.tone,
+
+    language:
+      request.language,
   }
 
   const aiProvider = createAIProvider(
@@ -173,15 +221,17 @@ export async function generateListingForExistingProperty(
   const prompt =
     buildListingPrompt(generationRequest)
 
-  const result = await aiProvider.generate(prompt)
+  const result =
+    await aiProvider.generate(prompt)
 
-  const generationId = await createGeneration(
-    property.id,
-    result,
-    request.provider,
-    request.tone,
-    request.language,
-  )
+  const generationId =
+    await createGeneration(
+      property.id,
+      result,
+      request.provider,
+      request.tone,
+      request.language,
+    )
 
   return {
     listing: result,

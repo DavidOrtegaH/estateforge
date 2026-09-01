@@ -31,6 +31,7 @@ const initialProperty: Property = {
   terrace: false,
   balcony: false,
   garage: false,
+  storageRoom: false,
   pool: false,
   garden: false,
   airConditioning: false,
@@ -276,8 +277,8 @@ ${listingToCopy.description}
 
 Características destacadas:
 ${listingToCopy.highlights
-  .map((highlight) => `- ${highlight}`)
-  .join('\n')}
+          .map((highlight) => `- ${highlight}`)
+          .join('\n')}
 
 ${listingToCopy.callToAction}
       `.trim()
@@ -597,8 +598,8 @@ ${listingToCopy.callToAction}
                     event.target.value === ''
                       ? undefined
                       : Number(
-                          event.target.value,
-                        ),
+                        event.target.value,
+                      ),
                   )
                 }
                 className="h-10 rounded-md border bg-background px-3"
@@ -653,12 +654,10 @@ ${listingToCopy.callToAction}
                 ['terrace', 'Terraza'],
                 ['balcony', 'Balcón'],
                 ['garage', 'Garaje'],
+                ['storageRoom', 'Trastero'],
                 ['pool', 'Piscina'],
                 ['garden', 'Jardín'],
-                [
-                  'airConditioning',
-                  'Aire acondicionado',
-                ],
+                ['airConditioning', 'Aire acondicionado'],
                 ['heating', 'Calefacción'],
               ] as const
             ).map(([field, label]) => (
@@ -823,11 +822,7 @@ ${listingToCopy.callToAction}
 
       {generatedListing && (
         <section className="mt-8 overflow-hidden rounded-lg border bg-card">
-          {/* =================================================
-              ENLACES SUPERIORES
-              Van arriba del todo de la tarjeta
-              ================================================= */}
-
+          {/* ENLACES SUPERIORES */}
           <div className="grid grid-cols-2">
             {createdPropertyId ? (
               <Link
@@ -852,10 +847,7 @@ ${listingToCopy.callToAction}
             )}
           </div>
 
-          {/* =================================================
-              CABECERA
-              ================================================= */}
-
+          {/* CABECERA */}
           <div className="border-t p-6 pb-0">
             <div>
               <h2 className="text-lg font-semibold">
@@ -869,21 +861,17 @@ ${listingToCopy.callToAction}
             </div>
           </div>
 
-          {/* =================================================
-              CONTENIDO DEL ANUNCIO
-              ================================================= */}
-
+          {/* CONTENIDO DEL ANUNCIO */}
           <div className="p-6">
             <div className="space-y-6">
               {/* TÍTULO */}
-
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   Título
                 </p>
 
                 {isEditing &&
-                editedListing ? (
+                  editedListing ? (
                   <input
                     type="text"
                     value={
@@ -908,14 +896,13 @@ ${listingToCopy.callToAction}
               </div>
 
               {/* DESCRIPCIÓN */}
-
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   Descripción
                 </p>
 
                 {isEditing &&
-                editedListing ? (
+                  editedListing ? (
                   <textarea
                     value={
                       editedListing.description
@@ -939,15 +926,14 @@ ${listingToCopy.callToAction}
                 )}
               </div>
 
-              {/* CARACTERÍSTICAS */}
-
+              {/* CARACTERÍSTICAS DESTACADAS */}
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   Características destacadas
                 </p>
 
                 {isEditing &&
-                editedListing ? (
+                  editedListing ? (
                   <textarea
                     value={editedListing.highlights.join(
                       '\n',
@@ -970,7 +956,7 @@ ${listingToCopy.callToAction}
                     placeholder="Una característica por línea"
                   />
                 ) : generatedListing
-                    .highlights.length ===
+                  .highlights.length ===
                   0 ? (
                   <p className="mt-2 text-sm text-muted-foreground">
                     No se han indicado características
@@ -988,16 +974,14 @@ ${listingToCopy.callToAction}
                   </ul>
                 )}
               </div>
-
               {/* CTA */}
-
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   Llamada a la acción
                 </p>
 
                 {isEditing &&
-                editedListing ? (
+                  editedListing ? (
                   <input
                     type="text"
                     value={
@@ -1023,10 +1007,7 @@ ${listingToCopy.callToAction}
             </div>
           </div>
 
-          {/* =================================================
-              ACCIONES INFERIORES
-              ================================================= */}
-
+          {/* ACCIONES INFERIORES */}
           {!isEditing ? (
             <div className="grid grid-cols-3 border-t">
               <button

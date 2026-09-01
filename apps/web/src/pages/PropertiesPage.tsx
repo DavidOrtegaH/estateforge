@@ -76,6 +76,7 @@ type BooleanFilterField =
   | 'terrace'
   | 'balcony'
   | 'garage'
+  | 'storageRoom'
   | 'elevator'
   | 'airConditioning'
   | 'heating'
@@ -93,10 +94,29 @@ type PropertyFilters = {
   terrace: boolean
   balcony: boolean
   garage: boolean
+  storageRoom: boolean
   elevator: boolean
   airConditioning: boolean
   heating: boolean
 }
+
+// ============================================================
+// CONFIGURACIÓN DE CARACTERÍSTICAS
+// ============================================================
+
+const propertyFeatureLabels: Array<
+  [BooleanFilterField, string]
+> = [
+  ['pool', 'Piscina'],
+  ['garden', 'Jardín'],
+  ['terrace', 'Terraza'],
+  ['balcony', 'Balcón'],
+  ['garage', 'Garaje'],
+  ['storageRoom', 'Trastero'],
+  ['elevator', 'Ascensor'],
+  ['airConditioning', 'Aire acondicionado'],
+  ['heating', 'Calefacción'],
+]
 
 // ============================================================
 // FILTROS NUMÉRICOS
@@ -122,10 +142,113 @@ const createDefaultFilters = (): PropertyFilters => ({
   terrace: false,
   balcony: false,
   garage: false,
+  storageRoom: false,
   elevator: false,
   airConditioning: false,
   heating: false,
 })
+
+// ============================================================
+// NORMALIZACIÓN
+// ============================================================
+
+function normalizeText(
+  value: unknown,
+): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  return String(value)
+    .trim()
+    .toLocaleLowerCase('es-ES')
+    .replace(/_/g, '-')
+}
+
+function normalizeBoolean(
+  value: unknown,
+): boolean {
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (
+    typeof value === 'number'
+  ) {
+    return value !== 0
+  }
+
+  if (
+    typeof value === 'string'
+  ) {
+    const normalized =
+      value.trim().toLocaleLowerCase('es-ES')
+
+    if (
+      [
+        'true',
+        '1',
+        'yes',
+        'si',
+        'sí',
+        'on',
+        'enabled',
+        'activo',
+        'activa',
+      ].includes(normalized)
+    ) {
+      return true
+    }
+
+    if (
+      [
+        'false',
+        '0',
+        'no',
+        'off',
+        'disabled',
+        'inactivo',
+        'inactiva',
+        '',
+      ].includes(normalized)
+    ) {
+      return false
+    }
+  }
+
+  return Boolean(value)
+}
+
+function getNumericPropertyValue(
+  value: unknown,
+): number {
+  if (
+    typeof value === 'number'
+  ) {
+    return Number.isFinite(value)
+      ? value
+      : 0
+  }
+
+  if (
+    typeof value === 'string'
+  ) {
+    const normalized =
+      value
+        .trim()
+        .replace(/\./g, '')
+        .replace(',', '.')
+
+    const parsed =
+      Number(normalized)
+
+    return Number.isFinite(parsed)
+      ? parsed
+      : 0
+  }
+
+  return 0
+}
 
 // ============================================================
 // ETIQUETAS
@@ -134,45 +257,60 @@ const createDefaultFilters = (): PropertyFilters => ({
 function getPropertyOperation(
   operation: string | undefined,
 ): string {
-  if (!operation) return 'No indicado'
+  const normalized =
+    normalizeText(operation)
+
+  if (!normalized) {
+    return 'No indicado'
+  }
 
   return (
     propertyOperationLabels[
-    operation.toLowerCase()
-    ] || operation
+      normalized
+    ] || operation || ''
   )
 }
 
 function getPropertyTypeLabel(
   type: string | undefined,
 ): string {
-  if (!type) return 'No indicado'
+  const normalized =
+    normalizeText(type)
+
+  if (!normalized) {
+    return 'No indicado'
+  }
 
   return (
-    propertyTypeLabels[type.toLowerCase()] ||
-    type
+    propertyTypeLabels[
+      normalized
+    ] || type || ''
   )
 }
 
 function getPropertyCondition(
   condition: string | undefined,
 ): string {
-  if (!condition) return ''
+  const normalized =
+    normalizeText(condition)
 
-  const normalizedCondition =
-    condition.toLowerCase().replace(/_/g, '-')
+  if (!normalized) {
+    return ''
+  }
 
   return (
     propertyConditionLabels[
-    normalizedCondition
-    ] || condition
+      normalized
+    ] || condition || ''
   )
 }
 
 function capitalizeFirstLetter(
   text: string | undefined,
 ): string {
-  if (!text) return ''
+  if (!text) {
+    return ''
+  }
 
   return (
     text.charAt(0).toUpperCase() +
@@ -295,7 +433,7 @@ function getPropertyHighlights(
 
         const areaMatch =
           item.match(
-            /(\d+)\s*m[²2]/i,
+            /(\d+(?:[.,]\d+)?)\s*m[²2]/i,
           )
 
         if (areaMatch) {
@@ -314,9 +452,10 @@ function getPropertyHighlights(
             roomsMatch[1]
 
           extracted.push(
-            `${count} ${Number(count) === 1
-              ? 'habitación'
-              : 'habitaciones'
+            `${count} ${
+              Number(count) === 1
+                ? 'habitación'
+                : 'habitaciones'
             }`,
           )
         }
@@ -331,15 +470,18 @@ function getPropertyHighlights(
             bathsMatch[1]
 
           extracted.push(
-            `${count} ${Number(count) === 1
-              ? 'baño'
-              : 'baños'
+            `${count} ${
+              Number(count) === 1
+                ? 'baño'
+                : 'baños'
             }`,
           )
         }
 
         const normalized =
-          item.toLowerCase()
+          item.toLocaleLowerCase(
+            'es-ES',
+          )
 
         if (
           normalized.includes(
@@ -347,6 +489,17 @@ function getPropertyHighlights(
           )
         ) {
           extracted.push('Piscina')
+        }
+
+        if (
+          normalized.includes(
+            'jardín',
+          ) ||
+          normalized.includes(
+            'jardin',
+          )
+        ) {
+          extracted.push('Jardín')
         }
 
         if (
@@ -359,6 +512,17 @@ function getPropertyHighlights(
 
         if (
           normalized.includes(
+            'balcón',
+          ) ||
+          normalized.includes(
+            'balcon',
+          )
+        ) {
+          extracted.push('Balcón')
+        }
+
+        if (
+          normalized.includes(
             'garaje',
           ) ||
           normalized.includes(
@@ -366,6 +530,14 @@ function getPropertyHighlights(
           )
         ) {
           extracted.push('Garaje')
+        }
+
+        if (
+          normalized.includes(
+            'trastero',
+          )
+        ) {
+          extracted.push('Trastero')
         }
 
         if (
@@ -388,10 +560,15 @@ function getPropertyHighlights(
 
         if (
           normalized.includes(
-            'trastero',
+            'calefacción',
+          ) ||
+          normalized.includes(
+            'calefaccion',
           )
         ) {
-          extracted.push('Trastero')
+          extracted.push(
+            'Calefacción',
+          )
         }
 
         return extracted
@@ -406,8 +583,18 @@ function getPropertyHighlights(
         currentGenerationHighlights,
       )
     ) {
+      const normalizedHighlight =
+        normalizeText(highlight)
+
+      const alreadyExists =
+        highlights.some(
+          (existing) =>
+            normalizeText(existing) ===
+            normalizedHighlight,
+        )
+
       if (
-        !highlights.includes(highlight)
+        !alreadyExists
       ) {
         highlights.push(highlight)
       }
@@ -418,13 +605,34 @@ function getPropertyHighlights(
 }
 
 // ============================================================
+// CARACTERÍSTICAS DEL INMUEBLE
+// ============================================================
+
+function getPropertyFeaturePills(
+  property: PropertyItem,
+): string[] {
+  return propertyFeatureLabels
+    .filter(
+      ([field]) =>
+        normalizeBoolean(
+          property[field],
+        ),
+    )
+    .map(
+      ([, label]) => label,
+    )
+}
+
+// ============================================================
 // FECHAS
 // ============================================================
 
 function getCreatedAtTimestamp(
   createdAt: string | undefined,
 ): number {
-  if (!createdAt) return 0
+  if (!createdAt) {
+    return 0
+  }
 
   const timestamp =
     new Date(createdAt).getTime()
@@ -441,14 +649,19 @@ function getCreatedAtTimestamp(
 function getNumericFilterValue(
   value: string,
 ): number | null {
-  if (value.trim() === '') {
+  if (
+    value.trim() === ''
+  ) {
     return null
   }
 
   const normalized =
-    value.replace(',', '.')
+    value
+      .trim()
+      .replace(',', '.')
 
-  const parsed = Number(normalized)
+  const parsed =
+    Number(normalized)
 
   return Number.isFinite(parsed)
     ? parsed
@@ -456,9 +669,14 @@ function getNumericFilterValue(
 }
 
 function compareNumericValue(
-  propertyValue: number,
+  propertyValue: unknown,
   filter: NumericFilter,
 ): boolean {
+  const numericPropertyValue =
+    getNumericPropertyValue(
+      propertyValue,
+    )
+
   if (
     filter.operator === 'range'
   ) {
@@ -481,14 +699,14 @@ function compareNumericValue(
 
     if (
       min !== null &&
-      propertyValue < min
+      numericPropertyValue < min
     ) {
       return false
     }
 
     if (
       max !== null &&
-      propertyValue > max
+      numericPropertyValue > max
     ) {
       return false
     }
@@ -507,19 +725,34 @@ function compareNumericValue(
 
   switch (filter.operator) {
     case 'lt':
-      return propertyValue < value
+      return (
+        numericPropertyValue <
+        value
+      )
 
     case 'lte':
-      return propertyValue <= value
+      return (
+        numericPropertyValue <=
+        value
+      )
 
     case 'eq':
-      return propertyValue === value
+      return (
+        numericPropertyValue ===
+        value
+      )
 
     case 'gte':
-      return propertyValue >= value
+      return (
+        numericPropertyValue >=
+        value
+      )
 
     case 'gt':
-      return propertyValue > value
+      return (
+        numericPropertyValue >
+        value
+      )
 
     default:
       return true
@@ -565,7 +798,9 @@ function hasActiveNumericFilter(
     )
   }
 
-  return filter.value.trim() !== ''
+  return (
+    filter.value.trim() !== ''
+  )
 }
 
 function hasActiveFilters(
@@ -592,6 +827,7 @@ function hasActiveFilters(
     filters.terrace ||
     filters.balcony ||
     filters.garage ||
+    filters.storageRoom ||
     filters.elevator ||
     filters.airConditioning ||
     filters.heating
@@ -672,8 +908,7 @@ function PropertiesPage() {
 
   useEffect(() => {
     if (!isFilterOpen) {
-      document.body.style.overflow =
-        ''
+      document.body.style.overflow = ''
       return
     }
 
@@ -681,8 +916,7 @@ function PropertiesPage() {
       'hidden'
 
     return () => {
-      document.body.style.overflow =
-        ''
+      document.body.style.overflow = ''
     }
   }, [isFilterOpen])
 
@@ -700,9 +934,8 @@ function PropertiesPage() {
 
   useEffect(() => {
     window.scrollTo({
-      top:
-        document.documentElement
-          .scrollHeight,
+      top: document.documentElement
+        .scrollHeight,
       behavior: 'instant',
     })
   }, [currentPage])
@@ -716,20 +949,21 @@ function PropertiesPage() {
       const normalizedSearch =
         searchTerm
           .trim()
-          .toLocaleLowerCase(
-            'es-ES',
-          )
+          .toLocaleLowerCase('es-ES')
 
       const filtered =
         properties.filter(
           (property) => {
+            // ------------------------------------------------
+            // BÚSQUEDA
+            // ------------------------------------------------
+
             if (
               normalizedSearch
             ) {
               const title =
-                (
-                  property.title ||
-                  ''
+                String(
+                  property.title || '',
                 ).toLocaleLowerCase(
                   'es-ES',
                 )
@@ -742,6 +976,10 @@ function PropertiesPage() {
                 return false
               }
             }
+
+            // ------------------------------------------------
+            // FILTROS NUMÉRICOS
+            // ------------------------------------------------
 
             if (
               !compareNumericValue(
@@ -779,94 +1017,143 @@ function PropertiesPage() {
               return false
             }
 
+            // ------------------------------------------------
+            // OPERACIÓN
+            // ------------------------------------------------
+
             if (
               filters.operation &&
-              property.operation
-                ?.toLowerCase() !==
-              filters.operation.toLowerCase()
-            ) {
-              return false
-            }
-
-            if (
-              filters.type &&
-              property.type
-                ?.toLowerCase() !==
-              filters.type.toLowerCase()
-            ) {
-              return false
-            }
-
-            if (
-              filters.condition &&
-              property.condition
-                ?.toLowerCase()
-                .replace(
-                  /_/g,
-                  '-',
-                ) !==
-              filters.condition
-                .toLowerCase()
-                .replace(
-                  /_/g,
-                  '-',
+              normalizeText(
+                property.operation,
+              ) !==
+                normalizeText(
+                  filters.operation,
                 )
             ) {
               return false
             }
 
+            // ------------------------------------------------
+            // TIPO
+            // ------------------------------------------------
+
+            if (
+              filters.type &&
+              normalizeText(
+                property.type,
+              ) !==
+                normalizeText(
+                  filters.type,
+                )
+            ) {
+              return false
+            }
+
+            // ------------------------------------------------
+            // ESTADO
+            // ------------------------------------------------
+
+            if (
+              filters.condition &&
+              normalizeText(
+                property.condition,
+              ) !==
+                normalizeText(
+                  filters.condition,
+                )
+            ) {
+              return false
+            }
+
+            // ------------------------------------------------
+            // CARACTERÍSTICAS
+            //
+            // IMPORTANTE:
+            // usamos normalizeBoolean() para soportar
+            // true / false / "true" / "false" / 1 / 0 / etc.
+            // ------------------------------------------------
+
             if (
               filters.pool &&
-              !property.pool
+              !normalizeBoolean(
+                property.pool,
+              )
             ) {
               return false
             }
 
             if (
               filters.garden &&
-              !property.garden
+              !normalizeBoolean(
+                property.garden,
+              )
             ) {
               return false
             }
 
             if (
               filters.terrace &&
-              !property.terrace
+              !normalizeBoolean(
+                property.terrace,
+              )
             ) {
               return false
             }
 
             if (
               filters.balcony &&
-              !property.balcony
+              !normalizeBoolean(
+                property.balcony,
+              )
             ) {
               return false
             }
 
             if (
               filters.garage &&
-              !property.garage
+              !normalizeBoolean(
+                property.garage,
+              )
+            ) {
+              return false
+            }
+
+            // ------------------------------------------------
+            // TRASTERO
+            // ------------------------------------------------
+
+            if (
+              filters.storageRoom &&
+              !normalizeBoolean(
+                property.storageRoom,
+              )
             ) {
               return false
             }
 
             if (
               filters.elevator &&
-              !property.elevator
+              !normalizeBoolean(
+                property.elevator,
+              )
             ) {
               return false
             }
 
             if (
               filters.airConditioning &&
-              !property.airConditioning
+              !normalizeBoolean(
+                property.airConditioning,
+              )
             ) {
               return false
             }
 
             if (
               filters.heating &&
-              !property.heating
+              !normalizeBoolean(
+                property.heating,
+              )
             ) {
               return false
             }
@@ -900,12 +1187,22 @@ function PropertiesPage() {
 
             case 'most-expensive':
               return (
-                b.price - a.price
+                getNumericPropertyValue(
+                  b.price,
+                ) -
+                getNumericPropertyValue(
+                  a.price,
+                )
               )
 
             case 'cheapest':
               return (
-                a.price - b.price
+                getNumericPropertyValue(
+                  a.price,
+                ) -
+                getNumericPropertyValue(
+                  b.price,
+                )
               )
 
             default:
@@ -924,7 +1221,7 @@ function PropertiesPage() {
     1,
     Math.ceil(
       filteredAndSortedProperties.length /
-      itemsPerPage,
+        itemsPerPage,
     ),
   )
 
@@ -965,14 +1262,15 @@ function PropertiesPage() {
   )
 
   const selectedOnCurrentPage =
-    currentPageIds.filter((id) =>
-      selectedIds.has(id),
+    currentPageIds.filter(
+      (id) =>
+        selectedIds.has(id),
     ).length
 
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
     selectedOnCurrentPage ===
-    currentPageIds.length
+      currentPageIds.length
 
   const someCurrentPageSelected =
     selectedOnCurrentPage > 0 &&
@@ -985,7 +1283,8 @@ function PropertiesPage() {
     propertyId: string,
   ) => {
     setSelectedIds((previous) => {
-      const next = new Set(previous)
+      const next =
+        new Set(previous)
 
       if (
         next.has(propertyId)
@@ -1004,7 +1303,8 @@ function PropertiesPage() {
   const handleToggleCurrentPage =
     () => {
       setSelectedIds((previous) => {
-        const next = new Set(previous)
+        const next =
+          new Set(previous)
 
         if (
           allCurrentPageSelected
@@ -1038,7 +1338,9 @@ function PropertiesPage() {
   }
 
   const handlePrevPage = () => {
-    if (currentPage > 1) {
+    if (
+      currentPage > 1
+    ) {
       setCurrentPage(
         (previous) =>
           previous - 1,
@@ -1064,9 +1366,10 @@ function PropertiesPage() {
 
       const confirmed =
         window.confirm(
-          `¿Seguro que quieres eliminar ${count} ${count === 1
-            ? 'inmueble'
-            : 'inmuebles'
+          `¿Seguro que quieres eliminar ${count} ${
+            count === 1
+              ? 'inmueble'
+              : 'inmuebles'
           } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
         )
 
@@ -1093,7 +1396,7 @@ function PropertiesPage() {
             1,
             Math.ceil(
               result.length /
-              itemsPerPage,
+                itemsPerPage,
             ),
           )
 
@@ -1104,7 +1407,9 @@ function PropertiesPage() {
               newTotalPages,
             ),
         )
-      } catch (deleteError) {
+      } catch (
+        deleteError
+      ) {
         console.error(
           'Error eliminando inmuebles:',
           deleteError,
@@ -1157,12 +1462,12 @@ function PropertiesPage() {
         operator,
         ...(operator === 'range'
           ? {
-            value: '',
-          }
+              value: '',
+            }
           : {
-            min: '',
-            max: '',
-          }),
+              min: '',
+              max: '',
+            }),
       },
     }))
   }
@@ -1190,13 +1495,13 @@ function PropertiesPage() {
     NumericOperator,
     string,
   ][] = [
-      ['lt', 'Menor que'],
-      ['lte', 'Menor o igual que'],
-      ['eq', 'Igual a'],
-      ['gte', 'Mayor o igual que'],
-      ['gt', 'Mayor que'],
-      ['range', 'Entre'],
-    ]
+    ['lt', 'Menor que'],
+    ['lte', 'Menor o igual que'],
+    ['eq', 'Igual a'],
+    ['gte', 'Mayor o igual que'],
+    ['gt', 'Mayor que'],
+    ['range', 'Entre'],
+  ]
 
   // ==========================================================
   // ESTADOS
@@ -1332,7 +1637,7 @@ function PropertiesPage() {
                     <span>
                       {
                         sortLabels[
-                        sortOption
+                          sortOption
                         ]
                       }
                     </span>
@@ -1368,11 +1673,12 @@ function PropertiesPage() {
                                 false,
                               )
                             }}
-                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption ===
-                                value
+                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${
+                              sortOption ===
+                              value
                                 ? 'bg-muted font-medium'
                                 : ''
-                              }`}
+                            }`}
                           >
                             {label}
                           </button>
@@ -1389,22 +1695,23 @@ function PropertiesPage() {
                   onClick={() =>
                     setIsFilterOpen(true)
                   }
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${hasActiveFilters(
-                    filters,
-                  )
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${
+                    hasActiveFilters(
+                      filters,
+                    )
                       ? 'border-primary bg-primary/5 text-primary'
                       : ''
-                    }`}
+                  }`}
                 >
                   Filtrar
 
                   {hasActiveFilters(
                     filters,
                   ) && (
-                      <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                        Activos
-                      </span>
-                    )}
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                      Activos
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -1420,7 +1727,7 @@ function PropertiesPage() {
                 </span>
 
                 {filteredAndSortedProperties.length ===
-                  1
+                1
                   ? 'inmueble encontrado'
                   : 'inmuebles encontrados'}
               </span>
@@ -1429,18 +1736,18 @@ function PropertiesPage() {
                 hasActiveFilters(
                   filters,
                 )) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm('')
-                      handleResetFilters()
-                    }}
-                    className="w-fit text-sm font-medium text-primary hover:underline"
-                  >
-                    Limpiar búsqueda y
-                    filtros
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('')
+                    handleResetFilters()
+                  }}
+                  className="w-fit text-sm font-medium text-primary hover:underline"
+                >
+                  Limpiar búsqueda y
+                  filtros
+                </button>
+              )}
             </div>
 
             {/* SELECCIÓN */}
@@ -1465,7 +1772,7 @@ function PropertiesPage() {
                   disabled={
                     deleting ||
                     currentProperties.length ===
-                    0
+                      0
                   }
                   className="h-4 w-4 cursor-pointer"
                 />
@@ -1504,10 +1811,11 @@ function PropertiesPage() {
                       ? -1
                       : 0
                   }
-                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selectedCount > 0
                       ? 'visible'
                       : 'pointer-events-none invisible'
-                    }`}
+                  }`}
                 >
                   {deleting
                     ? 'Eliminando...'
@@ -1519,7 +1827,7 @@ function PropertiesPage() {
             {/* RESULTADOS */}
 
             {currentProperties.length ===
-              0 ? (
+            0 ? (
               <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                 <h2 className="font-semibold">
                   No hay inmuebles que coincidan
@@ -1560,15 +1868,50 @@ function PropertiesPage() {
                         property,
                       )
 
+                    // ------------------------------------------------
+                    // CARACTERÍSTICAS REALES DEL INMUEBLE
+                    //
+                    // Esto hace que Trastero, Piscina, etc. aparezcan
+                    // aunque no estén dentro de "highlights".
+                    // ------------------------------------------------
+
+                    const featurePills =
+                      getPropertyFeaturePills(
+                        property,
+                      )
+
+                    // Evitamos duplicar una característica si también
+                    // viene dentro de los highlights generados.
+                    const normalizedFeatureLabels =
+                      new Set(
+                        featurePills.map(
+                          (feature) =>
+                            normalizeText(
+                              feature,
+                            ),
+                        ),
+                      )
+
+                    const generalHighlights =
+                      highlights.filter(
+                        (highlight) =>
+                          !normalizedFeatureLabels.has(
+                            normalizeText(
+                              highlight,
+                            ),
+                          ),
+                      )
+
                     return (
                       <div
                         key={
                           property.id
                         }
-                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
+                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${
+                          isSelected
                             ? 'border-primary ring-2 ring-primary/25'
                             : 'border-border'
-                          }`}
+                        }`}
                       >
                         {/* SELECTOR */}
 
@@ -1577,9 +1920,10 @@ function PropertiesPage() {
                             type="checkbox"
                             aria-label={`Seleccionar ${getPropertyTypeLabel(
                               property.type,
-                            )} en ${property.city ||
+                            )} en ${
+                              property.city ||
                               'Sin ciudad'
-                              }`}
+                            }`}
                             checked={
                               isSelected
                             }
@@ -1591,17 +1935,19 @@ function PropertiesPage() {
                             disabled={
                               deleting
                             }
-                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
+                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${
+                              isSelected
                                 ? 'cursor-default bg-foreground'
                                 : 'bg-accent group-hover:bg-primary'
-                              }`}
+                            }`}
                           />
 
                           <div
-                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
+                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
+                              isSelected
                                 ? 'font-semibold text-background'
                                 : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                              }`}
+                            }`}
                           >
                             {isSelected
                               ? '✓ Seleccionado'
@@ -1623,7 +1969,9 @@ function PropertiesPage() {
                               </div>
 
                               <p className="whitespace-nowrap text-lg font-bold">
-                                {property.price.toLocaleString(
+                                {getNumericPropertyValue(
+                                  property.price,
+                                ).toLocaleString(
                                   'es-ES',
                                 )}{' '}
                                 €
@@ -1634,59 +1982,113 @@ function PropertiesPage() {
                           <div className="mt-4">
                             <div className="flex min-h-21 flex-col justify-end pb-4">
                               <div className="flex flex-wrap items-end gap-2">
-                                {/* 1. Datos más relevantes: Condición, Operación y Tipo */}
+                                {/* ==================================================
+                                    1. DATOS MÁS RELEVANTES
+                                    ================================================== */}
+
                                 {property.condition && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyCondition(property.condition)}
+                                    {getPropertyCondition(
+                                      property.condition,
+                                    )}
                                   </span>
                                 )}
 
                                 {property.operation && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyOperation(property.operation)}
+                                    {getPropertyOperation(
+                                      property.operation,
+                                    )}
                                   </span>
                                 )}
 
                                 {property.type && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyTypeLabel(property.type)}
+                                    {getPropertyTypeLabel(
+                                      property.type,
+                                    )}
                                   </span>
                                 )}
 
-                                {/* 2. Ubicación: Ciudad, Vecindario, Dirección */}
+                                {/* ==================================================
+                                    2. UBICACIÓN
+                                    ================================================== */}
+
                                 {property.city && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(property.city)}
+                                    {capitalizeFirstLetter(
+                                      property.city,
+                                    )}
                                   </span>
                                 )}
 
                                 {property.neighborhood && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(property.neighborhood)}
+                                    {capitalizeFirstLetter(
+                                      property.neighborhood,
+                                    )}
                                   </span>
                                 )}
 
                                 {property.address && (
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(property.address)}
+                                    {capitalizeFirstLetter(
+                                      property.address,
+                                    )}
                                   </span>
                                 )}
 
-                                {/* 3. Highlights generales */}
-                                {highlights
-                                  .slice(0, 5)
-                                  .map((highlight) => (
+                                {/* ==================================================
+                                    3. CARACTERÍSTICAS REALES
+                                    ==================================================
+                                    
+                                    Aquí está la mejora importante:
+                                    Trastero se pinta directamente desde
+                                    property.storageRoom.
+                                    ================================================== */}
+
+                                {featurePills.map(
+                                  (feature) => (
                                     <span
-                                      key={highlight}
+                                      key={
+                                        feature
+                                      }
                                       className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
                                     >
-                                      {highlight}
+                                      {
+                                        feature
+                                      }
                                     </span>
-                                  ))}
+                                  ),
+                                )}
+
+                                {/* ==================================================
+                                    4. HIGHLIGHTS GENERALES
+                                    ================================================== */}
+
+                                {generalHighlights
+                                  .slice(0, 5)
+                                  .map(
+                                    (
+                                      highlight,
+                                    ) => (
+                                      <span
+                                        key={
+                                          highlight
+                                        }
+                                        className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                      >
+                                        {
+                                          highlight
+                                        }
+                                      </span>
+                                    ),
+                                  )}
                               </div>
                             </div>
 
                             {/* FECHA + ANUNCIOS */}
+
                             <div className="flex justify-between border-t pt-4">
                               <div>
                                 <p className="text-xs text-muted-foreground">
@@ -1694,8 +2096,13 @@ function PropertiesPage() {
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium">
-                                  {generationCount}{' '}
-                                  {generationCount === 1 ? 'anuncio' : 'anuncios'}
+                                  {
+                                    generationCount
+                                  }{' '}
+                                  {generationCount ===
+                                  1
+                                    ? 'anuncio'
+                                    : 'anuncios'}
                                 </p>
                               </div>
 
@@ -1705,7 +2112,11 @@ function PropertiesPage() {
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium">
-                                  {new Date(property.createdAt).toLocaleString('es-ES')}
+                                  {new Date(
+                                    property.createdAt,
+                                  ).toLocaleString(
+                                    'es-ES',
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -1741,7 +2152,7 @@ function PropertiesPage() {
 
             {totalPages > 1 &&
               currentProperties.length >
-              0 && (
+                0 && (
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
                   <button
                     type="button"
@@ -1750,7 +2161,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                      1 ||
+                        1 ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1776,7 +2187,7 @@ function PropertiesPage() {
                     }
                     disabled={
                       currentPage ===
-                      totalPages ||
+                        totalPages ||
                       deleting
                     }
                     className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1843,7 +2254,9 @@ function PropertiesPage() {
 
             <div className="overflow-y-auto p-6">
               <div className="grid gap-6 md:grid-cols-2">
-                {/* PRECIO */}
+                {/* ==================================================
+                    FILTROS NUMÉRICOS
+                    ================================================== */}
 
                 {(
                   [
@@ -1932,7 +2345,7 @@ function PropertiesPage() {
                           </select>
 
                           {filter.operator ===
-                            'range' ? (
+                          'range' ? (
                             <div className="mt-2 grid grid-cols-2 gap-2">
                               <input
                                 type="number"
@@ -2159,7 +2572,9 @@ function PropertiesPage() {
                 </div>
               </div>
 
-              {/* CARACTERÍSTICAS */}
+              {/* ==================================================
+                  CARACTERÍSTICAS
+                  ================================================== */}
 
               <div className="mt-7 border-t pt-6">
                 <h3 className="text-sm font-semibold">
@@ -2167,152 +2582,171 @@ function PropertiesPage() {
                 </h3>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                  {[
-                    [
-                      'pool',
-                      'Piscina',
-                    ],
-                    [
-                      'garden',
-                      'Jardín',
-                    ],
-                    [
-                      'terrace',
-                      'Terraza',
-                    ],
-                    [
-                      'balcony',
-                      'Balcón',
-                    ],
-                    [
-                      'garage',
-                      'Garaje',
-                    ],
-                    [
-                      'elevator',
-                      'Ascensor',
-                    ],
-                    [
-                      'airConditioning',
-                      'Aire acondicionado',
-                    ],
-                    [
-                      'heating',
-                      'Calefacción',
-                    ],
-                  ].map(
-                    ([field, label]) => {
-                      const filterField =
-                        field as BooleanFilterField
+                  {propertyFeatureLabels.map(
+                    ([field, label]) => (
+                      <label
+                        key={field}
+                        className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition hover:bg-muted"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            filters[field]
+                          }
+                          onChange={() =>
+                            toggleBooleanFilter(
+                              field,
+                            )
+                          }
+                          className="h-4 w-4 cursor-pointer"
+                        />
 
-                      return (
-                        <label
-                          key={field}
-                          className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition hover:bg-muted"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={
-                              filters[
-                              filterField
-                              ]
-                            }
-                            onChange={() =>
-                              toggleBooleanFilter(
-                                filterField,
-                              )
-                            }
-                            className="h-4 w-4 cursor-pointer"
-                          />
-
-                          <span>
-                            {label}
-                          </span>
-                        </label>
-                      )
-                    },
+                        <span>
+                          {label}
+                        </span>
+                      </label>
+                    ),
                   )}
                 </div>
               </div>
 
-              {/* RESUMEN */}
+              {/* ==================================================
+                  RESUMEN DE FILTROS
+                  ================================================== */}
 
               {hasActiveFilters(
                 filters,
               ) && (
-                  <div className="mt-6 rounded-md bg-muted/50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Filtros activos
-                    </p>
+                <div className="mt-6 rounded-md bg-muted/50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Filtros activos
+                  </p>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(
+                      [
                         [
-                          [
-                            'Precio',
-                            filters.price,
-                            '€',
-                          ],
-                          [
-                            'Superficie',
-                            filters.area,
-                            'm²',
-                          ],
-                          [
-                            'Habitaciones',
-                            filters.bedrooms,
-                            '',
-                          ],
-                          [
-                            'Baños',
-                            filters.bathrooms,
-                            '',
-                          ],
-                        ] as [
-                          string,
-                          NumericFilter,
-                          string,
-                        ][]
-                      ).map(
-                        ([
-                          label,
-                          filter,
-                          suffix,
-                        ]) => {
-                          if (
-                            !hasActiveNumericFilter(
-                              filter,
-                            )
-                          ) {
-                            return null
-                          }
-
-                          const text =
-                            filter.operator ===
-                              'range'
-                              ? `${label} entre ${filter.min ||
-                              'sin mínimo'
-                              } y ${filter.max ||
-                              'sin máximo'
-                              }${suffix ? ` ${suffix}` : ''}`
-                              : `${label} ${getOperatorLabel(
-                                filter.operator,
-                              )} ${filter.value
-                              }${suffix ? ` ${suffix}` : ''}`
-
-                          return (
-                            <span
-                              key={label}
-                              className="rounded-md bg-background px-2 py-1 text-xs"
-                            >
-                              {text}
-                            </span>
+                          'Precio',
+                          filters.price,
+                          '€',
+                        ],
+                        [
+                          'Superficie',
+                          filters.area,
+                          'm²',
+                        ],
+                        [
+                          'Habitaciones',
+                          filters.bedrooms,
+                          '',
+                        ],
+                        [
+                          'Baños',
+                          filters.bathrooms,
+                          '',
+                        ],
+                      ] as [
+                        string,
+                        NumericFilter,
+                        string,
+                      ][]
+                    ).map(
+                      ([
+                        label,
+                        filter,
+                        suffix,
+                      ]) => {
+                        if (
+                          !hasActiveNumericFilter(
+                            filter,
                           )
-                        },
-                      )}
-                    </div>
+                        ) {
+                          return null
+                        }
+
+                        const text =
+                          filter.operator ===
+                          'range'
+                            ? `${label} entre ${
+                                filter.min ||
+                                'sin mínimo'
+                              } y ${
+                                filter.max ||
+                                'sin máximo'
+                              }${
+                                suffix
+                                  ? ` ${suffix}`
+                                  : ''
+                              }`
+                            : `${label} ${getOperatorLabel(
+                                filter.operator,
+                              )} ${
+                                filter.value
+                              }${
+                                suffix
+                                  ? ` ${suffix}`
+                                  : ''
+                              }`
+
+                        return (
+                          <span
+                            key={label}
+                            className="rounded-md bg-background px-2 py-1 text-xs"
+                          >
+                            {text}
+                          </span>
+                        )
+                      },
+                    )}
+
+                    {/* FILTROS BOOLEANOS ACTIVOS */}
+
+                    {propertyFeatureLabels.map(
+                      ([
+                        field,
+                        label,
+                      ]) =>
+                        filters[field] ? (
+                          <span
+                            key={field}
+                            className="rounded-md bg-background px-2 py-1 text-xs"
+                          >
+                            {label}
+                          </span>
+                        ) : null,
+                    )}
+
+                    {/* OTROS FILTROS */}
+
+                    {filters.operation && (
+                      <span className="rounded-md bg-background px-2 py-1 text-xs">
+                        Operación:{' '}
+                        {getPropertyOperation(
+                          filters.operation,
+                        )}
+                      </span>
+                    )}
+
+                    {filters.type && (
+                      <span className="rounded-md bg-background px-2 py-1 text-xs">
+                        Tipo:{' '}
+                        {getPropertyTypeLabel(
+                          filters.type,
+                        )}
+                      </span>
+                    )}
+
+                    {filters.condition && (
+                      <span className="rounded-md bg-background px-2 py-1 text-xs">
+                        Estado:{' '}
+                        {getPropertyCondition(
+                          filters.condition,
+                        )}
+                      </span>
+                    )}
                   </div>
-                )}
+                </div>
+              )}
             </div>
 
             {/* PIE */}

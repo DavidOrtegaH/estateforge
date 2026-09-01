@@ -21,6 +21,7 @@ interface PromptProperty {
   terrace: boolean
   balcony: boolean
   garage: boolean
+  storageRoom: boolean
   pool: boolean
   garden: boolean
   airConditioning: boolean
@@ -182,6 +183,10 @@ function buildHighlights(
     highlights.push('Garaje')
   }
 
+ if (property.storageRoom) {
+    highlights.push('Trastero')
+  }
+
   if (property.pool) {
     highlights.push('Piscina')
   }
@@ -316,6 +321,10 @@ function buildFeatureSentence(
 
   if (property.garage) {
     features.push('garaje')
+  }
+
+  if (property.storageRoom) {
+    features.push('trastero')
   }
 
   if (property.pool) {

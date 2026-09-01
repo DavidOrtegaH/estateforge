@@ -8,51 +8,45 @@ datasource db {
 }
 
 model Property {
-  id                   String       @id @default(cuid())
-  title                String
-  operation            String
-  type                 String
-  price                Float
-  address              String
-  city                 String
-  neighborhood         String
-  area                 Float
-  bedrooms             Int
-  bathrooms            Int
-  floor                Int?
-  condition            String
-  elevator             Boolean
-  terrace              Boolean
-  balcony              Boolean
-  garage               Boolean
-  pool                 Boolean
-  garden               Boolean
-  airConditioning      Boolean
-  heating              Boolean
+  id                    String       @id @default(cuid())
+  title                 String
+  operation             String
+  type                  String
+  price                 Float
+  address               String
+  city                  String
+  neighborhood          String
+  area                  Float
+  bedrooms              Int
+  bathrooms             Int
+  floor                 Int?
+  condition             String
+  elevator              Boolean      @default(false)
+  terrace               Boolean      @default(false)
+  balcony               Boolean      @default(false)
+  garage                Boolean      @default(false)
+  storageRoom           Boolean      @default(false)
+  pool                  Boolean      @default(false)
+  garden                Boolean      @default(false)
+  airConditioning       Boolean      @default(false)
+  heating               Boolean      @default(false)
   additionalInformation String
-
-  generations          Generation[]
-
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
+  generations           Generation[]
 }
 
 model Generation {
-  id            String   @id @default(cuid())
-
-  propertyId    String
-  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  title         String
-  description   String
-  highlights    String
-  callToAction  String
-
-  provider      String
-  tone          String
-  language      String
-
-  createdAt     DateTime @default(now())
-
-  @@index([propertyId])
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  highlights   String
+  callToAction String?
+  provider     String
+  tone         String
+  language     String
+  propertyId   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }

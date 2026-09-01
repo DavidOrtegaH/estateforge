@@ -8,6 +8,7 @@ export interface PropertyHighlightSource {
   terrace?: boolean | null
   balcony?: boolean | null
   garage?: boolean | null
+  storageRoom?: boolean | null
   pool?: boolean | null
   garden?: boolean | null
   airConditioning?: boolean | null
@@ -63,10 +64,9 @@ export function buildPropertyHighlights(
   ) {
     addUnique(
       highlights,
-      `${property.bedrooms} ${
-        property.bedrooms === 1
-          ? 'habitación'
-          : 'habitaciones'
+      `${property.bedrooms} ${property.bedrooms === 1
+        ? 'habitación'
+        : 'habitaciones'
       }`,
     )
   }
@@ -77,10 +77,9 @@ export function buildPropertyHighlights(
   ) {
     addUnique(
       highlights,
-      `${property.bathrooms} ${
-        property.bathrooms === 1
-          ? 'baño'
-          : 'baños'
+      `${property.bathrooms} ${property.bathrooms === 1
+        ? 'baño'
+        : 'baños'
       }`,
     )
   }
@@ -106,6 +105,10 @@ export function buildPropertyHighlights(
 
   if (property.garage) {
     addUnique(highlights, 'Garaje')
+  }
+
+  if (property.storageRoom) {
+    addUnique(highlights, 'Trastero')
   }
 
   if (property.pool) {
@@ -137,9 +140,9 @@ export function buildPropertyHighlights(
   if (property.condition) {
     const condition =
       conditionLabels[
-        property.condition
-          .toLowerCase()
-          .replace(/-/g, '_')
+      property.condition
+        .toLowerCase()
+        .replace(/-/g, '_')
       ] ||
       property.condition
 

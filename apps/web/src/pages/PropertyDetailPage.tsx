@@ -185,6 +185,26 @@ function parseHighlights(
   return []
 }
 
+function formatGenerationDate(
+  value: string | Date | undefined,
+): string {
+  if (!value) return 'Fecha no disponible'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Fecha no disponible'
+  }
+
+  return date.toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 // ============================================================
 // COMPONENTE
 // ============================================================
@@ -301,7 +321,7 @@ function PropertyDetailPage() {
   const itemsPerPage = 3
 
   // ==========================================================
-  // CARGAR INMUEBLE
+  // CARGAR INMUEBLE (con FIX para storageRoom)
   // ==========================================================
 
   useEffect(() => {
@@ -319,9 +339,14 @@ function PropertyDetailPage() {
       try {
         const result = await getProperty(id)
 
-        setProperty(result)
+        // 🔧 Aseguramos que storageRoom tenga un valor booleano
+        const propertyWithStorage = {
+          ...result,
+          storageRoom: result.storageRoom ?? false,
+        }
 
-        setEditForm(result)
+        setProperty(propertyWithStorage)
+        setEditForm(propertyWithStorage)
       } catch {
         setError(
           'No se ha podido cargar el inmueble.',
@@ -384,7 +409,7 @@ function PropertyDetailPage() {
   }
 
   // ==========================================================
-  // GUARDAR EDICIÓN DEL INMUEBLE
+  // GUARDAR EDICIÓN DEL INMUEBLE (con FIX para storageRoom)
   // ==========================================================
 
   async function handleSaveEdit(
@@ -427,6 +452,7 @@ function PropertyDetailPage() {
         terrace: editForm.terrace,
         balcony: editForm.balcony,
         garage: editForm.garage,
+        storageRoom: editForm.storageRoom,
         pool: editForm.pool,
         garden: editForm.garden,
         airConditioning:
@@ -443,14 +469,20 @@ function PropertyDetailPage() {
           payload,
         )
 
+      // 🔧 Forzamos que storageRoom se mantenga con el valor del formulario
+      const updatedWithStorage = {
+        ...updated,
+        storageRoom: editForm.storageRoom ?? false,
+      }
+
       setProperty({
         ...property,
-        ...updated,
+        ...updatedWithStorage,
       })
 
       setEditForm({
         ...property,
-        ...updated,
+        ...updatedWithStorage,
       })
 
       setIsEditing(false)
@@ -471,7 +503,7 @@ function PropertyDetailPage() {
   }
 
   // ==========================================================
-  // GENERAR ANUNCIO
+  // GENERAR ANUNCIO (con FIX para storageRoom)
   // ==========================================================
 
   async function handleGenerateListing() {
@@ -494,9 +526,14 @@ function PropertyDetailPage() {
       const updatedProperty =
         await getProperty(id)
 
-      setProperty(updatedProperty)
+      // 🔧 Aseguramos storageRoom al recargar
+      const propertyWithStorage = {
+        ...updatedProperty,
+        storageRoom: updatedProperty.storageRoom ?? false,
+      }
 
-      setEditForm(updatedProperty)
+      setProperty(propertyWithStorage)
+      setEditForm(propertyWithStorage)
 
       setCurrentPage(1)
     } catch (error) {
@@ -664,9 +701,14 @@ function PropertyDetailPage() {
       const updatedProperty =
         await getProperty(id)
 
-      setProperty(updatedProperty)
+      // 🔧 Aseguramos storageRoom al recargar
+      const propertyWithStorage = {
+        ...updatedProperty,
+        storageRoom: updatedProperty.storageRoom ?? false,
+      }
 
-      setEditForm(updatedProperty)
+      setProperty(propertyWithStorage)
+      setEditForm(propertyWithStorage)
 
       setEditingGenerationId(null)
 
@@ -733,9 +775,14 @@ function PropertyDetailPage() {
       const updatedProperty =
         await getProperty(id)
 
-      setProperty(updatedProperty)
+      // 🔧 Aseguramos storageRoom al recargar
+      const propertyWithStorage = {
+        ...updatedProperty,
+        storageRoom: updatedProperty.storageRoom ?? false,
+      }
 
-      setEditForm(updatedProperty)
+      setProperty(propertyWithStorage)
+      setEditForm(propertyWithStorage)
 
       const remainingGenerations =
         updatedProperty.generations.length
@@ -887,33 +934,20 @@ function PropertyDetailPage() {
   }
 
   // ==========================================================
-  // CARACTERÍSTICAS
+  // CARACTERÍSTICAS (EXTRAS)
   // ==========================================================
 
   const features = [
-    property.elevator &&
-    'Ascensor',
-
-    property.terrace &&
-    'Terraza',
-
-    property.balcony &&
-    'Balcón',
-
-    property.garage &&
-    'Garaje',
-
-    property.pool &&
-    'Piscina',
-
-    property.garden &&
-    'Jardín',
-
+    property.elevator && 'Ascensor',
+    property.terrace && 'Terraza',
+    property.balcony && 'Balcón',
+    property.garage && 'Garaje',
+    property.storageRoom && 'Trastero',
+    property.pool && 'Piscina',
+    property.garden && 'Jardín',
     property.airConditioning &&
     'Aire acondicionado',
-
-    property.heating &&
-    'Calefacción',
+    property.heating && 'Calefacción',
   ].filter(Boolean) as string[]
 
   // ==========================================================
@@ -1680,6 +1714,36 @@ function PropertyDetailPage() {
                 </span>
               </label>
 
+              {/* TRASTERO */}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={
+                    editForm.storageRoom ??
+                    false
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      storageRoom:
+                        event.target
+                          .checked,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="h-4 w-4"
+                />
+
+                <span className="text-sm font-medium">
+                  Trastero
+                </span>
+              </label>
+
               {/* PISCINA */}
 
               <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-muted">
@@ -2035,7 +2099,9 @@ function PropertyDetailPage() {
             </dt>
 
             <dd className="mt-1 font-medium">
-              {new Date(property.createdAt).toLocaleString(
+              {new Date(
+                property.createdAt,
+              ).toLocaleString(
                 'es-ES',
               )}
             </dd>
@@ -2094,7 +2160,7 @@ function PropertyDetailPage() {
 
       {/* =====================================================
           GENERAR ANUNCIO
-      ====================================================== */}
+      ===================================================== */}
 
       <section className="mt-8 rounded-lg border bg-card p-6">
         <div>
@@ -2254,9 +2320,8 @@ function PropertyDetailPage() {
         )}
       </section>
 
-{/* =====================================================
+      {/* =====================================================
           ANUNCIOS GENERADOS
-          MISMO ESTILO VISUAL QUE DASHBOARD
       ====================================================== */}
 
       <section className="mt-8">
@@ -2269,11 +2334,10 @@ function PropertyDetailPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {totalGenerations === 0
                 ? 'Todavía no hay anuncios para este inmueble.'
-                : `${totalGenerations} ${
-                    totalGenerations === 1
-                      ? 'anuncio generado'
-                      : 'anuncios generados'
-                  }.`}
+                : `${totalGenerations} ${totalGenerations === 1
+                  ? 'anuncio generado'
+                  : 'anuncios generados'
+                }.`}
             </p>
           </div>
 
@@ -2282,7 +2346,7 @@ function PropertyDetailPage() {
               to="/historial"
               className="text-sm font-medium text-primary hover:underline"
             >
-              Ver historial
+              Ver todos los anuncios
             </Link>
           )}
         </div>
@@ -2299,7 +2363,8 @@ function PropertyDetailPage() {
               const isEditingGeneration =
                 editingGenerationId === generation.id
 
-              const isSavingGeneration = savingGeneration
+              const isSavingGeneration =
+                savingGeneration
 
               const isDeletingGeneration =
                 deletingGenerationId === generation.id
@@ -2317,9 +2382,7 @@ function PropertyDetailPage() {
                   className="rounded-lg border bg-card transition"
                 >
                   {isEditingGeneration ? (
-                    /* =================================================
-                        EDICIÓN DEL ANUNCIO
-                    ================================================== */
+                    /* EDICIÓN DEL ANUNCIO */
                     <div className="p-5">
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -2329,7 +2392,7 @@ function PropertyDetailPage() {
 
                           <p className="mt-1 text-sm text-muted-foreground">
                             Modifica el contenido del anuncio
-                            directly desde este inmueble.
+                            directamente desde este inmueble.
                           </p>
                         </div>
 
@@ -2473,7 +2536,7 @@ function PropertyDetailPage() {
                             type="button"
                             onClick={() => void handleSaveGeneration()}
                             disabled={isSavingGeneration}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
                           >
                             {isSavingGeneration
                               ? 'Guardando...'
@@ -2484,9 +2547,7 @@ function PropertyDetailPage() {
                     </div>
                   ) : (
                     <>
-                      {/* =================================================
-                          CONTENIDO DEL ANUNCIO
-                      ================================================== */}
+                      {/* CONTENIDO DEL ANUNCIO */}
                       <div className="p-5">
                         {/* METADATOS */}
                         <div className="flex flex-wrap items-center gap-2">
@@ -2505,9 +2566,8 @@ function PropertyDetailPage() {
                           {/* Fecha de generación */}
                           <span className="rounded-md bg-muted px-2 py-1 text-xs">
                             Generado el{' '}
-                            {new Date(
-                              generation.createdAt,
-                            ).toLocaleDateString('es-ES')}
+                            {formatGenerationDate(generation.createdAt)
+                           }
                           </span>
                         </div>
 
@@ -2549,9 +2609,7 @@ function PropertyDetailPage() {
                         )}
                       </div>
 
-                      {/* =================================================
-                          ACCIONES INFERIORES
-                      ================================================== */}
+                      {/* ACCIONES INFERIORES */}
                       <div className="grid grid-cols-4 border-t">
                         <Link
                           to={`/historial/${generation.id}`}
@@ -2594,8 +2652,8 @@ function PropertyDetailPage() {
                           {isCopyingGeneration
                             ? 'Copiando...'
                             : copySuccess === generation.id
-                            ? 'Copiado'
-                            : 'Copiar'}
+                              ? 'Copiado'
+                              : 'Copiar'}
                         </button>
 
                         <button
@@ -2616,12 +2674,10 @@ function PropertyDetailPage() {
                     </>
                   )}
                 </div>
-              );
+              )
             })}
 
-            {/* =================================================
-                PAGINACIÓN
-            ================================================== */}
+            {/* PAGINACIÓN */}
             {totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between border-t pt-4">
                 <button
@@ -2635,8 +2691,13 @@ function PropertyDetailPage() {
 
                 <span className="text-sm text-muted-foreground">
                   Página{' '}
-                  <span className="font-semibold">{currentPage}</span> de{' '}
-                  <span className="font-semibold">{totalPages}</span>
+                  <span className="font-semibold">
+                    {currentPage}
+                  </span>{' '}
+                  de{' '}
+                  <span className="font-semibold">
+                    {totalPages}
+                  </span>
                 </span>
 
                 <button

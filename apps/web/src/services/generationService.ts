@@ -28,6 +28,7 @@ export interface GenerationProperty {
   terrace: boolean
   balcony: boolean
   garage: boolean
+  storageRoom: boolean
   pool: boolean
   garden: boolean
   airConditioning: boolean

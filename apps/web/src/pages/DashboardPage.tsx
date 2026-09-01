@@ -16,6 +16,163 @@ import {
   type GenerationItem,
 } from '@/services/generationService'
 
+const propertyTypeLabels: Record<string, string> = {
+  apartment: 'Apartamento',
+  flat: 'Piso',
+  house: 'Casa',
+  chalet: 'Chalet',
+  penthouse: 'Ático',
+  duplex: 'Dúplex',
+  studio: 'Estudio',
+  commercial: 'Local comercial',
+  office: 'Oficina',
+  land: 'Terreno',
+}
+
+const operationLabels: Record<string, string> = {
+  sale: 'Venta',
+  rent: 'Alquiler',
+  transfer: 'Traspaso',
+}
+
+const toneLabels: Record<string, string> = {
+  professional: 'Profesional',
+  premium: 'Premium',
+  friendly: 'Cercano',
+  commercial: 'Comercial',
+  luxurious: 'De lujo',
+  casual: 'Casual',
+  persuasive: 'Persuasivo',
+  direct: 'Directo',
+}
+
+const languageLabels: Record<string, string> = {
+  español: 'Español',
+  es: 'Español',
+  english: 'Inglés',
+  en: 'Inglés',
+}
+
+/*
+ * Traducción de los estados internos del inmueble
+ * al texto que se muestra en el Dashboard.
+ */
+const conditionLabels: Record<string, string> = {
+  new: 'Obra nueva',
+  good: 'Buen estado',
+  renovated: 'Reformado',
+  needs_renovation: 'Necesita reforma',
+}
+
+function capitalizeFirstLetter(value: string): string {
+  if (!value) return value
+
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function getPropertyTypeLabel(
+  type: string | undefined,
+): string {
+  if (!type) return 'No indicado'
+
+  return (
+    propertyTypeLabels[type.toLowerCase()] ||
+    capitalizeFirstLetter(type)
+  )
+}
+
+function getOperationLabel(
+  operation: string | undefined,
+): string {
+  if (!operation) return 'No indicada'
+
+  return (
+    operationLabels[operation.toLowerCase()] ||
+    capitalizeFirstLetter(operation)
+  )
+}
+
+function getToneLabel(
+  tone: string | undefined,
+): string {
+  if (!tone) return 'No indicado'
+
+  return (
+    toneLabels[tone.toLowerCase()] ||
+    capitalizeFirstLetter(tone)
+  )
+}
+
+function getLanguageLabel(
+  language: string | undefined,
+): string {
+  if (!language) return 'No indicado'
+
+  return (
+    languageLabels[language.toLowerCase()] ||
+    capitalizeFirstLetter(language)
+  )
+}
+
+/*
+ * Traduce el estado del inmueble al español y,
+ * si llega un valor desconocido, lo muestra con
+ * la primera letra en mayúscula.
+ */
+function getConditionLabel(
+  condition: string | undefined,
+): string {
+  if (!condition) return 'No indicado'
+
+  const normalizedCondition =
+    condition.trim().toLowerCase()
+
+  return (
+    conditionLabels[normalizedCondition] ||
+    capitalizeFirstLetter(condition.trim())
+  )
+}
+
+/*
+ * Los providers se muestran siempre con la primera
+ * letra en mayúscula sin modificar el valor original.
+ */
+function getProviderLabel(
+  provider: string | undefined,
+): string {
+  if (!provider) return 'No indicado'
+
+  return capitalizeFirstLetter(provider.trim())
+}
+
+function formatLocationLabel(
+  value: string | undefined,
+): string {
+  if (!value) return 'No indicado'
+
+  return capitalizeFirstLetter(value.trim())
+}
+
+function formatGenerationDate(
+  value: string | Date | undefined,
+): string {
+  if (!value) return 'Fecha no disponible'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Fecha no disponible'
+  }
+
+  return date.toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function parseHighlights(
   highlights: unknown,
 ): string[] {
@@ -91,8 +248,6 @@ function DashboardPage() {
   /*
    * Indica si se está realizando un borrado grupal
    * de inmuebles.
-   *
-   * Es independiente del borrado grupal de anuncios.
    */
   const [deletingProperties, setDeletingProperties] =
     useState(false)
@@ -100,8 +255,6 @@ function DashboardPage() {
   /*
    * Indica si se está realizando un borrado grupal
    * de anuncios.
-   *
-   * Es independiente del borrado grupal de inmuebles.
    */
   const [deletingGenerations, setDeletingGenerations] =
     useState(false)
@@ -142,6 +295,7 @@ function DashboardPage() {
     terrace: false,
     balcony: false,
     garage: false,
+    storageRoom: false,
     pool: false,
     garden: false,
     airConditioning: false,
@@ -228,7 +382,7 @@ function DashboardPage() {
   const allRecentPropertiesSelected =
     recentPropertyIds.length > 0 &&
     selectedRecentPropertyCount ===
-    recentPropertyIds.length
+      recentPropertyIds.length
 
   const someRecentPropertiesSelected =
     selectedRecentPropertyCount > 0 &&
@@ -245,40 +399,11 @@ function DashboardPage() {
   const allRecentGenerationsSelected =
     recentGenerationIds.length > 0 &&
     selectedRecentGenerationCount ===
-    recentGenerationIds.length
+      recentGenerationIds.length
 
   const someRecentGenerationsSelected =
     selectedRecentGenerationCount > 0 &&
     !allRecentGenerationsSelected
-
-  const propertyOperationLabels: Record<string, string> = {
-    sale: 'Venta',
-    rent: 'Alquiler',
-  }
-
-  function getPropertyOperation(type: string | undefined): string {
-    if (!type) return 'No indicado'
-    return propertyOperationLabels[type.toLowerCase()] || type
-  }
-
-  // Diccionario de traducción para los tipos de inmueble
-  const propertyTypeLabels: Record<string, string> = {
-    apartment: 'Apartamento',
-    flat: 'Piso',
-    house: 'Casa',
-    chalet: 'Chalet',
-    penthouse: 'Ático',
-    duplex: 'Dúplex',
-    studio: 'Estudio',
-    commercial: 'Local comercial',
-    office: 'Oficina',
-    land: 'Terreno',
-  }
-
-  function getPropertyTypeLabel(type: string | undefined): string {
-    if (!type) return 'No indicado'
-    return propertyTypeLabels[type.toLowerCase()] || type
-  }
 
   /*
    * Abre el editor de un inmueble.
@@ -315,16 +440,20 @@ function DashboardPage() {
           : '',
       floor:
         property.floor !== undefined &&
-          property.floor !== null
+        property.floor !== null
           ? String(property.floor)
           : '',
       condition: property.condition ?? '',
       additionalInformation:
         property.additionalInformation ?? '',
+
       elevator: Boolean(property.elevator),
       terrace: Boolean(property.terrace),
       balcony: Boolean(property.balcony),
       garage: Boolean(property.garage),
+
+      storageRoom: Boolean(property.storageRoom),
+
       pool: Boolean(property.pool),
       garden: Boolean(property.garden),
       airConditioning: Boolean(
@@ -384,10 +513,14 @@ function DashboardPage() {
           condition: propertyForm.condition,
           additionalInformation:
             propertyForm.additionalInformation,
+
           elevator: propertyForm.elevator,
           terrace: propertyForm.terrace,
           balcony: propertyForm.balcony,
           garage: propertyForm.garage,
+
+          storageRoom: propertyForm.storageRoom,
+
           pool: propertyForm.pool,
           garden: propertyForm.garden,
           airConditioning:
@@ -411,32 +544,32 @@ function DashboardPage() {
         currentGenerations.map((generation) =>
           generation.propertyId === propertyId
             ? {
-              ...generation,
-              property: {
-                ...generation.property,
-                title:
-                  updatedProperty.title,
-                operation:
-                  updatedProperty.operation,
-                type:
-                  updatedProperty.type,
-                price:
-                  updatedProperty.price,
-                address:
-                  updatedProperty.address ?? '',
-                city:
-                  updatedProperty.city,
-                neighborhood:
-                  updatedProperty.neighborhood ??
-                  '',
-                area:
-                  updatedProperty.area,
-                bedrooms:
-                  updatedProperty.bedrooms,
-                bathrooms:
-                  updatedProperty.bathrooms,
-              },
-            }
+                ...generation,
+                property: {
+                  ...generation.property,
+                  title:
+                    updatedProperty.title,
+                  operation:
+                    updatedProperty.operation,
+                  type:
+                    updatedProperty.type,
+                  price:
+                    updatedProperty.price,
+                  address:
+                    updatedProperty.address ?? '',
+                  city:
+                    updatedProperty.city,
+                  neighborhood:
+                    updatedProperty.neighborhood ??
+                    '',
+                  area:
+                    updatedProperty.area,
+                  bedrooms:
+                    updatedProperty.bedrooms,
+                  bathrooms:
+                    updatedProperty.bathrooms,
+                },
+              }
             : generation,
         ),
       )
@@ -549,16 +682,6 @@ function DashboardPage() {
         return next
       })
 
-      /*
-       * Si alguno de los anuncios pertenecientes
-       * al inmueble estaba seleccionado, también lo
-       * quitamos de la selección de anuncios.
-       *
-       * Esto no supone borrar anuncios por separado:
-       * simplemente actualiza la selección local porque
-       * esos anuncios ya han desaparecido al eliminar
-       * el inmueble.
-       */
       setSelectedGenerationIds(
         (current) => {
           const next = new Set(current)
@@ -598,17 +721,6 @@ function DashboardPage() {
 
   /*
    * Borrado grupal de inmuebles.
-   *
-   * IMPORTANTE:
-   * Este método solamente actúa sobre los inmuebles
-   * seleccionados.
-   *
-   * Si la API elimina automáticamente los anuncios
-   * asociados, esa consecuencia pertenece al borrado
-   * del inmueble y no a este método.
-   *
-   * El borrado grupal de anuncios tiene su propio
-   * método independiente más abajo.
    */
   async function handleDeleteSelectedProperties() {
     if (
@@ -625,9 +737,10 @@ function DashboardPage() {
     const count = selectedIds.length
 
     const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${count === 1
-        ? 'inmueble'
-        : 'inmuebles'
+      `¿Seguro que quieres eliminar ${count} ${
+        count === 1
+          ? 'inmueble'
+          : 'inmuebles'
       } seleccionados? También se eliminarán todos sus anuncios generados asociados.`,
     )
 
@@ -641,11 +754,6 @@ function DashboardPage() {
     try {
       await deleteProperties(selectedIds)
 
-      /*
-       * Guardamos los IDs de los anuncios que estaban
-       * asociados a los inmuebles eliminados para poder
-       * limpiar la selección local de anuncios.
-       */
       const deletedPropertyIdSet =
         new Set(selectedIds)
 
@@ -661,9 +769,6 @@ function DashboardPage() {
               generation.id,
           )
 
-      /*
-       * Eliminamos de la UI los inmuebles borrados.
-       */
       setProperties((currentProperties) =>
         currentProperties.filter(
           (property) =>
@@ -673,10 +778,6 @@ function DashboardPage() {
         ),
       )
 
-      /*
-       * Al borrar un inmueble también desaparecen
-       * de la UI sus anuncios asociados.
-       */
       setGenerations((currentGenerations) =>
         currentGenerations.filter(
           (generation) =>
@@ -686,18 +787,8 @@ function DashboardPage() {
         ),
       )
 
-      /*
-       * Limpiamos únicamente la selección de inmuebles
-       * que acaba de ser procesada.
-       */
       setSelectedPropertyIds(new Set())
 
-      /*
-       * Los anuncios asociados ya han desaparecido
-       * como consecuencia del borrado de sus inmuebles.
-       * Por eso solo limpiamos sus IDs de la selección;
-       * NO llamamos a deleteGeneration().
-       */
       setSelectedGenerationIds(
         (current) => {
           const next = new Set(current)
@@ -721,10 +812,6 @@ function DashboardPage() {
         setEditingPropertyId(null)
       }
 
-      /*
-       * Si estábamos editando un anuncio cuyo inmueble
-       * acaba de desaparecer, también cerramos su editor.
-       */
       if (
         editingGenerationId &&
         deletedGenerationIds.includes(
@@ -803,10 +890,12 @@ function DashboardPage() {
         generationForm.highlights
           .split('\n')
           .map((item) =>
-            item.replace(
-              /^[-•*]\s*/,
-              '',
-            ).trim(),
+            item
+              .replace(
+                /^[-•*]\s*/,
+                '',
+              )
+              .trim(),
           )
           .filter(Boolean)
 
@@ -964,14 +1053,14 @@ function DashboardPage() {
                   generationId,
               )
                 ? {
-                  ...property,
-                  generations:
-                    property.generations.filter(
-                      (generation) =>
-                        generation.id !==
-                        generationId,
-                    ),
-                }
+                    ...property,
+                    generations:
+                      property.generations.filter(
+                        (generation) =>
+                          generation.id !==
+                          generationId,
+                      ),
+                  }
                 : property,
           ),
       )
@@ -991,11 +1080,6 @@ function DashboardPage() {
 
   /*
    * Borrado grupal de anuncios.
-   *
-   * Este método es completamente independiente
-   * del borrado grupal de inmuebles.
-   *
-   * Aquí NO se eliminan inmuebles.
    */
   async function handleDeleteSelectedGenerations() {
     if (
@@ -1012,9 +1096,10 @@ function DashboardPage() {
     const count = selectedIds.length
 
     const confirmed = window.confirm(
-      `¿Seguro que quieres eliminar ${count} ${count === 1
-        ? 'anuncio'
-        : 'anuncios'
+      `¿Seguro que quieres eliminar ${count} ${
+        count === 1
+          ? 'anuncio'
+          : 'anuncios'
       } seleccionados? Los inmuebles asociados no se eliminarán.`,
     )
 
@@ -1026,12 +1111,6 @@ function DashboardPage() {
     setActionError(null)
 
     try {
-      /*
-       * Cada anuncio se elimina de forma independiente.
-       *
-       * No llamamos a ningún método de borrado de
-       * inmuebles desde aquí.
-       */
       await Promise.all(
         selectedIds.map((generationId) =>
           deleteGeneration(generationId),
@@ -1041,9 +1120,6 @@ function DashboardPage() {
       const deletedGenerationIdSet =
         new Set(selectedIds)
 
-      /*
-       * Quitamos los anuncios eliminados de la UI.
-       */
       setGenerations(
         (currentGenerations) =>
           currentGenerations.filter(
@@ -1054,15 +1130,8 @@ function DashboardPage() {
           ),
       )
 
-      /*
-       * Limpiamos los anuncios seleccionados.
-       */
       setSelectedGenerationIds(new Set())
 
-      /*
-       * Actualizamos los contadores de anuncios
-       * de los inmuebles afectados.
-       */
       setProperties(
         (currentProperties) =>
           currentProperties.map(
@@ -1305,7 +1374,6 @@ function DashboardPage() {
                     : 'inmuebles seleccionados'}
                 </span>
 
-                {/* Botón de eliminar con espacio reservado mediante visibility */}
                 <button
                   type="button"
                   onClick={() =>
@@ -1317,12 +1385,19 @@ function DashboardPage() {
                     Boolean(deletingPropertyId) ||
                     selectedPropertyIds.size === 0
                   }
-                  aria-hidden={selectedPropertyIds.size === 0}
-                  tabIndex={selectedPropertyIds.size === 0 ? -1 : 0}
-                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedPropertyIds.size > 0
+                  aria-hidden={
+                    selectedPropertyIds.size === 0
+                  }
+                  tabIndex={
+                    selectedPropertyIds.size === 0
+                      ? -1
+                      : 0
+                  }
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selectedPropertyIds.size > 0
                       ? 'visible'
                       : 'invisible pointer-events-none'
-                    }`}
+                  }`}
                 >
                   {deletingProperties
                     ? 'Eliminando...'
@@ -1354,10 +1429,11 @@ function DashboardPage() {
                   return (
                     <div
                       key={property.id}
-                      className={`rounded-lg border bg-card transition ${isSelected
-                        ? 'border-primary ring-2 ring-primary/20'
-                        : ''
-                        }`}
+                      className={`rounded-lg border bg-card transition ${
+                        isSelected
+                          ? 'border-primary ring-2 ring-primary/20'
+                          : ''
+                      }`}
                     >
                       {!isEditing ? (
                         <>
@@ -1366,18 +1442,23 @@ function DashboardPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                handleToggleProperty(property.id)
+                                handleToggleProperty(
+                                  property.id,
+                                )
                               }
                               disabled={
                                 deletingProperties ||
                                 deletingGenerations ||
                                 isDeleting
                               }
-                              aria-pressed={isSelected}
-                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
+                              aria-pressed={
+                                isSelected
+                              }
+                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                                isSelected
                                   ? 'bg-foreground font-semibold text-background'
                                   : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
-                                }`}
+                              }`}
                             >
                               {isSelected
                                 ? '✓ Seleccionado'
@@ -1390,75 +1471,145 @@ function DashboardPage() {
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                               <div className="min-w-0">
                                 <h3 className="text-lg font-semibold">
-                                  {property.title || 'Inmueble sin título'}
+                                  {property.title ||
+                                    'Inmueble sin título'}
                                 </h3>
                               </div>
 
                               <p className="whitespace-nowrap text-lg font-bold">
-                                {property.price.toLocaleString('es-ES')} €
+                                {property.price.toLocaleString(
+                                  'es-ES',
+                                )}{' '}
+                                €
                               </p>
                             </div>
 
-                            {/* Píldoras con todos los datos (quitando título y precio) */}
+                            {/* =================================================
+                                PÍLDORAS DEL INMUEBLE
+                                ================================================= */}
                             <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                              {/* Operación */}
-                              <span className="rounded-md bg-muted px-2 py-1 font-medium">
-                                {getPropertyOperation(property.operation)}
-                              </span>
-
-                              {/* Tipo */}
                               <span className="rounded-md bg-muted px-2 py-1">
-                                {getPropertyTypeLabel(property.type)}
+                                {getOperationLabel(
+                                  property.operation,
+                                )}
                               </span>
 
-                              {/* Ciudad */}
                               <span className="rounded-md bg-muted px-2 py-1">
-                                {property.city || 'Ciudad no indicada'}
+                                {getPropertyTypeLabel(
+                                  property.type,
+                                )}
                               </span>
 
-                              {/* Zona */}
                               <span className="rounded-md bg-muted px-2 py-1">
-                                {property.neighborhood || 'Zona no indicada'}
+                                {getPropertyTypeLabel(
+                                  property.type,
+                                )}
                               </span>
 
-                              {/* Superficie */}
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {getConditionLabel(
+                                  property.condition,
+                                )}
+                              </span>
+
+                              <span className="rounded-md bg-muted px-2 py-1">
+                                {formatLocationLabel(
+                                  property.city,
+                                )}
+                              </span>
+
+                              {property.neighborhood && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  {formatLocationLabel(
+                                    property.neighborhood,
+                                  )}
+                                </span>
+                              )}
+
                               <span className="rounded-md bg-muted px-2 py-1">
                                 {property.area} m²
                               </span>
 
-                              {/* Habitaciones */}
                               <span className="rounded-md bg-muted px-2 py-1">
-                                {property.bedrooms} hab.
+                                {property.address}
                               </span>
 
-                              {/* Baños */}
                               <span className="rounded-md bg-muted px-2 py-1">
-                                {property.bathrooms} baños
+                                {property.bedrooms}{' '}
+                                habitaciones
                               </span>
 
-                              {/* Planta */}
                               <span className="rounded-md bg-muted px-2 py-1">
-                                Planta {property.floor ?? '—'}
+                                {property.bathrooms}{' '}
+                                baños
                               </span>
 
-                              {/* Estado */}
+                              {property.elevator && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Ascensor
+                                </span>
+                              )}
+
+                              {property.terrace && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Terraza
+                                </span>
+                              )}
+
+                              {property.balcony && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Balcón
+                                </span>
+                              )}
+
+                              {property.garage && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Garaje
+                                </span>
+                              )}
+
+                              {property.storageRoom && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Trastero
+                                </span>
+                              )}
+
+                              {property.pool && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Piscina
+                                </span>
+                              )}
+
+                              {property.garden && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Jardín
+                                </span>
+                              )}
+
+                              {property.airConditioning && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Aire acondicionado
+                                </span>
+                              )}
+
+                              {property.heating && (
+                                <span className="rounded-md bg-muted px-2 py-1">
+                                  Calefacción
+                                </span>
+                              )}
+
                               <span className="rounded-md bg-muted px-2 py-1">
-                                {property.condition}
+                                Generado el{' '}
+                                {formatGenerationDate(
+                                  property.createdAt,
+                                )}
                               </span>
 
-                              {/* Dirección */}
                               <span className="rounded-md bg-muted px-2 py-1">
-                                {property.address || 'Dirección no indicada'}
-                              </span>
-
-                              {/* Fecha de creación */}
-                              <span className="rounded-md bg-muted px-2 py-1">
-                                Creado el {new Date(property.createdAt).toLocaleDateString('es-ES')}
-                              </span>
-
-                              {/* Anuncios generados */}
-                              <span className="rounded-md bg-muted px-2 py-1">
-                                {property.generations?.length ?? 0} anuncios
+                                {property.generations
+                                  ?.length ??
+                                  0}{' '}
+                                anuncios
                               </span>
                             </div>
                           </div>
@@ -1475,7 +1626,9 @@ function DashboardPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                handleStartEditProperty(property)
+                                handleStartEditProperty(
+                                  property,
+                                )
                               }
                               disabled={
                                 isDeleting ||
@@ -1490,7 +1643,9 @@ function DashboardPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                void handleDeleteProperty(property.id)
+                                void handleDeleteProperty(
+                                  property.id,
+                                )
                               }
                               disabled={
                                 isDeleting ||
@@ -1506,7 +1661,7 @@ function DashboardPage() {
                           </div>
                         </>
                       ) : (
-                        <div>
+                        <div className="p-6">
                           <div className="flex items-center justify-between gap-4">
                             <div>
                               <h3 className="text-lg font-semibold">
@@ -1939,56 +2094,36 @@ function DashboardPage() {
                             />
                           </div>
 
-                          <div className="mt-5">
-                            <p className="text-sm font-medium">
+                          <section className="mt-7 border-t pt-6">
+                            <h2 className="text-lg font-semibold">
                               Características
-                            </p>
+                            </h2>
 
-                            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                               {[
-                                [
-                                  'elevator',
-                                  'Ascensor',
-                                ],
-                                [
-                                  'terrace',
-                                  'Terraza',
-                                ],
-                                [
-                                  'balcony',
-                                  'Balcón',
-                                ],
-                                [
-                                  'garage',
-                                  'Garaje',
-                                ],
-                                [
-                                  'pool',
-                                  'Piscina',
-                                ],
-                                [
-                                  'garden',
-                                  'Jardín',
-                                ],
+                                ['elevator', 'Ascensor'],
+                                ['terrace', 'Terraza'],
+                                ['balcony', 'Balcón'],
+                                ['garage', 'Garaje'],
+                                ['storageRoom', 'Trastero'],
+                                ['pool', 'Piscina'],
+                                ['garden', 'Jardín'],
                                 [
                                   'airConditioning',
                                   'Aire acondicionado',
                                 ],
-                                [
-                                  'heating',
-                                  'Calefacción',
-                                ],
+                                ['heating', 'Calefacción'],
                               ].map(
                                 ([field, label]) => (
                                   <label
                                     key={field}
-                                    className="flex items-center gap-2 text-sm"
+                                    className="flex items-center gap-3 rounded-md border p-3"
                                   >
                                     <input
                                       type="checkbox"
                                       checked={
                                         propertyForm[
-                                        field as keyof typeof propertyForm
+                                          field as keyof typeof propertyForm
                                         ] as boolean
                                       }
                                       onChange={(
@@ -2008,12 +2143,14 @@ function DashboardPage() {
                                       }
                                     />
 
-                                    {label}
+                                    <span className="text-sm">
+                                      {label}
+                                    </span>
                                   </label>
                                 ),
                               )}
                             </div>
-                          </div>
+                          </section>
 
                           <div className="mt-6 flex flex-wrap justify-end gap-2 border-t pt-4">
                             <button
@@ -2129,34 +2266,32 @@ function DashboardPage() {
                 <span className="text-sm text-muted-foreground">
                   {selectedGenerationIds.size}{' '}
                   {selectedGenerationIds.size ===
-                  1
+                    1
                     ? 'anuncio seleccionado'
                     : 'anuncios seleccionados'}
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    void handleDeleteSelectedGenerations()
-                  }
-                  disabled={
-                    deletingGenerations ||
-                    deletingProperties ||
-                    Boolean(
-                      deletingGenerationId,
-                    ) ||
-                    selectedGenerationIds.size === 0
-                  }
-                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    selectedGenerationIds.size === 0
-                      ? 'invisible pointer-events-none'
-                      : ''
-                  }`}
-                >
-                  {deletingGenerations
-                    ? 'Eliminando...'
-                    : `Eliminar anuncios seleccionados (${selectedGenerationIds.size})`}
-                </button>
+                {selectedGenerationIds.size >
+                  0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleDeleteSelectedGenerations()
+                      }
+                      disabled={
+                        deletingGenerations ||
+                        deletingProperties ||
+                        Boolean(
+                          deletingGenerationId,
+                        )
+                      }
+                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deletingGenerations
+                        ? 'Eliminando...'
+                        : `Eliminar anuncios seleccionados (${selectedGenerationIds.size})`}
+                    </button>
+                  )}
               </div>
             </div>
 
@@ -2188,10 +2323,11 @@ function DashboardPage() {
                   return (
                     <div
                       key={generation.id}
-                      className={`rounded-lg border bg-card transition ${isSelected
-                        ? 'border-primary ring-2 ring-primary/20'
-                        : ''
-                        }`}
+                      className={`rounded-lg border bg-card transition ${
+                        isSelected
+                          ? 'border-primary ring-2 ring-primary/20'
+                          : ''
+                      }`}
                     >
                       {!isEditing ? (
                         <>
@@ -2200,18 +2336,23 @@ function DashboardPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                handleToggleGeneration(generation.id)
+                                handleToggleGeneration(
+                                  generation.id,
+                                )
                               }
                               disabled={
                                 deletingGenerations ||
                                 deletingProperties ||
                                 isDeleting
                               }
-                              aria-pressed={isSelected}
-                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
-                                ? 'bg-foreground font-semibold text-background'
-                                : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
-                                }`}
+                              aria-pressed={
+                                isSelected
+                              }
+                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                                isSelected
+                                  ? 'bg-foreground font-semibold text-background'
+                                  : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
+                              }`}
                             >
                               {isSelected
                                 ? '✓ Seleccionado'
@@ -2224,51 +2365,21 @@ function DashboardPage() {
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {generation.provider
-                                    ? generation.provider
-                                      .charAt(
-                                        0,
-                                      )
-                                      .toUpperCase() +
-                                    generation.provider.slice(
-                                      1,
-                                    )
-                                    : ''}
+                                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                                    {getProviderLabel(
+                                      generation.provider,
+                                    )}
                                   </span>
 
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {generation.tone
-                                    ? generation.tone
-                                      .charAt(
-                                        0,
-                                      )
-                                      .toUpperCase() +
-                                    generation.tone.slice(
-                                      1,
-                                    )
-                                    : ''}
+                                    {getToneLabel(
+                                      generation.tone,
+                                    )}
                                   </span>
 
                                   <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    {generation.language
-                                    ? generation.language
-                                      .charAt(
-                                        0,
-                                      )
-                                      .toUpperCase() +
-                                    generation.language.slice(
-                                      1,
-                                    )
-                                    : ''}
-                                  </span>
-
-                                  {/* Fecha de generación */}
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                                    Generado el {new Date(
-                                      generation.createdAt,
-                                    ).toLocaleDateString(
-                                      'es-ES',
+                                    {getLanguageLabel(
+                                      generation.language,
                                     )}
                                   </span>
                                 </div>
@@ -2283,6 +2394,16 @@ function DashboardPage() {
                                   {
                                     generation.description
                                   }
+                                </p>
+
+                                <p className="mt-3 text-xs text-muted-foreground">
+                                  Inmueble:{' '}
+                                  <span className="font-medium">
+                                    {generation
+                                      .property
+                                      .title ||
+                                      'Sin título'}
+                                  </span>
                                 </p>
                               </div>
                             </div>
@@ -2367,7 +2488,7 @@ function DashboardPage() {
                           </div>
                         </>
                       ) : (
-                        <div>
+                        <div className="p-6">
                           <div>
                             <h3 className="text-lg font-semibold">
                               Editar anuncio

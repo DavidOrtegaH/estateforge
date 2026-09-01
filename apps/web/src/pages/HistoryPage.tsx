@@ -57,6 +57,7 @@ const featureLabels: Record<
   terrace: 'Terraza',
   balcony: 'Balcón',
   garage: 'Garaje',
+  storageRoom: 'Trastero',
   elevator: 'Ascensor',
   airConditioning:
     'Aire acondicionado',
@@ -88,13 +89,13 @@ type NumberFilter = {
   max: string
 }
 
-
 type BooleanFilterField =
   | 'pool'
   | 'garden'
   | 'terrace'
   | 'balcony'
   | 'garage'
+  | 'storageRoom'
   | 'elevator'
   | 'airConditioning'
   | 'heating'
@@ -168,7 +169,6 @@ function getPropertyTypeLabel(
 // ============================================================
 // HIGHLIGHTS
 // ============================================================
-
 
 function deduplicateHighlights(
   highlights: string[],
@@ -450,6 +450,7 @@ function HistoryPage() {
       terrace: false,
       balcony: false,
       garage: false,
+      storageRoom: false,
       elevator: false,
       airConditioning: false,
       heating: false,
@@ -623,6 +624,7 @@ function HistoryPage() {
                 'terrace',
                 'balcony',
                 'garage',
+                'storageRoom',
                 'elevator',
                 'airConditioning',
                 'heating',
@@ -935,6 +937,7 @@ function HistoryPage() {
       terrace: false,
       balcony: false,
       garage: false,
+      storageRoom: false,
       elevator: false,
       airConditioning: false,
       heating: false,
@@ -979,14 +982,17 @@ function HistoryPage() {
       hasNumericFilter(filterPrice)
         ? 'price'
         : '',
+
       hasNumericFilter(filterArea)
         ? 'area'
         : '',
+
       hasNumericFilter(
         filterBedrooms,
       )
         ? 'bedrooms'
         : '',
+
       hasNumericFilter(
         filterBathrooms,
       )
@@ -1144,7 +1150,8 @@ function HistoryPage() {
                   event.target.value,
                 )
               }
-              placeholder={`Mínimo${unit ? ` (${unit})` : ''}`}
+              placeholder={`Mínimo${unit ? ` (${unit})` : ''
+                }`}
               className="h-10 rounded-md border bg-background px-3 text-sm"
             />
 
@@ -1160,7 +1167,8 @@ function HistoryPage() {
                   event.target.value,
                 )
               }
-              placeholder={`Máximo${unit ? ` (${unit})` : ''}`}
+              placeholder={`Máximo${unit ? ` (${unit})` : ''
+                }`}
               className="h-10 rounded-md border bg-background px-3 text-sm"
             />
           </div>
@@ -1177,7 +1185,8 @@ function HistoryPage() {
                 event.target.value,
               )
             }
-            placeholder={`Valor${unit ? ` (${unit})` : ''}`}
+            placeholder={`Valor${unit ? ` (${unit})` : ''
+              }`}
             className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"
           />
         )}
@@ -1659,7 +1668,7 @@ function HistoryPage() {
 
                           <div className="p-5">
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                              <div className="min-w-0 flex-1 ">
+                              <div className="min-w-0 flex-1">
                                 <h2 className="text-lg font-semibold">
                                   {
                                     generation.title
@@ -1815,36 +1824,35 @@ function HistoryPage() {
                                         : 'baños'}
                                     </span>
                                   )}
+
+                                {/* CARACTERÍSTICAS */}
+                                {shortHighlights.length >
+                                  0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {shortHighlights
+                                        .slice(
+                                          0,
+                                          6,
+                                        )
+                                        .map(
+                                          (
+                                            highlight,
+                                          ) => (
+                                            <span
+                                              key={
+                                                highlight
+                                              }
+                                              className="rounded-md bg-muted px-2 py-1 text-xs"
+                                            >
+                                              {
+                                                highlight
+                                              }
+                                            </span>
+                                          ),
+                                        )}
+                                    </div>
+                                  )}
                               </div>
-
-                              {/* CARACTERÍSTICAS */}
-
-                              {shortHighlights.length >
-                                0 && (
-                                  <div className="mt-3 flex flex-wrap gap-2">
-                                    {shortHighlights
-                                      .slice(
-                                        0,
-                                        5,
-                                      )
-                                      .map(
-                                        (
-                                          highlight,
-                                        ) => (
-                                          <span
-                                            key={
-                                              highlight
-                                            }
-                                            className="rounded-md bg-muted px-2 py-1 text-xs"
-                                          >
-                                            {
-                                              highlight
-                                            }
-                                          </span>
-                                        ),
-                                      )}
-                                  </div>
-                                )}
                             </div>
 
                             {/* CTA */}

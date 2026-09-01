@@ -22,6 +22,7 @@ interface PromptProperty {
   terrace: boolean
   balcony: boolean
   garage: boolean
+  storageRoom: boolean
   pool: boolean
   garden: boolean
   airConditioning: boolean

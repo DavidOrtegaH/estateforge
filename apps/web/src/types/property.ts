@@ -40,6 +40,7 @@ export interface Property {
   garage: boolean
   pool: boolean
   garden: boolean
+  storageRoom: boolean
   airConditioning: boolean
   heating: boolean
 
