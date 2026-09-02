@@ -1,27 +1,77 @@
-import type { FastifyInstance } from 'fastify'
+import type {
+  FastifyInstance,
+  FastifyReply,
+} from 'fastify'
+
 import { prisma } from '../db/prisma.js'
+
+import {
+  BulkIdsSchema,
+  IdParamsSchema,
+  PropertyUpdateSchema,
+} from '@estateforge/shared'
+
+function sendValidationError(
+  reply: FastifyReply,
+  error: {
+    issues: Array<{
+      path: PropertyKey[]
+      message: string
+    }>
+  },
+) {
+  return reply.code(400).send({
+    message: 'Datos de entrada no válidos',
+    errors: error.issues.map((issue) => ({
+      path: issue.path,
+      message: issue.message,
+    })),
+  })
+}
 
 export async function propertyRoutes(
   app: FastifyInstance,
 ) {
+  /**
+   * ==========================================================
+   * LISTAR INMUEBLES
+   * ==========================================================
+   */
+
   app.get('/api/properties', async () => {
-    const properties = await prisma.property.findMany({
-      include: {
-        generations: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
+    const properties =
+      await prisma.property.findMany({
+        include: {
+          generations: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
 
     return properties
   })
 
+  /**
+   * ==========================================================
+   * OBTENER INMUEBLE
+   * ==========================================================
+   */
+
   app.get(
     '/api/properties/:id',
     async (request, reply) => {
-      const { id } =
-        request.params as { id: string }
+      const paramsResult =
+        IdParamsSchema.safeParse(request.params)
+
+      if (!paramsResult.success) {
+        return sendValidationError(
+          reply,
+          paramsResult.error,
+        )
+      }
+
+      const { id } = paramsResult.data
 
       const property =
         await prisma.property.findUnique({
@@ -43,36 +93,39 @@ export async function propertyRoutes(
     },
   )
 
+  /**
+   * ==========================================================
+   * ACTUALIZAR INMUEBLE
+   * ==========================================================
+   */
+
   app.put(
     '/api/properties/:id',
     async (request, reply) => {
-      const { id } =
-        request.params as { id: string }
+      const paramsResult =
+        IdParamsSchema.safeParse(request.params)
 
-      const body = request.body as {
-        title?: string
-        operation?: string
-        type?: string
-        price?: number
-        address?: string
-        city?: string
-        neighborhood?: string
-        area?: number
-        bedrooms?: number
-        bathrooms?: number
-        floor?: number | null
-        condition?: string
-        elevator?: boolean
-        terrace?: boolean
-        balcony?: boolean
-        garage?: boolean
-        storageRoom?: boolean
-        pool?: boolean
-        garden?: boolean
-        airConditioning?: boolean
-        heating?: boolean
-        additionalInformation?: string
+      if (!paramsResult.success) {
+        return sendValidationError(
+          reply,
+          paramsResult.error,
+        )
       }
+
+      const bodyResult =
+        PropertyUpdateSchema.safeParse(
+          request.body,
+        )
+
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
+      }
+
+      const { id } = paramsResult.data
+      const body = bodyResult.data
 
       const existingProperty =
         await prisma.property.findUnique({
@@ -92,100 +145,7 @@ export async function propertyRoutes(
           where: {
             id,
           },
-          data: {
-            ...(body.operation !== undefined && {
-              operation: body.operation,
-            }),
-
-            ...(body.title !== undefined && {
-              title: body.title,
-            }),
-
-            ...(body.type !== undefined && {
-              type: body.type,
-            }),
-
-            ...(body.price !== undefined && {
-              price: body.price,
-            }),
-
-            ...(body.address !== undefined && {
-              address: body.address,
-            }),
-
-            ...(body.city !== undefined && {
-              city: body.city,
-            }),
-
-            ...(body.neighborhood !==
-              undefined && {
-              neighborhood: body.neighborhood,
-            }),
-
-            ...(body.area !== undefined && {
-              area: body.area,
-            }),
-
-            ...(body.bedrooms !== undefined && {
-              bedrooms: body.bedrooms,
-            }),
-
-            ...(body.bathrooms !== undefined && {
-              bathrooms: body.bathrooms,
-            }),
-
-            ...(body.floor !== undefined && {
-              floor: body.floor,
-            }),
-
-            ...(body.condition !== undefined && {
-              condition: body.condition,
-            }),
-
-            ...(body.elevator !== undefined && {
-              elevator: body.elevator,
-            }),
-
-            ...(body.terrace !== undefined && {
-              terrace: body.terrace,
-            }),
-
-            ...(body.balcony !== undefined && {
-              balcony: body.balcony,
-            }),
-
-            ...(body.garage !== undefined && {
-              garage: body.garage,
-            }),
-
-            ...(body.storageRoom !== undefined && {
-              storageRoom: body.storageRoom,
-            }),
-
-            ...(body.pool !== undefined && {
-              pool: body.pool,
-            }),
-
-            ...(body.garden !== undefined && {
-              garden: body.garden,
-            }),
-
-            ...(body.airConditioning !==
-              undefined && {
-              airConditioning:
-                body.airConditioning,
-            }),
-
-            ...(body.heating !== undefined && {
-              heating: body.heating,
-            }),
-
-            ...(body.additionalInformation !==
-              undefined && {
-              additionalInformation:
-                body.additionalInformation,
-            }),
-          },
+          data: body,
           include: {
             generations: true,
           },
@@ -195,37 +155,26 @@ export async function propertyRoutes(
     },
   )
 
+  /**
+   * ==========================================================
+   * ELIMINAR VARIOS INMUEBLES
+   * ==========================================================
+   */
+
   app.delete(
     '/api/properties',
     async (request, reply) => {
-      const body = request.body as {
-        ids?: string[]
+      const bodyResult =
+        BulkIdsSchema.safeParse(request.body)
+
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
       }
 
-      if (
-        !Array.isArray(body.ids) ||
-        body.ids.length === 0
-      ) {
-        return reply.code(400).send({
-          message: 'ids must be a non-empty array',
-        })
-      }
-
-      const ids = [
-        ...new Set(
-          body.ids.filter(
-            (id): id is string =>
-              typeof id === 'string' &&
-              id.trim().length > 0,
-          ),
-        ),
-      ]
-
-      if (ids.length === 0) {
-        return reply.code(400).send({
-          message: 'ids must contain valid property ids',
-        })
-      }
+      const { ids } = bodyResult.data
 
       const result =
         await prisma.property.deleteMany({
@@ -243,11 +192,26 @@ export async function propertyRoutes(
     },
   )
 
+  /**
+   * ==========================================================
+   * ELIMINAR UN INMUEBLE
+   * ==========================================================
+   */
+
   app.delete(
     '/api/properties/:id',
     async (request, reply) => {
-      const { id } =
-        request.params as { id: string }
+      const paramsResult =
+        IdParamsSchema.safeParse(request.params)
+
+      if (!paramsResult.success) {
+        return sendValidationError(
+          reply,
+          paramsResult.error,
+        )
+      }
+
+      const { id } = paramsResult.data
 
       const existingProperty =
         await prisma.property.findUnique({

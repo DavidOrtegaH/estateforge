@@ -1,5 +1,15 @@
-import type { FastifyInstance } from 'fastify'
-import type { GenerationRequest, AIProviderType } from '@estateforge/shared'
+import type {
+  FastifyInstance,
+  FastifyReply,
+} from 'fastify'
+
+import {
+  BulkIdsSchema,
+  GenerationRequestSchema,
+  GenerationUpdateSchema,
+  ExistingPropertyGenerationSchema,
+  IdParamsSchema,
+} from '@estateforge/shared'
 
 import {
   generateListing,
@@ -8,92 +18,129 @@ import {
 
 import { prisma } from '../db/prisma.js'
 
+function sendValidationError(
+  reply: FastifyReply,
+  error: {
+    issues: Array<{
+      path: PropertyKey[]
+      message: string
+    }>
+  },
+) {
+  return reply.code(400).send({
+    message: 'Datos de entrada no válidos',
+    errors: error.issues.map((issue) => ({
+      path: issue.path,
+      message: issue.message,
+    })),
+  })
+}
+
 export async function generationRoutes(
   app: FastifyInstance,
 ) {
-  /*
-   * Generar anuncio a partir de una petición completa
+  /**
+   * ==========================================================
+   * GENERAR ANUNCIO DESDE UNA PETICIÓN COMPLETA
+   * ==========================================================
    */
-  app.post('/api/generations', async (request) => {
-    const body =
-      request.body as GenerationRequest
 
-    const result = await generateListing(body)
-
-    return result
-  })
-
-  /*
-   * Generar anuncio a partir de un inmueble existente
-   */
   app.post(
-    '/api/generations/from-property',
+    '/api/generations',
     async (request, reply) => {
-      const body =
-        request.body as {
-          propertyId: string
-          provider?: AIProviderType
-          tone: string
-          language: string
-        }
+      const bodyResult =
+        GenerationRequestSchema.safeParse(
+          request.body,
+        )
 
-      if (!body.propertyId) {
-        return reply.code(400).send({
-          message: 'propertyId is required',
-        })
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
       }
 
-      if (!body.tone) {
-        return reply.code(400).send({
-          message: 'tone is required',
-        })
-      }
-
-      if (!body.language) {
-        return reply.code(400).send({
-          message: 'language is required',
-        })
-      }
-
-      const result =
-        await generateListingForExistingProperty({
-          propertyId: body.propertyId,
-          // Si body.provider es undefined, pasamos undefined explícitamente solo si el tipo lo permite,
-          // o aseguramos el tipado correcto mediante un cast de objeto.
-          ...(body.provider && { provider: body.provider }),
-          tone: body.tone,
-          language: body.language,
-        } as Parameters<typeof generateListingForExistingProperty>[0])
+      const result = await generateListing(
+        bodyResult.data,
+      )
 
       return result
     },
   )
 
-  /*
-   * Obtener todos los anuncios generados
+  /**
+   * ==========================================================
+   * GENERAR ANUNCIO DESDE INMUEBLE EXISTENTE
+   * ==========================================================
    */
-  app.get('/api/generations', async () => {
-    const generations =
-      await prisma.generation.findMany({
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          property: true,
-        },
-      })
 
-    return generations
-  })
+  app.post(
+    '/api/generations/from-property',
+    async (request, reply) => {
+      const bodyResult =
+        ExistingPropertyGenerationSchema.safeParse(
+          request.body,
+        )
 
-  /*
-   * Obtener un anuncio concreto
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
+      }
+
+      const result =
+        await generateListingForExistingProperty(
+          bodyResult.data,
+        )
+
+      return result
+    },
+  )
+
+  /**
+   * ==========================================================
+   * LISTAR GENERACIONES
+   * ==========================================================
    */
+
+  app.get(
+    '/api/generations',
+    async () => {
+      const generations =
+        await prisma.generation.findMany({
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: {
+            property: true,
+          },
+        })
+
+      return generations
+    },
+  )
+
+  /**
+   * ==========================================================
+   * OBTENER GENERACIÓN
+   * ==========================================================
+   */
+
   app.get(
     '/api/generations/:id',
     async (request, reply) => {
-      const { id } =
-        request.params as { id: string }
+      const paramsResult =
+        IdParamsSchema.safeParse(request.params)
+
+      if (!paramsResult.success) {
+        return sendValidationError(
+          reply,
+          paramsResult.error,
+        )
+      }
+
+      const { id } = paramsResult.data
 
       const generation =
         await prisma.generation.findUnique({
@@ -115,24 +162,39 @@ export async function generationRoutes(
     },
   )
 
-  /*
-   * Editar un anuncio generado
+  /**
+   * ==========================================================
+   * EDITAR GENERACIÓN
+   * ==========================================================
    */
+
   app.put(
     '/api/generations/:id',
     async (request, reply) => {
-      const { id } =
-        request.params as { id: string }
+      const paramsResult =
+        IdParamsSchema.safeParse(request.params)
 
-      const body = request.body as {
-        title?: string
-        description?: string
-        highlights?: string[] | string
-        callToAction?: string
-        provider?: AIProviderType
-        tone?: string
-        language?: string
+      if (!paramsResult.success) {
+        return sendValidationError(
+          reply,
+          paramsResult.error,
+        )
       }
+
+      const bodyResult =
+        GenerationUpdateSchema.safeParse(
+          request.body,
+        )
+
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
+      }
+
+      const { id } = paramsResult.data
+      const body = bodyResult.data
 
       const existingGeneration =
         await prisma.generation.findUnique({
@@ -145,18 +207,6 @@ export async function generationRoutes(
         return reply.code(404).send({
           message: 'Generation not found',
         })
-      }
-
-      let highlights: string | undefined
-
-      if (body.highlights !== undefined) {
-        if (Array.isArray(body.highlights)) {
-          highlights = JSON.stringify(
-            body.highlights,
-          )
-        } else {
-          highlights = body.highlights
-        }
       }
 
       const generation =
@@ -174,8 +224,10 @@ export async function generationRoutes(
               description: body.description,
             }),
 
-            ...(highlights !== undefined && {
-              highlights,
+            ...(body.highlights !== undefined && {
+              highlights: JSON.stringify(
+                body.highlights,
+              ),
             }),
 
             ...(body.callToAction !==
@@ -184,7 +236,7 @@ export async function generationRoutes(
             }),
 
             ...(body.provider !== undefined && {
-              provider: body.provider as AIProviderType,
+              provider: body.provider,
             }),
 
             ...(body.tone !== undefined && {
@@ -204,14 +256,26 @@ export async function generationRoutes(
     },
   )
 
-  /*
-   * Eliminar un anuncio generado
+  /**
+   * ==========================================================
+   * ELIMINAR UNA GENERACIÓN
+   * ==========================================================
    */
+
   app.delete(
     '/api/generations/:id',
     async (request, reply) => {
-      const { id } =
-        request.params as { id: string }
+      const paramsResult =
+        IdParamsSchema.safeParse(request.params)
+
+      if (!paramsResult.success) {
+        return sendValidationError(
+          reply,
+          paramsResult.error,
+        )
+      }
+
+      const { id } = paramsResult.data
 
       const existingGeneration =
         await prisma.generation.findUnique({
@@ -239,55 +303,39 @@ export async function generationRoutes(
   )
 
   /**
-   * Eliminar anuncios
+   * ==========================================================
+   * ELIMINAR VARIAS GENERACIONES
+   * ==========================================================
    */
 
   app.delete(
-  '/api/generations',
-  async (request, reply) => {
-    const body = request.body as {
-      ids?: string[]
-    }
+    '/api/generations',
+    async (request, reply) => {
+      const bodyResult =
+        BulkIdsSchema.safeParse(request.body)
 
-    if (
-      !Array.isArray(body.ids) ||
-      body.ids.length === 0
-    ) {
-      return reply.code(400).send({
-        message: 'ids must be a non-empty array',
-      })
-    }
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
+      }
 
-    const ids = [
-      ...new Set(
-        body.ids.filter(
-          (id): id is string =>
-            typeof id === 'string' &&
-            id.trim().length > 0,
-        ),
-      ),
-    ]
+      const { ids } = bodyResult.data
 
-    if (ids.length === 0) {
-      return reply.code(400).send({
-        message:
-          'ids must contain valid generation ids',
-      })
-    }
-
-    const result =
-      await prisma.generation.deleteMany({
-        where: {
-          id: {
-            in: ids,
+      const result =
+        await prisma.generation.deleteMany({
+          where: {
+            id: {
+              in: ids,
+            },
           },
-        },
-      })
+        })
 
-    return {
-      success: true,
-      deletedCount: result.count,
-    }
-  },
-)
+      return {
+        success: true,
+        deletedCount: result.count,
+      }
+    },
+  )
 }
