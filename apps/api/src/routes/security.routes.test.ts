@@ -15,6 +15,37 @@ describe('API security validation', () => {
     await app.close()
   })
 
+  describe('Security headers', () => {
+    it('incluye los headers de seguridad esperados', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health',
+      })
+
+      assert.equal(response.statusCode, 200)
+
+      assert.equal(
+        response.headers['x-content-type-options'],
+        'nosniff',
+      )
+
+      assert.equal(
+        response.headers['x-frame-options'],
+        'DENY',
+      )
+
+      assert.equal(
+        response.headers['referrer-policy'],
+        'strict-origin-when-cross-origin',
+      )
+
+      assert.equal(
+        response.headers['permissions-policy'],
+        'camera=(), microphone=(), geolocation=()',
+      )
+    })
+  })
+
   describe('POST /api/generations', () => {
     it('rechaza datos con tipos incorrectos', async () => {
       const response = await app.inject({
@@ -136,7 +167,7 @@ describe('API security validation', () => {
     it('rechaza un ID que no es un CUID válido', async () => {
       const response = await app.inject({
         method: 'GET',
-        url: "/api/generations/not-a-valid-cuid",
+        url: '/api/generations/not-a-valid-cuid',
       })
 
       assert.equal(response.statusCode, 400)
