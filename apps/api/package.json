@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx --test src/routes/security.routes.test.ts"
   },
   "dependencies": {
     "@estateforge/shared": "workspace:*",
