@@ -8,7 +8,7 @@ import { z } from 'zod'
 
 const cuidSchema = z
   .string()
-  .regex(/^c[a-z0-9]{24}$/, 'ID inválido')
+  .cuid('ID inválido')
 
 const requiredText = (max: number) =>
   z
@@ -212,11 +212,19 @@ export const ListingToneSchema = z.enum([
   'professional',
   'premium',
   'friendly',
+  'close',
+  'enthusiastic',
+  'investment',
 ])
 
 export const ListingLanguageSchema = z.enum([
   'español',
   'english',
+  'es',
+  'en',
+  'ca',
+  'gl',
+  'eu',
 ])
 
 /**
@@ -245,10 +253,6 @@ export const ExistingPropertyGenerationSchema = z
   .object({
     propertyId: cuidSchema,
 
-    /*
-     * Conservamos el comportamiento actual:
-     * si no llega provider, usamos mock.
-     */
     provider: AIProviderSchema.default('mock'),
 
     tone: ListingToneSchema,
@@ -325,10 +329,12 @@ export const BulkIdsSchema = z
       .max(
         100,
         'No se pueden eliminar más de 100 elementos a la vez',
-      )
-      .transform((ids) => [...new Set(ids)]),
+      ),
   })
   .strict()
+  .transform((val) => ({
+    ids: Array.from(new Set(val.ids)),
+  }))
 
 export type BulkIds = z.infer<
   typeof BulkIdsSchema

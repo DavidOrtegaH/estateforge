@@ -10,3 +10,5 @@ allowBuilds:
   prisma: false
   protobufjs: true
   workerd: set this to true or false
+minimumReleaseAgeExclude:
+  - '@types/node@26.4.1'
