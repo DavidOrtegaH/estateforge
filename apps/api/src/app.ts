@@ -14,9 +14,17 @@ export async function buildApp() {
     bodyLimit: 1_048_576,
   })
 
-  // Leemos el origen desde las variables de entorno para evitar valores hardcodeados
+  // Validación estricta del origen de CORS
   await app.register(cors, {
-    origin: env.CORS_ORIGIN,
+    origin: (origin, cb) => {
+      // Permite peticiones sin header Origin (server-to-server / Postman / curl)
+      // o peticiones que coincidan exactamente con la variable de entorno
+      if (!origin || origin === env.CORS_ORIGIN) {
+        cb(null, true)
+        return
+      }
+      cb(null, false)
+    },
     methods: [
       'GET',
       'POST',

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import type { FastifyInstance } from 'fastify'
 
 import { buildApp } from '../app.js'
+import { env } from '../env.js'
 
 describe('API security validation', () => {
   let app: FastifyInstance
@@ -46,106 +47,139 @@ describe('API security validation', () => {
     })
   })
 
+  describe('CORS policy', () => {
+    it('permite peticiones desde el origen configurado', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health',
+        headers: {
+          origin: env.CORS_ORIGIN,
+        },
+      })
+
+      assert.equal(response.statusCode, 200)
+      assert.equal(
+        response.headers['access-control-allow-origin'],
+        env.CORS_ORIGIN,
+      )
+    })
+
+    it('no devuelve Access-Control-Allow-Origin para orígenes no autorizados', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health',
+        headers: {
+          origin: 'https://sitio-malicioso.com',
+        },
+      })
+
+      assert.equal(
+        response.headers['access-control-allow-origin'],
+        undefined,
+      )
+    })
+  })
+
   describe('Rate limiting', () => {
-  test('limita POST /api/generations después de 5 peticiones', async () => {
-    const rateLimitApp = await buildApp()
+    test('limita POST /api/generations después de 5 peticiones', async () => {
+      const rateLimitApp = await buildApp()
 
-    try {
-      const invalidBody = {
-        property: {},
-        provider: 'mock',
-        tone: 'professional',
-        language: 'español',
+      try {
+        const invalidBody = {
+          property: {},
+          provider: 'mock',
+          tone: 'professional',
+          language: 'español',
+        }
+
+        for (let index = 0; index < 5; index += 1) {
+          const response = await rateLimitApp.inject({
+            method: 'POST',
+            url: '/api/generations',
+            payload: invalidBody,
+          })
+
+          assert.equal(response.statusCode, 400)
+        }
+
+        const blockedResponse =
+          await rateLimitApp.inject({
+            method: 'POST',
+            url: '/api/generations',
+            payload: invalidBody,
+          })
+
+        assert.equal(
+          blockedResponse.statusCode,
+          429,
+        )
+
+        assert.ok(
+          blockedResponse.headers['retry-after'],
+        )
+      } finally {
+        await rateLimitApp.close()
       }
+    })
 
-      for (let index = 0; index < 5; index += 1) {
-        const response = await rateLimitApp.inject({
-          method: 'POST',
-          url: '/api/generations',
-          payload: invalidBody,
-        })
+    test('limita POST /api/generations/from-property después de 5 peticiones', async () => {
+      const rateLimitApp = await buildApp()
 
-        assert.equal(response.statusCode, 400)
+      try {
+        const invalidBody = {
+          propertyId: 'id-invalido',
+          provider: 'mock',
+          tone: 'professional',
+          language: 'español',
+        }
+
+        for (let index = 0; index < 5; index += 1) {
+          const response = await rateLimitApp.inject({
+            method: 'POST',
+            url: '/api/generations/from-property',
+            payload: invalidBody,
+          })
+
+          assert.equal(response.statusCode, 400)
+        }
+
+        const blockedResponse =
+          await rateLimitApp.inject({
+            method: 'POST',
+            url: '/api/generations/from-property',
+            payload: invalidBody,
+          })
+
+        assert.equal(
+          blockedResponse.statusCode,
+          429,
+        )
+
+        assert.ok(
+          blockedResponse.headers['retry-after'],
+        )
+      } finally {
+        await rateLimitApp.close()
       }
+    })
 
-      const blockedResponse =
-        await rateLimitApp.inject({
-          method: 'POST',
-          url: '/api/generations',
-          payload: invalidBody,
-        })
+    test('no limita /health', async () => {
+      const rateLimitApp = await buildApp()
 
-      assert.equal(
-        blockedResponse.statusCode,
-        429,
-      )
+      try {
+        for (let index = 0; index < 10; index += 1) {
+          const response = await rateLimitApp.inject({
+            method: 'GET',
+            url: '/health',
+          })
 
-      assert.ok(
-        blockedResponse.headers['retry-after'],
-      )
-    } finally {
-      await rateLimitApp.close()
-    }
+          assert.equal(response.statusCode, 200)
+        }
+      } finally {
+        await rateLimitApp.close()
+      }
+    })
   })
-
-  test('limita POST /api/generations/from-property después de 5 peticiones', async () => {
-    const rateLimitApp = await buildApp()
-
-    try {
-      const invalidBody = {
-        propertyId: 'id-invalido',
-        provider: 'mock',
-        tone: 'professional',
-        language: 'español',
-      }
-
-      for (let index = 0; index < 5; index += 1) {
-        const response = await rateLimitApp.inject({
-          method: 'POST',
-          url: '/api/generations/from-property',
-          payload: invalidBody,
-        })
-
-        assert.equal(response.statusCode, 400)
-      }
-
-      const blockedResponse =
-        await rateLimitApp.inject({
-          method: 'POST',
-          url: '/api/generations/from-property',
-          payload: invalidBody,
-        })
-
-      assert.equal(
-        blockedResponse.statusCode,
-        429,
-      )
-
-      assert.ok(
-        blockedResponse.headers['retry-after'],
-      )
-    } finally {
-      await rateLimitApp.close()
-    }
-  })
-
-  test('no limita /health', async () => {
-    const rateLimitApp = await buildApp()
-
-    try {
-      for (let index = 0; index < 10; index += 1) {
-        const response = await rateLimitApp.inject({
-          method: 'GET',
-          url: '/health',
-        })
-
-        assert.equal(response.statusCode, 200)
-      }
-    } finally {
-      await rateLimitApp.close()
-    }
-  })
-})
 
   describe('POST /api/generations', () => {
     it('rechaza datos con tipos incorrectos', async () => {
