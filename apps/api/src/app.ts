@@ -1,4 +1,4 @@
-import './env.js'
+import { env } from './env.js'
 
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
@@ -14,8 +14,9 @@ export async function buildApp() {
     bodyLimit: 1_048_576,
   })
 
+  // Leemos el origen desde las variables de entorno para evitar valores hardcodeados
   await app.register(cors, {
-    origin: 'http://localhost:5173',
+    origin: env.CORS_ORIGIN,
     methods: [
       'GET',
       'POST',
