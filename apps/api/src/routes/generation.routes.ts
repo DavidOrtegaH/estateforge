@@ -45,28 +45,36 @@ export async function generationRoutes(
    * ==========================================================
    */
 
-  app.post(
-    '/api/generations',
-    async (request, reply) => {
-      const bodyResult =
-        GenerationRequestSchema.safeParse(
-          request.body,
-        )
-
-      if (!bodyResult.success) {
-        return sendValidationError(
-          reply,
-          bodyResult.error,
-        )
-      }
-
-      const result = await generateListing(
-        bodyResult.data,
+app.post(
+  '/api/generations',
+  {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
+  },
+  async (request, reply) => {
+    const bodyResult =
+      GenerationRequestSchema.safeParse(
+        request.body,
       )
 
-      return result
-    },
-  )
+    if (!bodyResult.success) {
+      return sendValidationError(
+        reply,
+        bodyResult.error,
+      )
+    }
+
+    const result = await generateListing(
+      bodyResult.data,
+    )
+
+    return result
+  },
+)
 
   /**
    * ==========================================================
@@ -74,29 +82,37 @@ export async function generationRoutes(
    * ==========================================================
    */
 
-  app.post(
-    '/api/generations/from-property',
-    async (request, reply) => {
-      const bodyResult =
-        ExistingPropertyGenerationSchema.safeParse(
-          request.body,
-        )
-
-      if (!bodyResult.success) {
-        return sendValidationError(
-          reply,
-          bodyResult.error,
-        )
-      }
-
-      const result =
-        await generateListingForExistingProperty(
-          bodyResult.data,
-        )
-
-      return result
+app.post(
+  '/api/generations/from-property',
+  {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
     },
-  )
+  },
+  async (request, reply) => {
+    const bodyResult =
+      ExistingPropertyGenerationSchema.safeParse(
+        request.body,
+      )
+
+    if (!bodyResult.success) {
+      return sendValidationError(
+        reply,
+        bodyResult.error,
+      )
+    }
+
+    const result =
+      await generateListingForExistingProperty(
+        bodyResult.data,
+      )
+
+    return result
+  },
+)
 
   /**
    * ==========================================================

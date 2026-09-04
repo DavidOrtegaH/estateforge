@@ -1,4 +1,4 @@
-import type { Property } from './property.js'
+import { Property } from "./property.js"
 
 export type AIProviderType =
   | 'mock'
@@ -9,10 +9,18 @@ export type ListingTone =
   | 'professional'
   | 'premium'
   | 'friendly'
+  | 'close'
+  | 'enthusiastic'
+  | 'investment'
 
 export type ListingLanguage =
   | 'español'
   | 'english'
+  | 'es'
+  | 'en'
+  | 'ca'
+  | 'gl'
+  | 'eu'
 
 export interface GenerationRequest {
   property: Property

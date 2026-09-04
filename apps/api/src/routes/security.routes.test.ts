@@ -1,4 +1,4 @@
-import { after, before, describe, it } from 'node:test'
+import test, { after, before, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import type { FastifyInstance } from 'fastify'
 
@@ -45,6 +45,107 @@ describe('API security validation', () => {
       )
     })
   })
+
+  describe('Rate limiting', () => {
+  test('limita POST /api/generations después de 5 peticiones', async () => {
+    const rateLimitApp = await buildApp()
+
+    try {
+      const invalidBody = {
+        property: {},
+        provider: 'mock',
+        tone: 'professional',
+        language: 'español',
+      }
+
+      for (let index = 0; index < 5; index += 1) {
+        const response = await rateLimitApp.inject({
+          method: 'POST',
+          url: '/api/generations',
+          payload: invalidBody,
+        })
+
+        assert.equal(response.statusCode, 400)
+      }
+
+      const blockedResponse =
+        await rateLimitApp.inject({
+          method: 'POST',
+          url: '/api/generations',
+          payload: invalidBody,
+        })
+
+      assert.equal(
+        blockedResponse.statusCode,
+        429,
+      )
+
+      assert.ok(
+        blockedResponse.headers['retry-after'],
+      )
+    } finally {
+      await rateLimitApp.close()
+    }
+  })
+
+  test('limita POST /api/generations/from-property después de 5 peticiones', async () => {
+    const rateLimitApp = await buildApp()
+
+    try {
+      const invalidBody = {
+        propertyId: 'id-invalido',
+        provider: 'mock',
+        tone: 'professional',
+        language: 'español',
+      }
+
+      for (let index = 0; index < 5; index += 1) {
+        const response = await rateLimitApp.inject({
+          method: 'POST',
+          url: '/api/generations/from-property',
+          payload: invalidBody,
+        })
+
+        assert.equal(response.statusCode, 400)
+      }
+
+      const blockedResponse =
+        await rateLimitApp.inject({
+          method: 'POST',
+          url: '/api/generations/from-property',
+          payload: invalidBody,
+        })
+
+      assert.equal(
+        blockedResponse.statusCode,
+        429,
+      )
+
+      assert.ok(
+        blockedResponse.headers['retry-after'],
+      )
+    } finally {
+      await rateLimitApp.close()
+    }
+  })
+
+  test('no limita /health', async () => {
+    const rateLimitApp = await buildApp()
+
+    try {
+      for (let index = 0; index < 10; index += 1) {
+        const response = await rateLimitApp.inject({
+          method: 'GET',
+          url: '/health',
+        })
+
+        assert.equal(response.statusCode, 200)
+      }
+    } finally {
+      await rateLimitApp.close()
+    }
+  })
+})
 
   describe('POST /api/generations', () => {
     it('rechaza datos con tipos incorrectos', async () => {
