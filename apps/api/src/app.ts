@@ -1,6 +1,8 @@
 import { env } from './env.js'
 
-import Fastify from 'fastify'
+import Fastify, {
+  type FastifyError,
+} from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 
@@ -14,17 +16,29 @@ export async function buildApp() {
     bodyLimit: 1_048_576,
   })
 
-  // Validación estricta del origen de CORS
+  // ==========================================================
+  // CORS
+  // ==========================================================
+
   await app.register(cors, {
     origin: (origin, cb) => {
-      // Permite peticiones sin header Origin (server-to-server / Postman / curl)
-      // o peticiones que coincidan exactamente con la variable de entorno
-      if (!origin || origin === env.CORS_ORIGIN) {
+      const allowedOrigin =
+        process.env.CORS_ORIGIN ??
+        env.CORS_ORIGIN
+
+      // Permite peticiones sin header Origin
+      // o desde el origen configurado.
+      if (
+        !origin ||
+        origin === allowedOrigin
+      ) {
         cb(null, true)
         return
       }
+
       cb(null, false)
     },
+
     methods: [
       'GET',
       'POST',
@@ -35,24 +49,90 @@ export async function buildApp() {
     ],
   })
 
+  // ==========================================================
+  // RATE LIMITING
+  // ==========================================================
+
   await app.register(rateLimit, {
     global: false,
     max: 5,
     timeWindow: '1 minute',
   })
 
-  app.addHook('onSend', async (_request, reply) => {
-    reply.header('X-Content-Type-Options', 'nosniff')
-    reply.header('X-Frame-Options', 'DENY')
-    reply.header(
-      'Referrer-Policy',
-      'strict-origin-when-cross-origin',
-    )
-    reply.header(
-      'Permissions-Policy',
-      'camera=(), microphone=(), geolocation=()',
-    )
-  })
+  // ==========================================================
+  // CABECERAS DE SEGURIDAD
+  // ==========================================================
+
+  app.addHook(
+    'onSend',
+    async (_request, reply) => {
+      reply.header(
+        'X-Content-Type-Options',
+        'nosniff',
+      )
+
+      reply.header(
+        'X-Frame-Options',
+        'DENY',
+      )
+
+      reply.header(
+        'Referrer-Policy',
+        'strict-origin-when-cross-origin',
+      )
+
+      reply.header(
+        'Permissions-Policy',
+        'camera=(), microphone=(), geolocation=()',
+      )
+    },
+  )
+
+  // ==========================================================
+  // MANEJO CENTRALIZADO DE ERRORES
+  // ==========================================================
+
+  app.setErrorHandler(
+    (
+      error: FastifyError,
+      _request,
+      reply,
+    ) => {
+      const statusCode =
+        typeof error.statusCode === 'number'
+          ? error.statusCode
+          : 500
+
+      // Errores esperables del cliente.
+      if (
+        statusCode === 400 ||
+        statusCode === 404 ||
+        statusCode === 405 ||
+        statusCode === 409 ||
+        statusCode === 415 ||
+        statusCode === 429
+      ) {
+        return reply
+          .code(statusCode)
+          .send({
+            message: error.message,
+          })
+      }
+
+      // Nunca exponemos detalles internos
+      // del servidor, base de datos o proveedores.
+      return reply
+        .code(500)
+        .send({
+          message:
+            'Error interno del servidor',
+        })
+    },
+  )
+
+  // ==========================================================
+  // HEALTH CHECK
+  // ==========================================================
 
   app.get('/health', async () => {
     return {
@@ -60,6 +140,10 @@ export async function buildApp() {
       service: 'estateforge-api',
     }
   })
+
+  // ==========================================================
+  // ROUTES
+  // ==========================================================
 
   await app.register(generationRoutes)
   await app.register(dashboardRoutes)

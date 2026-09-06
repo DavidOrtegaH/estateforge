@@ -19,10 +19,6 @@ import { GeminiProvider } from '../ai/gemini.provider.js'
 function createAIProvider(
   provider: AIProviderType,
 ): AIProvider {
-  console.log(
-    `[EstateForge] Proveedor de IA para esta generación: ${provider}`,
-  )
-
   if (provider === 'gemini') {
     return new GeminiProvider()
   }
@@ -85,7 +81,7 @@ export async function generateListing(
     data: {
       title:
         result.title ||
-        'Inmueble en ' + request.property.city,
+        `Inmueble en ${request.property.city}`,
 
       operation: request.property.operation,
       type: request.property.type,
@@ -106,8 +102,7 @@ export async function generateListing(
       storageRoom: request.property.storageRoom,
       pool: request.property.pool,
       garden: request.property.garden,
-      airConditioning:
-        request.property.airConditioning,
+      airConditioning: request.property.airConditioning,
       heating: request.property.heating,
 
       additionalInformation:

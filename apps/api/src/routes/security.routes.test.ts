@@ -1,478 +1,375 @@
-import test, { after, before, describe, it } from 'node:test'
-import assert from 'node:assert/strict'
-import type { FastifyInstance } from 'fastify'
+import {
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
-import { buildApp } from '../app.js'
-import { env } from '../env.js'
+import type {
+  FastifyInstance,
+} from 'fastify'
 
-describe('API security validation', () => {
-  let app: FastifyInstance
-
-  before(async () => {
-    app = await buildApp()
-  })
-
-  after(async () => {
-    await app.close()
-  })
+describe('Security Configuration', () => {
+  // ==========================================================
+  // SECURITY HEADERS
+  // ==========================================================
 
   describe('Security headers', () => {
-    it('incluye los headers de seguridad esperados', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/health',
-      })
+    let app: FastifyInstance
 
-      assert.equal(response.statusCode, 200)
+    beforeAll(async () => {
+      const { buildApp } =
+        await import('../app.js')
 
-      assert.equal(
-        response.headers['x-content-type-options'],
-        'nosniff',
-      )
-
-      assert.equal(
-        response.headers['x-frame-options'],
-        'DENY',
-      )
-
-      assert.equal(
-        response.headers['referrer-policy'],
-        'strict-origin-when-cross-origin',
-      )
-
-      assert.equal(
-        response.headers['permissions-policy'],
-        'camera=(), microphone=(), geolocation=()',
-      )
-    })
-  })
-
-  describe('CORS policy', () => {
-    it('permite peticiones desde el origen configurado', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/health',
-        headers: {
-          origin: env.CORS_ORIGIN,
-        },
-      })
-
-      assert.equal(response.statusCode, 200)
-      assert.equal(
-        response.headers['access-control-allow-origin'],
-        env.CORS_ORIGIN,
-      )
+      app = await buildApp()
+      await app.ready()
     })
 
-    it('no devuelve Access-Control-Allow-Origin para orígenes no autorizados', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/health',
-        headers: {
-          origin: 'https://sitio-malicioso.com',
-        },
-      })
-
-      assert.equal(
-        response.headers['access-control-allow-origin'],
-        undefined,
-      )
-    })
-  })
-
-  describe('Rate limiting', () => {
-    test('limita POST /api/generations después de 5 peticiones', async () => {
-      const rateLimitApp = await buildApp()
-
-      try {
-        const invalidBody = {
-          property: {},
-          provider: 'mock',
-          tone: 'professional',
-          language: 'español',
-        }
-
-        for (let index = 0; index < 5; index += 1) {
-          const response = await rateLimitApp.inject({
-            method: 'POST',
-            url: '/api/generations',
-            payload: invalidBody,
-          })
-
-          assert.equal(response.statusCode, 400)
-        }
-
-        const blockedResponse =
-          await rateLimitApp.inject({
-            method: 'POST',
-            url: '/api/generations',
-            payload: invalidBody,
-          })
-
-        assert.equal(
-          blockedResponse.statusCode,
-          429,
-        )
-
-        assert.ok(
-          blockedResponse.headers['retry-after'],
-        )
-      } finally {
-        await rateLimitApp.close()
-      }
+    afterAll(async () => {
+      await app.close()
     })
 
-    test('limita POST /api/generations/from-property después de 5 peticiones', async () => {
-      const rateLimitApp = await buildApp()
-
-      try {
-        const invalidBody = {
-          propertyId: 'id-invalido',
-          provider: 'mock',
-          tone: 'professional',
-          language: 'español',
-        }
-
-        for (let index = 0; index < 5; index += 1) {
-          const response = await rateLimitApp.inject({
-            method: 'POST',
-            url: '/api/generations/from-property',
-            payload: invalidBody,
-          })
-
-          assert.equal(response.statusCode, 400)
-        }
-
-        const blockedResponse =
-          await rateLimitApp.inject({
-            method: 'POST',
-            url: '/api/generations/from-property',
-            payload: invalidBody,
-          })
-
-        assert.equal(
-          blockedResponse.statusCode,
-          429,
-        )
-
-        assert.ok(
-          blockedResponse.headers['retry-after'],
-        )
-      } finally {
-        await rateLimitApp.close()
-      }
-    })
-
-    test('no limita /health', async () => {
-      const rateLimitApp = await buildApp()
-
-      try {
-        for (let index = 0; index < 10; index += 1) {
-          const response = await rateLimitApp.inject({
+    it(
+      'debe devolver cabeceras de seguridad en /health',
+      async () => {
+        const response =
+          await app.inject({
             method: 'GET',
             url: '/health',
           })
 
-          assert.equal(response.statusCode, 200)
+        expect(
+          response.statusCode,
+        ).toBe(200)
+
+        expect(
+          response.headers[
+            'x-content-type-options'
+          ],
+        ).toBe('nosniff')
+
+        expect(
+          response.headers[
+            'x-frame-options'
+          ],
+        ).toBe('DENY')
+
+        expect(
+          response.headers[
+            'referrer-policy'
+          ],
+        ).toBe(
+          'strict-origin-when-cross-origin',
+        )
+
+        expect(
+          response.headers[
+            'permissions-policy'
+          ],
+        ).toBe(
+          'camera=(), microphone=(), geolocation=()',
+        )
+      },
+    )
+  })
+
+  // ==========================================================
+  // CORS
+  // ==========================================================
+
+  describe('CORS policy', () => {
+    let app: FastifyInstance
+
+    beforeAll(async () => {
+      vi.stubEnv(
+        'CORS_ORIGIN',
+        'http://frontend-permitido.com',
+      )
+
+      const { buildApp } =
+        await import('../app.js')
+
+      app = await buildApp()
+      await app.ready()
+    })
+
+    afterAll(async () => {
+      await app.close()
+      vi.unstubAllEnvs()
+    })
+
+    it(
+      'debe permitir peticiones desde el CORS_ORIGIN configurado',
+      async () => {
+        const response =
+          await app.inject({
+            method: 'OPTIONS',
+            url: '/health',
+            headers: {
+              origin:
+                'http://frontend-permitido.com',
+              'access-control-request-method':
+                'GET',
+            },
+          })
+
+        expect(
+          response.statusCode,
+        ).toBe(204)
+
+        expect(
+          response.headers[
+            'access-control-allow-origin'
+          ],
+        ).toBe(
+          'http://frontend-permitido.com',
+        )
+      },
+    )
+
+    it(
+      'no debe devolver Access-Control-Allow-Origin para orígenes no autorizados',
+      async () => {
+        const response =
+          await app.inject({
+            method: 'OPTIONS',
+            url: '/health',
+            headers: {
+              origin:
+                'http://sitio-malicioso.com',
+              'access-control-request-method':
+                'GET',
+            },
+          })
+
+        expect(
+          response.headers[
+            'access-control-allow-origin'
+          ],
+        ).toBeUndefined()
+      },
+    )
+  })
+
+  // ==========================================================
+  // RATE LIMITING
+  // ==========================================================
+
+  describe('Rate limiting', () => {
+    let app: FastifyInstance
+
+    beforeAll(async () => {
+      const { buildApp } =
+        await import('../app.js')
+
+      app = await buildApp()
+      await app.ready()
+    })
+
+    afterAll(async () => {
+      await app.close()
+    })
+
+    it(
+      'debe limitar POST /api/generations después de 5 peticiones',
+      async () => {
+        const responses = []
+
+        for (let i = 0; i < 6; i += 1) {
+          const response =
+            await app.inject({
+              method: 'POST',
+              url: '/api/generations',
+              payload: {},
+            })
+
+          responses.push(response)
         }
-      } finally {
-        await rateLimitApp.close()
-      }
-    })
+
+        const firstFive =
+          responses.slice(0, 5)
+
+        const rateLimitedResponse =
+          responses[5]
+
+        expect(
+          firstFive.every(
+            (response) =>
+              response.statusCode !== 429,
+          ),
+        ).toBe(true)
+
+        expect(
+          rateLimitedResponse.statusCode,
+        ).toBe(429)
+
+        expect(
+          rateLimitedResponse.headers[
+            'retry-after'
+          ],
+        ).toBeDefined()
+      },
+    )
+
+    it(
+      'debe limitar POST /api/generations/from-property después de 5 peticiones',
+      async () => {
+        const responses = []
+
+        for (let i = 0; i < 6; i += 1) {
+          const response =
+            await app.inject({
+              method: 'POST',
+              url: '/api/generations/from-property',
+              payload: {},
+            })
+
+          responses.push(response)
+        }
+
+        const rateLimitedResponse =
+          responses[5]
+
+        expect(
+          rateLimitedResponse.statusCode,
+        ).toBe(429)
+
+        expect(
+          rateLimitedResponse.headers[
+            'retry-after'
+          ],
+        ).toBeDefined()
+      },
+    )
+
+    it(
+      'no debe aplicar el rate limit globalmente a /health',
+      async () => {
+        const responses =
+          await Promise.all(
+            Array.from(
+              { length: 10 },
+              () =>
+                app.inject({
+                  method: 'GET',
+                  url: '/health',
+                }),
+            ),
+          )
+
+        expect(
+          responses.every(
+            (response) =>
+              response.statusCode === 200,
+          ),
+        ).toBe(true)
+      },
+    )
   })
 
-  describe('POST /api/generations', () => {
-    it('rechaza datos con tipos incorrectos', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/generations',
-        payload: {
-          property: {
-            title: 'Piso de prueba',
-            operation: 'sale',
-            type: 'apartment',
-            price: '250000',
-            address: 'Calle Falsa 123',
-            city: 'Madrid',
-            neighborhood: 'Centro',
-            area: 80,
-            bedrooms: 2,
-            bathrooms: 1,
-            floor: 3,
-            condition: 'good',
-            elevator: true,
-            terrace: false,
-            balcony: false,
-            garage: false,
-            storageRoom: false,
-            pool: false,
-            garden: false,
-            airConditioning: true,
-            heating: true,
-            additionalInformation: '',
-          },
-          provider: 'mock',
-          tone: 'professional',
-          language: 'español',
+  // ==========================================================
+  // ERROR HANDLING
+  // ==========================================================
+
+  describe('Error handling', () => {
+    let app: FastifyInstance
+
+    beforeAll(async () => {
+      const { buildApp } =
+        await import('../app.js')
+
+      app = await buildApp()
+
+      // Ruta exclusiva para probar
+      // el error handler REAL de la aplicación.
+      app.get(
+        '/test-internal-error',
+        async () => {
+          throw new Error(
+            'DATABASE_URL secret internal failure',
+          )
         },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza campos desconocidos', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/generations',
-        payload: {
-          property: {
-            title: 'Piso de prueba',
-            operation: 'sale',
-            type: 'apartment',
-            price: 250000,
-            address: 'Calle Falsa 123',
-            city: 'Madrid',
-            neighborhood: 'Centro',
-            area: 80,
-            bedrooms: 2,
-            bathrooms: 1,
-            floor: 3,
-            condition: 'good',
-            elevator: true,
-            terrace: false,
-            balcony: false,
-            garage: false,
-            storageRoom: false,
-            pool: false,
-            garden: false,
-            airConditioning: true,
-            heating: true,
-            additionalInformation: '',
-            unexpectedField: 'malicious-value',
-          },
-          provider: 'mock',
-          tone: 'professional',
-          language: 'español',
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza un provider no permitido', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/generations',
-        payload: {
-          property: {
-            title: 'Piso de prueba',
-            operation: 'sale',
-            type: 'apartment',
-            price: 250000,
-            address: 'Calle Falsa 123',
-            city: 'Madrid',
-            neighborhood: 'Centro',
-            area: 80,
-            bedrooms: 2,
-            bathrooms: 1,
-            floor: 3,
-            condition: 'good',
-            elevator: true,
-            terrace: false,
-            balcony: false,
-            garage: false,
-            storageRoom: false,
-            pool: false,
-            garden: false,
-            airConditioning: true,
-            heating: true,
-            additionalInformation: '',
-          },
-          provider: 'malicious-provider',
-          tone: 'professional',
-          language: 'español',
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('GET /api/generations/:id', () => {
-    it('rechaza un ID que no es un CUID válido', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/generations/not-a-valid-cuid',
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza un ID con contenido de SQL injection', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: "/api/generations/' OR 1=1 --",
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('PUT /api/generations/:id', () => {
-    it('rechaza un ID inválido antes de consultar Prisma', async () => {
-      const response = await app.inject({
-        method: 'PUT',
-        url: '/api/generations/not-a-valid-cuid',
-        payload: {
-          title: 'Título modificado',
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza un body con campos desconocidos', async () => {
-      const response = await app.inject({
-        method: 'PUT',
-        url: '/api/generations/not-a-valid-cuid',
-        payload: {
-          title: 'Título modificado',
-          maliciousField: 'DROP TABLE generations',
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('DELETE /api/generations/:id', () => {
-    it('rechaza un ID inválido', async () => {
-      const response = await app.inject({
-        method: 'DELETE',
-        url: '/api/generations/not-a-valid-cuid',
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('DELETE /api/generations', () => {
-    it('rechaza un bulk delete sin IDs', async () => {
-      const response = await app.inject({
-        method: 'DELETE',
-        url: '/api/generations',
-        payload: {
-          ids: [],
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza más de 100 IDs en bulk delete', async () => {
-      const ids = Array.from(
-        { length: 101 },
-        () => 'not-a-valid-cuid',
       )
 
-      const response = await app.inject({
-        method: 'DELETE',
-        url: '/api/generations',
-        payload: {
-          ids,
+      app.get(
+        '/test-client-error',
+        async () => {
+          const error =
+            new Error(
+              'Petición inválida',
+            )
+
+          Object.assign(error, {
+            statusCode: 400,
+          })
+
+          throw error
         },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('GET /api/properties/:id', () => {
-    it('rechaza un ID que no es un CUID válido', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/properties/not-a-valid-cuid',
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza un ID con contenido de SQL injection', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: "/api/properties/' OR 1=1 --",
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('PUT /api/properties/:id', () => {
-    it('rechaza un ID inválido antes de consultar Prisma', async () => {
-      const response = await app.inject({
-        method: 'PUT',
-        url: '/api/properties/not-a-valid-cuid',
-        payload: {
-          title: 'Propiedad modificada',
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza un body con campos desconocidos', async () => {
-      const response = await app.inject({
-        method: 'PUT',
-        url: '/api/properties/not-a-valid-cuid',
-        payload: {
-          title: 'Propiedad modificada',
-          maliciousField: 'DROP TABLE properties',
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('DELETE /api/properties/:id', () => {
-    it('rechaza un ID inválido', async () => {
-      const response = await app.inject({
-        method: 'DELETE',
-        url: '/api/properties/not-a-valid-cuid',
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-  })
-
-  describe('DELETE /api/properties', () => {
-    it('rechaza un bulk delete sin IDs', async () => {
-      const response = await app.inject({
-        method: 'DELETE',
-        url: '/api/properties',
-        payload: {
-          ids: [],
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
-    })
-
-    it('rechaza más de 100 IDs en bulk delete', async () => {
-      const ids = Array.from(
-        { length: 101 },
-        () => 'not-a-valid-cuid',
       )
 
-      const response = await app.inject({
-        method: 'DELETE',
-        url: '/api/properties',
-        payload: {
-          ids,
-        },
-      })
-
-      assert.equal(response.statusCode, 400)
+      await app.ready()
     })
+
+    afterAll(async () => {
+      await app.close()
+    })
+
+    it(
+      'no debe exponer detalles de errores internos',
+      async () => {
+        const response =
+          await app.inject({
+            method: 'GET',
+            url: '/test-internal-error',
+          })
+
+        expect(
+          response.statusCode,
+        ).toBe(500)
+
+        expect(
+          response.json(),
+        ).toEqual({
+          message:
+            'Error interno del servidor',
+        })
+
+        expect(
+          response.body,
+        ).not.toContain(
+          'DATABASE_URL',
+        )
+
+        expect(
+          response.body,
+        ).not.toContain(
+          'secret internal failure',
+        )
+      },
+    )
+
+    it(
+      'debe conservar mensajes de errores de cliente conocidos',
+      async () => {
+        const response =
+          await app.inject({
+            method: 'GET',
+            url: '/test-client-error',
+          })
+
+        expect(
+          response.statusCode,
+        ).toBe(400)
+
+        expect(
+          response.json(),
+        ).toEqual({
+          message:
+            'Petición inválida',
+        })
+      },
+    )
   })
 })

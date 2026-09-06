@@ -1,9 +1,13 @@
 import OpenAI from 'openai'
+
 import {
   GeneratedListingSchema,
   type GeneratedListing,
 } from '@estateforge/shared'
+
 import type { AIProvider } from './ai-provider.js'
+
+const REQUEST_TIMEOUT_MS = 15_000
 
 export class OpenAIProvider
   implements AIProvider
@@ -22,6 +26,7 @@ export class OpenAIProvider
 
     this.client = new OpenAI({
       apiKey,
+      timeout: REQUEST_TIMEOUT_MS,
     })
   }
 
@@ -89,7 +94,9 @@ export class OpenAIProvider
       }
 
       const validation =
-        GeneratedListingSchema.safeParse(parsed)
+        GeneratedListingSchema.safeParse(
+          parsed,
+        )
 
       if (!validation.success) {
         throw new Error(
@@ -100,6 +107,23 @@ export class OpenAIProvider
       return validation.data
     } catch (error) {
       if (error instanceof Error) {
+        const isTimeout =
+          error.name ===
+            'APIConnectionTimeoutError' ||
+          error.name === 'TimeoutError' ||
+          error.message
+            .toLowerCase()
+            .includes('timeout') ||
+          error.message
+            .toLowerCase()
+            .includes('timed out')
+
+        if (isTimeout) {
+          throw new Error(
+            'Error al generar el anuncio con OpenAI: La solicitud ha superado el tiempo límite de 15 segundos.',
+          )
+        }
+
         throw new Error(
           `Error al generar el anuncio con OpenAI: ${error.message}`,
         )

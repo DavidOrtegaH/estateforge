@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "test": "tsx --test src/routes/security.routes.test.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@estateforge/shared": "workspace:*",
