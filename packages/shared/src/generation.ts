@@ -22,9 +22,10 @@ export type ListingLanguage =
   | 'gl'
   | 'eu'
 
-export interface GenerationRequest {
+export type GenerationRequest = {
   property: Property
   provider: AIProviderType
   tone: ListingTone
   language: ListingLanguage
+  apiKey?: string
 }

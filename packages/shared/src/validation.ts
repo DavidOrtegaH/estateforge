@@ -15,29 +15,56 @@ const requiredText = (max: number) =>
     .string()
     .trim()
     .min(1, 'El campo es obligatorio')
-    .max(max, `El campo no puede superar los ${max} caracteres`)
+    .max(
+      max,
+      `El campo no puede superar los ${max} caracteres`,
+    )
 
 const optionalText = (max: number) =>
   z
     .string()
     .trim()
-    .max(max, `El campo no puede superar los ${max} caracteres`)
+    .max(
+      max,
+      `El campo no puede superar los ${max} caracteres`,
+    )
 
 const nonNegativeNumber = (max: number) =>
   z
     .number()
     .finite('El número debe ser finito')
     .min(0, 'El número no puede ser negativo')
-    .max(max, `El número no puede superar ${max}`)
+    .max(
+      max,
+      `El número no puede superar ${max}`,
+    )
 
 const nonNegativeInteger = (max: number) =>
   z
     .number()
     .int('El valor debe ser un número entero')
     .min(0, 'El valor no puede ser negativo')
-    .max(max, `El valor no puede superar ${max}`)
+    .max(
+      max,
+      `El valor no puede superar ${max}`,
+    )
 
 const booleanSchema = z.boolean()
+
+/**
+ * API key temporal proporcionada por el usuario.
+ *
+ * Nunca debe persistirse en base de datos ni incluirse
+ * en respuestas o logs.
+ */
+const apiKeySchema = z
+  .string()
+  .trim()
+  .min(1, 'La API key no puede estar vacía')
+  .max(
+    512,
+    'La API key no puede superar los 512 caracteres',
+  )
 
 /**
  * Prisma permite floor = null.
@@ -50,8 +77,14 @@ const floorSchema = z.preprocess(
   z
     .number()
     .int('La planta debe ser un número entero')
-    .min(-10, 'La planta no puede ser inferior a -10')
-    .max(200, 'La planta no puede superar 200')
+    .min(
+      -10,
+      'La planta no puede ser inferior a -10',
+    )
+    .max(
+      200,
+      'La planta no puede superar 200',
+    )
     .optional(),
 )
 
@@ -64,7 +97,10 @@ const floorSchema = z.preprocess(
 const propertyFields = {
   title: requiredText(160),
 
-  operation: z.enum(['sale', 'rent']),
+  operation: z.enum([
+    'sale',
+    'rent',
+  ]),
 
   type: z.enum([
     'apartment',
@@ -98,13 +134,21 @@ const propertyFields = {
   ]),
 
   elevator: booleanSchema,
+
   terrace: booleanSchema,
+
   balcony: booleanSchema,
+
   garage: booleanSchema,
+
   storageRoom: booleanSchema,
+
   pool: booleanSchema,
+
   garden: booleanSchema,
+
   airConditioning: booleanSchema,
+
   heating: booleanSchema,
 
   additionalInformation: optionalText(2_000),
@@ -132,7 +176,10 @@ export const PropertyUpdateSchema = z
     title: requiredText(160).optional(),
 
     operation: z
-      .enum(['sale', 'rent'])
+      .enum([
+        'sale',
+        'rent',
+      ])
       .optional(),
 
     type: z
@@ -145,7 +192,9 @@ export const PropertyUpdateSchema = z
       ])
       .optional(),
 
-    price: nonNegativeNumber(100_000_000).optional(),
+    price: nonNegativeNumber(
+      100_000_000,
+    ).optional(),
 
     address: requiredText(200).optional(),
 
@@ -153,11 +202,17 @@ export const PropertyUpdateSchema = z
 
     neighborhood: requiredText(120).optional(),
 
-    area: nonNegativeNumber(100_000).optional(),
+    area: nonNegativeNumber(
+      100_000,
+    ).optional(),
 
-    bedrooms: nonNegativeInteger(100).optional(),
+    bedrooms: nonNegativeInteger(
+      100,
+    ).optional(),
 
-    bathrooms: nonNegativeInteger(100).optional(),
+    bathrooms: nonNegativeInteger(
+      100,
+    ).optional(),
 
     floor: floorSchema,
 
@@ -171,13 +226,22 @@ export const PropertyUpdateSchema = z
       .optional(),
 
     elevator: booleanSchema.optional(),
+
     terrace: booleanSchema.optional(),
+
     balcony: booleanSchema.optional(),
+
     garage: booleanSchema.optional(),
+
     storageRoom: booleanSchema.optional(),
+
     pool: booleanSchema.optional(),
+
     garden: booleanSchema.optional(),
-    airConditioning: booleanSchema.optional(),
+
+    airConditioning:
+      booleanSchema.optional(),
+
     heating: booleanSchema.optional(),
 
     additionalInformation:
@@ -185,7 +249,8 @@ export const PropertyUpdateSchema = z
   })
   .strict()
   .refine(
-    (value) => Object.keys(value).length > 0,
+    (value) =>
+      Object.keys(value).length > 0,
     {
       message:
         'Debe proporcionarse al menos un campo para actualizar',
@@ -229,6 +294,10 @@ export const ListingLanguageSchema = z.enum([
 
 /**
  * POST /api/generations
+ *
+ * apiKey es opcional y temporal.
+ * Si no se proporciona, el backend utiliza la
+ * API key configurada en el servidor.
  */
 export const GenerationRequestSchema = z
   .object({
@@ -239,30 +308,42 @@ export const GenerationRequestSchema = z
     tone: ListingToneSchema,
 
     language: ListingLanguageSchema,
+
+    apiKey: apiKeySchema.optional(),
   })
   .strict()
 
-export type ValidatedGenerationRequest = z.infer<
-  typeof GenerationRequestSchema
->
+export type ValidatedGenerationRequest =
+  z.infer<
+    typeof GenerationRequestSchema
+  >
 
 /**
  * POST /api/generations/from-property
+ *
+ * apiKey es opcional y temporal.
+ * Nunca se persiste.
  */
-export const ExistingPropertyGenerationSchema = z
-  .object({
-    propertyId: cuidSchema,
+export const ExistingPropertyGenerationSchema =
+  z
+    .object({
+      propertyId: cuidSchema,
 
-    provider: AIProviderSchema.default('mock'),
+      provider:
+        AIProviderSchema.default('mock'),
 
-    tone: ListingToneSchema,
+      tone: ListingToneSchema,
 
-    language: ListingLanguageSchema,
-  })
-  .strict()
+      language: ListingLanguageSchema,
+
+      apiKey: apiKeySchema.optional(),
+    })
+    .strict()
 
 export type ExistingPropertyGeneration =
-  z.infer<typeof ExistingPropertyGenerationSchema>
+  z.infer<
+    typeof ExistingPropertyGenerationSchema
+  >
 
 /**
  * PUT /api/generations/:id
@@ -277,24 +358,32 @@ export const GenerationUpdateSchema = z
       .array(
         requiredText(160),
       )
-      .min(1, 'Debe existir al menos una característica')
+      .min(
+        1,
+        'Debe existir al menos una característica',
+      )
       .max(
         10,
         'No puede haber más de 10 características',
       )
       .optional(),
 
-    callToAction: requiredText(500).optional(),
+    callToAction:
+      requiredText(500).optional(),
 
-    provider: AIProviderSchema.optional(),
+    provider:
+      AIProviderSchema.optional(),
 
-    tone: ListingToneSchema.optional(),
+    tone:
+      ListingToneSchema.optional(),
 
-    language: ListingLanguageSchema.optional(),
+    language:
+      ListingLanguageSchema.optional(),
   })
   .strict()
   .refine(
-    (value) => Object.keys(value).length > 0,
+    (value) =>
+      Object.keys(value).length > 0,
     {
       message:
         'Debe proporcionarse al menos un campo para actualizar',
@@ -325,7 +414,10 @@ export const BulkIdsSchema = z
   .object({
     ids: z
       .array(cuidSchema)
-      .min(1, 'Debe proporcionarse al menos un ID')
+      .min(
+        1,
+        'Debe proporcionarse al menos un ID',
+      )
       .max(
         100,
         'No se pueden eliminar más de 100 elementos a la vez',
@@ -333,7 +425,9 @@ export const BulkIdsSchema = z
   })
   .strict()
   .transform((val) => ({
-    ids: Array.from(new Set(val.ids)),
+    ids: Array.from(
+      new Set(val.ids),
+    ),
   }))
 
 export type BulkIds = z.infer<

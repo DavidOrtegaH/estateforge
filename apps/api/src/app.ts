@@ -6,6 +6,10 @@ import Fastify, {
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 
+import {
+  isAIProviderError,
+} from './ai/ai-provider.error.js'
+
 import { generationRoutes } from './routes/generation.routes.js'
 import { propertyRoutes } from './routes/property.routes.js'
 import { dashboardRoutes } from './routes/dashboard.routes.js'
@@ -98,12 +102,66 @@ export async function buildApp() {
       _request,
       reply,
     ) => {
+      // --------------------------------------------------------
+      // Errores controlados de proveedores de IA
+      // --------------------------------------------------------
+
+      if (
+        isAIProviderError(error)
+      ) {
+        switch (error.code) {
+          case 'AI_QUOTA_EXCEEDED':
+            return reply
+              .code(429)
+              .send({
+                code:
+                  'AI_QUOTA_EXCEEDED',
+                message:
+                  'Se ha agotado la cuota disponible del proveedor de IA.',
+              })
+
+          case 'AI_INVALID_API_KEY':
+            return reply
+              .code(401)
+              .send({
+                code:
+                  'AI_INVALID_API_KEY',
+                message:
+                  'La API key proporcionada no es válida.',
+              })
+
+          case 'AI_TIMEOUT':
+            return reply
+              .code(504)
+              .send({
+                code:
+                  'AI_TIMEOUT',
+                message:
+                  'La generación ha superado el tiempo límite de 15 segundos.',
+              })
+
+          case 'AI_PROVIDER_ERROR':
+          default:
+            return reply
+              .code(502)
+              .send({
+                code:
+                  'AI_PROVIDER_ERROR',
+                message:
+                  'El proveedor de IA no está disponible en este momento.',
+              })
+        }
+      }
+
+      // --------------------------------------------------------
+      // Errores esperables del cliente
+      // --------------------------------------------------------
+
       const statusCode =
         typeof error.statusCode === 'number'
           ? error.statusCode
           : 500
 
-      // Errores esperables del cliente.
       if (
         statusCode === 400 ||
         statusCode === 404 ||
@@ -115,12 +173,19 @@ export async function buildApp() {
         return reply
           .code(statusCode)
           .send({
-            message: error.message,
+            message:
+              error.message,
           })
       }
 
+      // --------------------------------------------------------
+      // Errores internos
+      // --------------------------------------------------------
+      //
       // Nunca exponemos detalles internos
       // del servidor, base de datos o proveedores.
+      //
+
       return reply
         .code(500)
         .send({

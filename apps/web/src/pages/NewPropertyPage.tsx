@@ -13,7 +13,10 @@ import type {
 } from '@estateforge/shared'
 
 import { Button } from '@/components/ui/button'
-import { generateListing } from '@/services/generationService'
+import {
+  generateListing,
+  GenerationApiError,
+} from '@/services/generationService'
 
 const initialProperty: Property = {
   title: '',
@@ -67,6 +70,12 @@ function NewPropertyPage() {
   const [error, setError] =
     useState<string | null>(null)
 
+  const [apiKey, setApiKey] =
+    useState('')
+
+  const [showCustomApiKey, setShowCustomApiKey] =
+    useState(false)
+
   // Estados para Edición, Eliminación y Copiado
   const [isEditing, setIsEditing] =
     useState(false)
@@ -82,6 +91,37 @@ function NewPropertyPage() {
 
   const [isCopied, setIsCopied] =
     useState(false)
+
+  function preserveScrollPosition(
+    callback: () => void,
+  ) {
+    const scrollY = window.scrollY
+
+    callback()
+
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: scrollY,
+        behavior: 'auto',
+      })
+
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollY,
+          behavior: 'auto',
+        })
+      })
+    })
+  }
+
+  function scrollToBottom() {
+    setTimeout(() => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'smooth',
+      })
+    }, 100)
+  }
 
   function updateProperty<K extends keyof Property>(
     field: K,
@@ -137,6 +177,7 @@ function NewPropertyPage() {
 
     if (validationError) {
       setError(validationError)
+      scrollToBottom()
       return
     }
 
@@ -154,6 +195,7 @@ function NewPropertyPage() {
         provider,
         tone,
         language,
+        apiKey: apiKey.trim() || undefined,
       })
 
       setGeneratedListing(result.listing)
@@ -162,15 +204,63 @@ function NewPropertyPage() {
       setCreatedGenerationId(
         result.generationId,
       )
+      setApiKey('')
+      setShowCustomApiKey(false)
+
+      scrollToBottom()
     } catch (generationError) {
-      console.error(
-        'Error generando anuncio:',
-        generationError,
-      )
+      if (generationError instanceof GenerationApiError) {
+        if (
+          generationError.code ===
+          'AI_QUOTA_EXCEEDED'
+        ) {
+          setError(
+            'La cuota disponible del proveedor de IA se ha agotado.',
+          )
+          setShowCustomApiKey(true)
+          scrollToBottom()
+          return
+        }
+
+        if (
+          generationError.code ===
+          'AI_INVALID_API_KEY'
+        ) {
+          setError(
+            'La API key proporcionada no es válida. Comprueba la clave e inténtalo de nuevo.',
+          )
+          setShowCustomApiKey(true)
+          scrollToBottom()
+          return
+        }
+
+        if (
+          generationError.code ===
+          'AI_TIMEOUT'
+        ) {
+          setError(
+            'La generación ha superado el tiempo límite de 40 segundos.',
+          )
+          scrollToBottom()
+          return
+        }
+
+        if (
+          generationError.code ===
+          'AI_PROVIDER_ERROR'
+        ) {
+          setError(
+            'El proveedor de IA no está disponible en este momento. Inténtalo de nuevo más tarde.',
+          )
+          scrollToBottom()
+          return
+        }
+      }
 
       setError(
         'No se ha podido generar el anuncio. Comprueba que la API esté disponible y que el proveedor de IA esté correctamente configurado.',
       )
+      scrollToBottom()
     } finally {
       setIsGenerating(false)
     }
@@ -182,6 +272,8 @@ function NewPropertyPage() {
     setCreatedPropertyId(null)
     setCreatedGenerationId(null)
     setError(null)
+    setApiKey('')
+    setShowCustomApiKey(false)
     setIsEditing(false)
     setIsCopied(false)
   }
@@ -213,9 +305,11 @@ function NewPropertyPage() {
         err,
       )
 
-      setError(
-        'No se han podido guardar los cambios del anuncio.',
-      )
+      preserveScrollPosition(() => {
+        setError(
+          'No se han podido guardar los cambios del anuncio.',
+        )
+      })
     } finally {
       setIsSaving(false)
     }
@@ -251,9 +345,11 @@ function NewPropertyPage() {
         err,
       )
 
-      setError(
-        'No se ha podido eliminar el anuncio.',
-      )
+      preserveScrollPosition(() => {
+        setError(
+          'No se ha podido eliminar el anuncio.',
+        )
+      })
     } finally {
       setIsDeleting(false)
     }
@@ -299,9 +395,11 @@ ${listingToCopy.callToAction}
         err,
       )
 
-      setError(
-        'No se ha podido copiar el contenido al portapapeles.',
-      )
+      preserveScrollPosition(() => {
+        setError(
+          'No se ha podido copiar el contenido al portapapeles.',
+        )
+      })
     }
   }
 
@@ -317,17 +415,6 @@ ${listingToCopy.callToAction}
           generar posteriormente su anuncio con IA.
         </p>
       </div>
-
-      {error && (
-        <div
-          role="alert"
-          className="mb-8 rounded-lg border border-destructive/30 bg-destructive/10 p-4"
-        >
-          <p className="text-sm font-medium text-destructive">
-            {error}
-          </p>
-        </div>
-      )}
 
       <form
         onSubmit={handleSubmit}
@@ -805,6 +892,67 @@ ${listingToCopy.callToAction}
               </select>
             </label>
           </div>
+
+          {error && (
+            <div
+              role="alert"
+              className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4"
+            >
+              <p className="text-sm font-medium text-destructive">
+                {error}
+              </p>
+            </div>
+          )}
+
+          {showCustomApiKey && (
+            <div className="mt-6 rounded-lg border bg-muted/30 p-4">
+              <div>
+                <p className="text-sm font-medium">
+                  Usar mi propia API key
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Puedes utilizar tu propia API key para
+                  continuar generando anuncios cuando se
+                  haya agotado la cuota disponible. La
+                  clave se utilizará únicamente para esta
+                  generación y no se guardará.
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <label
+                  htmlFor="generation-api-key"
+                  className="text-sm font-medium"
+                >
+                  API key de{' '}
+                  {provider === 'gemini'
+                    ? 'Gemini'
+                    : 'OpenAI'}
+                </label>
+
+                <input
+                  id="generation-api-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(event) =>
+                    setApiKey(
+                      event.target.value,
+                    )
+                  }
+                  disabled={isGenerating}
+                  autoComplete="off"
+                  placeholder="Introduce tu API key"
+                  className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                />
+
+                <p className="mt-2 text-xs text-muted-foreground">
+                  No guardamos ni mostramos esta clave
+                  después de la generación.
+                </p>
+              </div>
+            </div>
+          )}
         </section>
 
         <div className="flex justify-end">
@@ -974,6 +1122,7 @@ ${listingToCopy.callToAction}
                   </ul>
                 )}
               </div>
+
               {/* CTA */}
               <div>
                 <p className="text-sm font-medium text-muted-foreground">

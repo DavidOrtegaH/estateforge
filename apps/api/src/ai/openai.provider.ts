@@ -7,25 +7,32 @@ import {
 
 import type { AIProvider } from './ai-provider.js'
 
-const REQUEST_TIMEOUT_MS = 15_000
+import {
+  AIProviderError,
+  classifyAIProviderError,
+} from './ai-provider.error.js'
+
+const REQUEST_TIMEOUT_MS = 40_000
 
 export class OpenAIProvider
   implements AIProvider
 {
   private readonly client: OpenAI
 
-  constructor() {
-    const apiKey =
+  constructor(apiKey?: string) {
+    const resolvedApiKey =
+      apiKey ??
       process.env.OPENAI_API_KEY
 
-    if (!apiKey) {
-      throw new Error(
-        'OPENAI_API_KEY no está configurada.',
+    if (!resolvedApiKey) {
+      throw new AIProviderError(
+        'AI_INVALID_API_KEY',
+        'La API key de OpenAI no está configurada.',
       )
     }
 
     this.client = new OpenAI({
-      apiKey,
+      apiKey: resolvedApiKey,
       timeout: REQUEST_TIMEOUT_MS,
     })
   }
@@ -37,38 +44,52 @@ export class OpenAIProvider
       const response =
         await this.client.responses.create({
           model: 'gpt-5.5',
+
           input: prompt,
+
           text: {
             format: {
               type: 'json_schema',
-              name: 'generated_listing',
+
+              name:
+                'generated_listing',
+
               strict: true,
+
               schema: {
                 type: 'object',
+
                 properties: {
                   title: {
                     type: 'string',
                   },
+
                   description: {
                     type: 'string',
                   },
+
                   highlights: {
                     type: 'array',
+
                     items: {
                       type: 'string',
                     },
                   },
+
                   callToAction: {
                     type: 'string',
                   },
                 },
+
                 required: [
                   'title',
                   'description',
                   'highlights',
                   'callToAction',
                 ],
-                additionalProperties: false,
+
+                additionalProperties:
+                  false,
               },
             },
           },
@@ -78,7 +99,8 @@ export class OpenAIProvider
         response.output_text?.trim()
 
       if (!text) {
-        throw new Error(
+        throw new AIProviderError(
+          'AI_PROVIDER_ERROR',
           'OpenAI no devolvió contenido.',
         )
       }
@@ -88,7 +110,8 @@ export class OpenAIProvider
       try {
         parsed = JSON.parse(text)
       } catch {
-        throw new Error(
+        throw new AIProviderError(
+          'AI_PROVIDER_ERROR',
           'OpenAI devolvió una respuesta que no es JSON válido.',
         )
       }
@@ -99,38 +122,21 @@ export class OpenAIProvider
         )
 
       if (!validation.success) {
-        throw new Error(
+        throw new AIProviderError(
+          'AI_PROVIDER_ERROR',
           'OpenAI devolvió un anuncio con un formato inválido.',
         )
       }
 
       return validation.data
     } catch (error) {
-      if (error instanceof Error) {
-        const isTimeout =
-          error.name ===
-            'APIConnectionTimeoutError' ||
-          error.name === 'TimeoutError' ||
-          error.message
-            .toLowerCase()
-            .includes('timeout') ||
-          error.message
-            .toLowerCase()
-            .includes('timed out')
-
-        if (isTimeout) {
-          throw new Error(
-            'Error al generar el anuncio con OpenAI: La solicitud ha superado el tiempo límite de 15 segundos.',
-          )
-        }
-
-        throw new Error(
-          `Error al generar el anuncio con OpenAI: ${error.message}`,
-        )
+      if (error instanceof AIProviderError) {
+        throw error
       }
 
-      throw new Error(
-        'Error desconocido al generar el anuncio con OpenAI.',
+      throw classifyAIProviderError(
+        'OpenAI',
+        error,
       )
     }
   }

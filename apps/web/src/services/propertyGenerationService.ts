@@ -4,11 +4,34 @@ import type {
   ListingTone,
 } from '@estateforge/shared'
 
+export type GenerationApiErrorCode =
+  | 'AI_QUOTA_EXCEEDED'
+  | 'AI_INVALID_API_KEY'
+  | 'AI_TIMEOUT'
+  | 'AI_PROVIDER_ERROR'
+
+export class GenerationApiError extends Error {
+  readonly code: GenerationApiErrorCode | null
+  readonly status: number
+
+  constructor(
+    code: GenerationApiErrorCode | null,
+    message: string,
+    status: number,
+  ) {
+    super(message)
+    this.name = 'GenerationApiError'
+    this.code = code
+    this.status = status
+  }
+}
+
 export interface GeneratePropertyListingRequest {
   propertyId: string
   provider: AIProviderType
   tone: ListingTone
   language: ListingLanguage
+  apiKey?: string
 }
 
 export interface UpdatePropertyListingRequest {
@@ -61,20 +84,38 @@ export async function generatePropertyListing(
 
   if (!response.ok) {
     let message = `Generation failed: ${response.status}`
+    let code: GenerationApiErrorCode | null = null
 
     try {
       const error = (await response.json()) as {
-        message?: string
+        code?: unknown
+        message?: unknown
       }
 
-      if (error.message) {
+      if (
+        error.code === 'AI_QUOTA_EXCEEDED' ||
+        error.code === 'AI_INVALID_API_KEY' ||
+        error.code === 'AI_TIMEOUT' ||
+        error.code === 'AI_PROVIDER_ERROR'
+      ) {
+        code = error.code
+      }
+
+      if (
+        typeof error.message === 'string' &&
+        error.message
+      ) {
         message = error.message
       }
     } catch {
       // Mantener el mensaje genérico si la respuesta no es JSON.
     }
 
-    throw new Error(message)
+    throw new GenerationApiError(
+      code,
+      message,
+      response.status,
+    )
   }
 
   return response.json() as Promise<
@@ -150,3 +191,5 @@ export async function deleteGeneration(
     success: boolean
   }>
 }
+
+

@@ -3,6 +3,28 @@ import type {
   GenerationRequest,
 } from '@estateforge/shared'
 
+export type GenerationApiErrorCode =
+  | 'AI_QUOTA_EXCEEDED'
+  | 'AI_INVALID_API_KEY'
+  | 'AI_TIMEOUT'
+  | 'AI_PROVIDER_ERROR'
+
+export class GenerationApiError extends Error {
+  readonly code: GenerationApiErrorCode | null
+  readonly status: number
+
+  constructor(
+    code: GenerationApiErrorCode | null,
+    message: string,
+    status: number,
+  ) {
+    super(message)
+    this.name = 'GenerationApiError'
+    this.code = code
+    this.status = status
+  }
+}
+
 const API_URL = 'http://localhost:3000'
 
 export interface GenerationResult {
@@ -64,8 +86,35 @@ export async function generateListing(
   )
 
   if (!response.ok) {
-    throw new Error(
-      `Generation failed: ${response.status}`,
+    let message = `Generation failed: ${response.status}`
+    let code: GenerationApiErrorCode | null = null
+
+    try {
+      const error = (await response.json()) as {
+        code?: unknown
+        message?: unknown
+      }
+
+      if (typeof error.message === 'string' && error.message) {
+        message = error.message
+      }
+
+      if (
+        error.code === 'AI_QUOTA_EXCEEDED' ||
+        error.code === 'AI_INVALID_API_KEY' ||
+        error.code === 'AI_TIMEOUT' ||
+        error.code === 'AI_PROVIDER_ERROR'
+      ) {
+        code = error.code
+      }
+    } catch {
+      // Mantener el mensaje genérico si la respuesta no es JSON.
+    }
+
+    throw new GenerationApiError(
+      code,
+      message,
+      response.status,
     )
   }
 

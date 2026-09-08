@@ -7,7 +7,12 @@ import {
 
 import type { AIProvider } from './ai-provider.js'
 
-const REQUEST_TIMEOUT_MS = 15_000
+import {
+  AIProviderError,
+  classifyAIProviderError,
+} from './ai-provider.error.js'
+
+const REQUEST_TIMEOUT_MS = 40_000
 
 interface PromptProperty {
   title?: string
@@ -31,7 +36,7 @@ interface PromptProperty {
   garden: boolean
   airConditioning: boolean
   heating: boolean
-  additionalInformation?: string
+  additionalInformation: string
 }
 
 function extractPropertyFromPrompt(
@@ -44,23 +49,65 @@ function extractPropertyFromPrompt(
     prompt.indexOf(marker)
 
   if (start === -1) {
-    throw new Error(
+    throw new AIProviderError(
+      'AI_PROVIDER_ERROR',
       'No se encontraron los datos del inmueble en el prompt.',
     )
   }
 
-  const jsonText =
-    prompt
-      .slice(start + marker.length)
-      .trim()
+  const jsonStart =
+    prompt.indexOf('{', start)
+
+  if (jsonStart === -1) {
+    throw new AIProviderError(
+      'AI_PROVIDER_ERROR',
+      'No se encontró el JSON del inmueble en el prompt.',
+    )
+  }
+
+  let braceCount = 0
+  let jsonEnd = -1
+
+  for (
+    let i = jsonStart;
+    i < prompt.length;
+    i++
+  ) {
+    if (prompt[i] === '{') {
+      braceCount++
+    } else if (
+      prompt[i] === '}'
+    ) {
+      braceCount--
+
+      if (braceCount === 0) {
+        jsonEnd = i
+        break
+      }
+    }
+  }
+
+  if (jsonEnd === -1) {
+    throw new AIProviderError(
+      'AI_PROVIDER_ERROR',
+      'No se pudo determinar el final de los datos del inmueble.',
+    )
+  }
+
+  const json =
+    prompt.slice(
+      jsonStart,
+      jsonEnd + 1,
+    )
 
   try {
     return JSON.parse(
-      jsonText,
+      json,
     ) as PromptProperty
   } catch {
-    throw new Error(
-      'Los datos del inmueble del prompt no son JSON válido.',
+    throw new AIProviderError(
+      'AI_PROVIDER_ERROR',
+      'Los datos del inmueble no tienen un formato válido.',
     )
   }
 }
@@ -70,19 +117,22 @@ export class GeminiProvider
 {
   private readonly client: GoogleGenAI
 
-  constructor() {
-    const apiKey =
+  constructor(apiKey?: string) {
+    const resolvedApiKey =
+      apiKey ??
       process.env.GEMINI_API_KEY
 
-    if (!apiKey) {
-      throw new Error(
-        'GEMINI_API_KEY no está configurada.',
+    if (!resolvedApiKey) {
+      throw new AIProviderError(
+        'AI_INVALID_API_KEY',
+        'La API key de Gemini no está configurada.',
       )
     }
 
-    this.client = new GoogleGenAI({
-      apiKey,
-    })
+    this.client =
+      new GoogleGenAI({
+        apiKey: resolvedApiKey,
+      })
   }
 
   async generate(
@@ -105,8 +155,12 @@ export class GeminiProvider
       const response =
         await this.client.models.generateContent(
           {
-            model: 'gemini-3.6-flash',
-            contents: prompt,
+            model:
+              'gemini-3.6-flash',
+
+            contents:
+              prompt,
+
             config: {
               abortSignal:
                 controller.signal,
@@ -128,6 +182,7 @@ export class GeminiProvider
 
                   highlights: {
                     type: 'array',
+
                     items: {
                       type: 'string',
                     },
@@ -153,7 +208,8 @@ export class GeminiProvider
         response.text?.trim()
 
       if (!text) {
-        throw new Error(
+        throw new AIProviderError(
+          'AI_PROVIDER_ERROR',
           'Gemini no devolvió contenido.',
         )
       }
@@ -164,7 +220,8 @@ export class GeminiProvider
         parsed =
           JSON.parse(text)
       } catch {
-        throw new Error(
+        throw new AIProviderError(
+          'AI_PROVIDER_ERROR',
           'Gemini devolvió una respuesta que no es JSON válido.',
         )
       }
@@ -173,7 +230,8 @@ export class GeminiProvider
         typeof parsed !== 'object' ||
         parsed === null
       ) {
-        throw new Error(
+        throw new AIProviderError(
+          'AI_PROVIDER_ERROR',
           'Gemini devolvió un anuncio con un formato inválido.',
         )
       }
@@ -196,7 +254,10 @@ export class GeminiProvider
         parsedListing.title.trim() === ''
       ) {
         parsedListing.title =
-          `Inmueble en ${inputProperty.city}`
+          `Inmueble en ${
+            inputProperty.city ||
+            'venta'
+          }`
       }
 
       const validation =
@@ -205,34 +266,30 @@ export class GeminiProvider
         )
 
       if (!validation.success) {
-        throw new Error(
+        throw new AIProviderError(
+          'AI_PROVIDER_ERROR',
           'Gemini devolvió un anuncio con un formato inválido.',
         )
       }
 
       return validation.data
     } catch (error) {
+      if (error instanceof AIProviderError) {
+        throw error
+      }
+
       if (
-        error instanceof Error &&
-        (
-          error.name ===
-            'AbortError' ||
-          controller.signal.aborted
-        )
+        controller.signal.aborted
       ) {
-        throw new Error(
-          'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo límite de 15 segundos.',
+        throw new AIProviderError(
+          'AI_TIMEOUT',
+          'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo límite de 40 segundos.',
         )
       }
 
-      if (error instanceof Error) {
-        throw new Error(
-          `Error al generar el anuncio con Gemini: ${error.message}`,
-        )
-      }
-
-      throw new Error(
-        'Error desconocido al generar el anuncio con Gemini.',
+      throw classifyAIProviderError(
+        'Gemini',
+        error,
       )
     } finally {
       clearTimeout(timeoutId)

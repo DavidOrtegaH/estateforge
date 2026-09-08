@@ -82,17 +82,17 @@ describe('AI Providers Timeout handling', () => {
     vi.clearAllMocks()
   })
 
-  it('GeminiProvider lanza un error de timeout al superar los 15 segundos', async () => {
+  it('GeminiProvider lanza un error de timeout al superar los 40 segundos', async () => {
     const provider = new GeminiProvider()
 
     const generatePromise = provider.generate(dummyPrompt)
 
     // Adjuntamos el handler de rechazo antes de hacer avanzar los timers para evitar Unhandled Rejection
     const assertion = expect(generatePromise).rejects.toThrow(
-      'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo límite de 15 segundos.',
+      'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo límite de 40 segundos.',
     )
 
-    await vi.advanceTimersByTimeAsync(15_000)
+    await vi.advanceTimersByTimeAsync(40_000)
 
     await assertion
   })
@@ -101,7 +101,7 @@ describe('AI Providers Timeout handling', () => {
     const provider = new OpenAIProvider()
 
     await expect(provider.generate(dummyPrompt)).rejects.toThrow(
-      'Error al generar el anuncio con OpenAI: La solicitud ha superado el tiempo límite de 15 segundos.',
+      'Error al generar el anuncio con OpenAI: La solicitud ha superado el tiempo límite de 40 segundos.',
     )
   })
 })

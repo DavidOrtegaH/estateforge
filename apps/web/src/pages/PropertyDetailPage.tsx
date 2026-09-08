@@ -18,6 +18,7 @@ import {
   deleteGeneration,
   generatePropertyListing,
   updateGeneration,
+  GenerationApiError,
 } from '@/services/propertyGenerationService'
 
 // ============================================================
@@ -255,6 +256,12 @@ function PropertyDetailPage() {
 
   const [language, setLanguage] =
     useState<ListingLanguage>('español')
+
+  const [apiKey, setApiKey] =
+    useState('')
+
+  const [showCustomApiKey, setShowCustomApiKey] =
+    useState(false)
 
   // ==========================================================
   // ELIMINACIÓN DEL INMUEBLE
@@ -521,6 +528,7 @@ function PropertyDetailPage() {
         provider,
         tone,
         language,
+        apiKey: apiKey.trim() || undefined,
       })
 
       const updatedProperty =
@@ -535,12 +543,39 @@ function PropertyDetailPage() {
       setProperty(propertyWithStorage)
       setEditForm(propertyWithStorage)
 
+      setApiKey('')
+      setShowCustomApiKey(false)
       setCurrentPage(1)
     } catch (error) {
-      console.error(
-        'Error generando anuncio:',
-        error,
-      )
+      if (error instanceof GenerationApiError) {
+        if (error.code === 'AI_QUOTA_EXCEEDED') {
+          setGenerationError(
+            'La cuota disponible del proveedor de IA se ha agotado.',
+          )
+          setShowCustomApiKey(true)
+          return
+        }
+
+        if (error.code === 'AI_INVALID_API_KEY') {
+          setGenerationError(
+            'La API key proporcionada no es válida. Comprueba la clave e inténtalo de nuevo.',
+          )
+          setShowCustomApiKey(true)
+          return
+        }
+
+        if (error.code === 'AI_TIMEOUT') {
+          setGenerationError(
+            'La generación ha superado el tiempo límite de 15 segundos.',
+          )
+          return
+        }
+
+        setGenerationError(
+          'El proveedor de IA no está disponible en este momento. Inténtalo de nuevo más tarde.',
+        )
+        return
+      }
 
       setGenerationError(
         'No se ha podido generar el anuncio. Comprueba que la API esté disponible y que el proveedor seleccionado esté correctamente configurado.',
@@ -2296,6 +2331,46 @@ function PropertyDetailPage() {
           </div>
         </div>
 
+        {showCustomApiKey && (
+          <div className="mt-6 rounded-lg border bg-muted/30 p-4">
+            <div>
+              <p className="text-sm font-medium">
+                Usar mi propia API key
+              </p>
+
+              <p className="mt-1 text-xs text-muted-foreground">
+                Puedes utilizar tu propia API key para continuar generando anuncios cuando se haya agotado la cuota disponible. La clave se utilizará únicamente para esta generación y no se guardará.
+              </p>
+            </div>
+
+            <div className="mt-4">
+              <label
+                htmlFor="generation-api-key"
+                className="text-sm font-medium"
+              >
+                API key de {provider === 'gemini' ? 'Gemini' : 'OpenAI'}
+              </label>
+
+              <input
+                id="generation-api-key"
+                type="password"
+                value={apiKey}
+                onChange={(event) =>
+                  setApiKey(event.target.value)
+                }
+                disabled={generating}
+                autoComplete="off"
+                placeholder="Introduce tu API key"
+                className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+              />
+
+              <p className="mt-2 text-xs text-muted-foreground">
+                No guardamos ni mostramos esta clave después de la generación.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 flex justify-end">
           <button
             type="button"
@@ -2718,3 +2793,5 @@ function PropertyDetailPage() {
 }
 
 export default PropertyDetailPage
+
+
