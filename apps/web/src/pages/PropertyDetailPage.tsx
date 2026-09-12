@@ -953,7 +953,7 @@ function PropertyDetailPage() {
           to="/inmuebles"
           className="text-sm font-medium text-primary hover:underline"
         >
-          ← Volver a inmuebles
+          ← Volver a Inmuebles
         </Link>
 
         <h1 className="mt-6 text-3xl font-bold">
@@ -1049,7 +1049,7 @@ function PropertyDetailPage() {
           to="/inmuebles"
           className="text-sm font-medium text-primary hover:underline"
         >
-          ← Volver a inmuebles
+          ← Volver a Inmuebles
         </Link>
 
         <div className="flex items-center gap-2">

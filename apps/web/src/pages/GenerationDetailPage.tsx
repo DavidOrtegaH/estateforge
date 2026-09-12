@@ -418,7 +418,7 @@ function GenerationDetailPage() {
           to="/historial"
           className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
         >
-          ← Volver al historial
+          ← Volver a Anuncios
         </Link>
       </div>
     )
@@ -443,7 +443,7 @@ function GenerationDetailPage() {
           to="/historial"
           className="text-sm font-medium text-primary hover:underline"
         >
-          ← Volver al historial
+          ← Volver a Anuncios
         </Link>
 
         <div className="flex items-center gap-2">
