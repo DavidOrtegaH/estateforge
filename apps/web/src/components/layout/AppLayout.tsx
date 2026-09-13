@@ -1,8 +1,11 @@
-import { useState } from 'react'
+
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
 import appIcon from '@/assets/appIcon.svg'
+import appIconWhite from '@/assets/appIconWhite.svg'
 import appLogo from '@/assets/appLogo.svg'
+import appLogoWhite from '@/assets/appLogoWhite.svg'
 
 type NavigationItem = {
   label: string
@@ -38,34 +41,10 @@ function NavigationIcon({
         className={className}
         aria-hidden="true"
       >
-        <rect
-          x="3"
-          y="3"
-          width="7"
-          height="7"
-          rx="1.5"
-        />
-        <rect
-          x="14"
-          y="3"
-          width="7"
-          height="7"
-          rx="1.5"
-        />
-        <rect
-          x="3"
-          y="14"
-          width="7"
-          height="7"
-          rx="1.5"
-        />
-        <rect
-          x="14"
-          y="14"
-          width="7"
-          height="7"
-          rx="1.5"
-        />
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
       </svg>
     )
   }
@@ -125,13 +104,7 @@ function NavigationIcon({
       className={className}
       aria-hidden="true"
     >
-      <rect
-        x="3"
-        y="4"
-        width="18"
-        height="16"
-        rx="2.5"
-      />
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
       <path d="M7 9h10" />
       <path d="M7 13h6" />
       <path d="M7 17h8" />
@@ -173,6 +146,7 @@ function CloseIcon({
       stroke="currentColor"
       strokeWidth="1.8"
       strokeLinecap="round"
+      strokeLinejoin="round"
       className={className}
       aria-hidden="true"
     >
@@ -220,6 +194,56 @@ function ChevronRightIcon({
       aria-hidden="true"
     >
       <path d="m9 18 6-6-6-6" />
+    </svg>
+  )
+}
+
+function SunIcon({
+  className = 'h-5 w-5',
+}: {
+  className?: string
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.42 1.42" />
+      <path d="m17.65 17.65 1.42 1.42" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.35 17.65-1.42 1.42" />
+      <path d="m19.07 4.93-1.42 1.42" />
+    </svg>
+  )
+}
+
+function MoonIcon({
+  className = 'h-5 w-5',
+}: {
+  className?: string
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M20.8 14.4A8.7 8.7 0 0 1 9.6 3.2 8.7 8.7 0 1 0 20.8 14.4Z" />
     </svg>
   )
 }
@@ -338,6 +362,55 @@ function getBreadcrumbs(
   ]
 }
 
+function getPageTitle(pathname: string) {
+  if (pathname === '/') {
+    return 'Dashboard - EstateForge'
+  }
+
+  if (pathname === '/inmuebles') {
+    return 'Inmuebles - EstateForge'
+  }
+
+  if (pathname === '/inmuebles/nuevo') {
+    return 'Crear inmueble - EstateForge'
+  }
+
+  if (pathname.startsWith('/inmuebles/')) {
+    return 'Detalles del inmueble - EstateForge'
+  }
+
+  if (pathname === '/historial') {
+    return 'Anuncios - EstateForge'
+  }
+
+  if (pathname.startsWith('/historial/')) {
+    return 'Detalles del anuncio - EstateForge'
+  }
+
+  return 'EstateForge'
+}
+
+function getInitialDarkMode() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  const storedTheme =
+    window.localStorage.getItem('estateforge-theme')
+
+  if (storedTheme === 'dark') {
+    return true
+  }
+
+  if (storedTheme === 'light') {
+    return false
+  }
+
+  return window.matchMedia(
+    '(prefers-color-scheme: dark)',
+  ).matches
+}
+
 function AppLayout() {
   const location = useLocation()
 
@@ -346,6 +419,17 @@ function AppLayout() {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] =
     useState(false)
+
+  const [isDarkMode, setIsDarkMode] =
+    useState(getInitialDarkMode)
+
+  const currentLogo = isDarkMode
+    ? appLogoWhite
+    : appLogo
+
+  const currentIcon = isDarkMode
+    ? appIconWhite
+    : appIcon
 
   const breadcrumbs = getBreadcrumbs(
     location.pathname,
@@ -363,6 +447,118 @@ function AppLayout() {
     }
   }
 
+  const handleToggleTheme = () => {
+    setIsDarkMode((previous) => {
+      const nextTheme = !previous
+
+      document.documentElement.classList.toggle(
+        'dark',
+        nextTheme,
+      )
+
+      window.localStorage.setItem(
+        'estateforge-theme',
+        nextTheme ? 'dark' : 'light',
+      )
+
+      return nextTheme
+    })
+  }
+
+  // ============================================================
+  // TÍTULO DE LA PESTAÑA
+  // ============================================================
+
+  useEffect(() => {
+    document.title = getPageTitle(
+      location.pathname,
+    )
+  }, [location.pathname])
+
+  // ============================================================
+  // SINCRONIZACIÓN DEL MODO OSCURO
+  // ============================================================
+
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'dark',
+      isDarkMode,
+    )
+  }, [isDarkMode])
+
+  // ============================================================
+  // FAVICON
+  // ============================================================
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(
+      '(prefers-color-scheme: dark)',
+    )
+
+    const updateFavicon = (
+      isSystemDark: boolean,
+    ) => {
+      let favicon =
+        document.querySelector<HTMLLinkElement>(
+          "link[rel*='icon']",
+        )
+
+      if (!favicon) {
+        favicon = document.createElement('link')
+        favicon.rel = 'icon'
+        document.head.appendChild(favicon)
+      }
+
+      favicon.href = isSystemDark
+        ? appIconWhite
+        : appIcon
+    }
+
+    updateFavicon(mediaQuery.matches)
+
+    const handleSystemThemeChange = (
+      event: MediaQueryListEvent,
+    ) => {
+      updateFavicon(event.matches)
+    }
+
+    mediaQuery.addEventListener(
+      'change',
+      handleSystemThemeChange,
+    )
+
+    return () =>
+      mediaQuery.removeEventListener(
+        'change',
+        handleSystemThemeChange,
+      )
+  }, [])
+
+  // ============================================================
+  // RESPONSIVE SIDEBAR
+  // ============================================================
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarCollapsed(false)
+      }
+    }
+
+    handleResize()
+
+    window.addEventListener(
+      'resize',
+      handleResize,
+    )
+
+    return () =>
+      window.removeEventListener(
+        'resize',
+        handleResize,
+      )
+  }, [])
+
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-background">
       {/* =====================================================
@@ -374,7 +570,6 @@ function AppLayout() {
           'fixed inset-0 z-40 bg-black/30',
           'transition-opacity duration-300',
           'md:hidden',
-
           isMobileMenuOpen
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none opacity-0',
@@ -391,19 +586,16 @@ function AppLayout() {
         className={[
           'fixed inset-y-0 left-0 z-50',
           'flex shrink-0 flex-col',
-          'border-r bg-card',
+          'border-r border-border bg-card',
           'shadow-xl md:shadow-sm',
 
-          // Desktop
           'md:relative md:inset-auto md:z-auto',
           'md:translate-x-0',
 
-          // Ancho estable: evita saltos del contenido
           isSidebarCollapsed
             ? 'md:w-19'
             : 'md:w-60',
 
-          // Mobile
           'w-60',
           'transition-[width,transform]',
           'duration-300',
@@ -422,7 +614,7 @@ function AppLayout() {
           className={[
             'relative flex h-24 shrink-0',
             'items-center',
-            'border-b',
+            'border-b border-border',
             'overflow-hidden',
             'transition-[padding] duration-300',
 
@@ -431,9 +623,6 @@ function AppLayout() {
               : 'justify-center px-4',
           ].join(' ')}
         >
-          {/* Contenedor real del logo.
-              El logo NUNCA puede superar este espacio. */}
-
           <NavLink
             to="/"
             onClick={closeMobileMenu}
@@ -447,14 +636,12 @@ function AppLayout() {
                 ? 'h-20 w-12 justify-start'
                 : 'h-20 w-44 justify-center',
 
-              // En móvil reservamos espacio para el botón
               'max-md:h-20 max-md:w-40',
               'max-md:justify-start',
             ].join(' ')}
           >
-            {/* Logo completo */}
             <img
-              src={appLogo}
+              src={currentLogo}
               alt="EstateForge"
               aria-hidden={isSidebarCollapsed}
               className={[
@@ -471,20 +658,21 @@ function AppLayout() {
                 'ease-in-out',
 
                 isSidebarCollapsed
-                  ? 'scale-95 opacity-0'
+                  ? 'scale-95 opacity-0 md:opacity-0'
                   : 'scale-100 opacity-100',
+
+                'max-md:scale-100 max-md:opacity-100',
               ].join(' ')}
             />
 
-            {/* Icono compacto */}
             <img
-              src={appIcon}
+              src={currentIcon}
               alt="EstateForge"
               aria-hidden={!isSidebarCollapsed}
               className={[
                 'absolute left-0 top-1/2',
                 '-translate-y-1/2',
-                'block',
+                'hidden md:block',
                 'h-12 w-12',
                 'object-contain',
                 'transition-[opacity,transform]',
@@ -498,7 +686,7 @@ function AppLayout() {
             />
           </NavLink>
 
-          {/* Botón móvil separado del área del logo */}
+          {/* Botón móvil */}
 
           <button
             type="button"
@@ -578,12 +766,6 @@ function AppLayout() {
                     />
                   </span>
 
-                  {/* 
-                    El texto NO ocupa espacio en el layout.
-                    Así la anchura del sidebar permanece estable
-                    durante la animación.
-                  */}
-
                   <span
                     className={[
                       'pointer-events-none absolute',
@@ -639,14 +821,14 @@ function AppLayout() {
             className={[
               'group relative flex h-11 shrink-0',
               'items-center rounded-xl',
-              'border border-blue-200/80',
-              'bg-blue-50/70',
-              'text-blue-600',
+              'border border-blue-200/80 dark:border-blue-400/20',
+              'bg-blue-50/70 dark:bg-blue-950/30',
+              'text-blue-600 dark:text-blue-300',
               'shadow-sm',
               'transition-all duration-200',
               'hover:-translate-y-0.5',
-              'hover:bg-blue-50',
-              'hover:text-blue-700',
+              'hover:bg-blue-50 dark:hover:bg-blue-950/50',
+              'hover:text-blue-700 dark:hover:text-blue-200',
               'hover:shadow-md',
 
               isSidebarCollapsed
@@ -707,7 +889,7 @@ function AppLayout() {
           className={[
             'flex h-24 w-full min-w-0',
             'items-center',
-            'border-b bg-card',
+            'border-b border-border bg-card',
             'px-4 sm:px-6 lg:px-8',
           ].join(' ')}
         >
@@ -739,13 +921,6 @@ function AppLayout() {
 
             {/* =================================================
                 BREADCRUMBS
-
-                Se mantiene el estilo original:
-                - gradiente azul
-                - borde translúcido
-                - sombra azul
-                - chevron/notch
-                - borde derecho completamente recto
                 ================================================= */}
 
             <nav
@@ -770,36 +945,30 @@ function AppLayout() {
                       'items-center',
                       'transition-all duration-200',
                       'select-none',
+                      'text-xs sm:text-sm',
+                      'bg-accent text-accent-foreground',
+                      'border border-border',
+                      'shadow-sm',
 
                       isFirst
                         ? 'rounded-xl px-3'
                         : 'pl-7 pr-4 rounded-r-xl',
 
                       isLast
-                        ? 'font-semibold'
-                        : 'font-medium',
+                        ? 'font-semibold text-foreground bg-accent/80'
+                        : 'font-medium opacity-90',
 
                       breadcrumb.to
                         ? [
                             'cursor-pointer',
                             'hover:-translate-y-0.5',
-                            'hover:brightness-105',
+                            'hover:bg-accent/90',
                             'hover:shadow-md',
                           ].join(' ')
                         : 'cursor-default',
                     ].join(' ')
 
                     const breadcrumbStyle = {
-                      background: isFirst
-                        ? 'linear-gradient(135deg, rgba(239,246,255,0.98), rgba(219,234,254,0.92))'
-                        : 'linear-gradient(135deg, rgba(219,234,254,0.94), rgba(191,219,254,0.82))',
-
-                      border:
-                        '1px solid rgba(147,197,253,0.48)',
-
-                      boxShadow:
-                        '0 2px 7px rgba(37,99,235,0.10)',
-
                       clipPath: isFirst
                         ? undefined
                         : 'polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 24px 50%)',
@@ -818,7 +987,7 @@ function AppLayout() {
                               '-mr-3',
                               'flex h-9 w-6',
                               'items-center justify-center',
-                              'text-blue-500/70',
+                              'text-muted-foreground/70',
                               'pointer-events-none',
                             ].join(' ')}
                           >
@@ -863,16 +1032,55 @@ function AppLayout() {
                 )}
               </ol>
             </nav>
+
+            {/* =================================================
+                TOGGLE MODO OSCURO
+                ================================================= */}
+
+            <button
+              type="button"
+              onClick={handleToggleTheme}
+              aria-label={
+                isDarkMode
+                  ? 'Cambiar a modo claro'
+                  : 'Cambiar a modo oscuro'
+              }
+              title={
+                isDarkMode
+                  ? 'Modo claro'
+                  : 'Modo oscuro'
+              }
+              className={[
+                'flex h-10 w-10 shrink-0',
+                'items-center justify-center',
+                'rounded-xl',
+                'border border-border/80',
+                'bg-background',
+                'text-muted-foreground',
+                'shadow-sm',
+                'transition-all duration-200',
+                'hover:-translate-y-0.5',
+                'hover:bg-accent',
+                'hover:text-foreground',
+                'hover:shadow-md',
+                'focus-visible:outline-none',
+                'focus-visible:ring-2',
+                'focus-visible:ring-ring',
+                'focus-visible:ring-offset-2',
+                'focus-visible:ring-offset-background',
+              ].join(' ')}
+            >
+              {isDarkMode ? (
+                <SunIcon className="h-5 w-5" />
+              ) : (
+                <MoonIcon className="h-5 w-5" />
+              )}
+            </button>
           </div>
         </header>
 
         {/* ===================================================
             CONTENIDO
-
-            min-w-0 es especialmente importante aquí:
-            permite que flex reduzca correctamente el área
-            disponible en móvil en lugar de mantener un
-            ancho intrínseco que provoque overflow.
             =================================================== */}
 
         <div
