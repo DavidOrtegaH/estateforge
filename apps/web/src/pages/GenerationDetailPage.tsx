@@ -239,6 +239,18 @@ function GenerationDetailPage() {
     void loadGeneration()
   }, [id])
 
+  // ==========================================================
+  // TITULO DE LA PESTANA
+  // ==========================================================
+
+  useEffect(() => {
+    const title = generation?.title?.trim()
+
+    document.title = title
+      ? `${title} - Anuncio - EstateForge`
+      : 'Detalles del anuncio - EstateForge'
+  }, [generation?.title])
+
   function handleStartEdit() {
     if (!generation) return
 
@@ -359,12 +371,12 @@ function GenerationDetailPage() {
         '',
         highlights.length > 0
           ? [
-              'Características destacadas:',
-              ...highlights.map(
-                (highlight) =>
-                  `• ${highlight}`,
-              ),
-            ].join('\n')
+            'Características destacadas:',
+            ...highlights.map(
+              (highlight) =>
+                `• ${highlight}`,
+            ),
+          ].join('\n')
           : '',
         '',
         generation.callToAction,
@@ -689,7 +701,7 @@ function GenerationDetailPage() {
 
               <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
                 {generation.language ===
-                'es'
+                  'es'
                   ? 'Español'
                   : generation.language}
               </span>
@@ -773,7 +785,7 @@ function GenerationDetailPage() {
             </h2>
 
             {highlights.length ===
-            0 ? (
+              0 ? (
               <p className="mt-4 text-sm text-muted-foreground">
                 No se han indicado
                 características destacadas.
@@ -847,7 +859,7 @@ function GenerationDetailPage() {
 
                 <dd className="mt-1 font-medium capitalize">
                   {generation.language ===
-                  'es'
+                    'es'
                     ? 'Español'
                     : generation.language}
                 </dd>
@@ -1035,8 +1047,8 @@ function GenerationDetailPage() {
                   {(
                     property as {
                       floor?:
-                        | number
-                        | null
+                      | number
+                      | null
                     }
                   ).floor ?? '—'}
                 </dd>
@@ -1052,10 +1064,10 @@ function GenerationDetailPage() {
                 <dd className="mt-1 font-medium">
                   {generation.createdAt
                     ? new Date(
-                        generation.createdAt,
-                      ).toLocaleString(
-                        'es-ES',
-                      )
+                      generation.createdAt,
+                    ).toLocaleString(
+                      'es-ES',
+                    )
                     : 'No indicada'}
                 </dd>
               </div>
@@ -1068,3 +1080,4 @@ function GenerationDetailPage() {
 }
 
 export default GenerationDetailPage
+

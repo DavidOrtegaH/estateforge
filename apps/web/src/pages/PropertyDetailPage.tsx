@@ -367,6 +367,18 @@ function PropertyDetailPage() {
   }, [id])
 
   // ==========================================================
+  // TITULO DE LA PESTANA
+  // ==========================================================
+
+  useEffect(() => {
+    const title = property?.title?.trim()
+
+    document.title = title
+      ? `${title} - Inmueble - EstateForge`
+      : 'Detalles del inmueble - EstateForge'
+  }, [property?.title])
+
+  // ==========================================================
   // SCROLL PAGINACIÓN
   // ==========================================================
 
@@ -2642,7 +2654,7 @@ function PropertyDetailPage() {
                           <span className="rounded-md bg-muted px-2 py-1 text-xs">
                             Generado el{' '}
                             {formatGenerationDate(generation.createdAt)
-                           }
+                            }
                           </span>
                         </div>
 
@@ -2793,5 +2805,6 @@ function PropertyDetailPage() {
 }
 
 export default PropertyDetailPage
+
 
 
