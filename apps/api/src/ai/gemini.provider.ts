@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from '@google/genai'
 
 import {
@@ -61,7 +62,7 @@ function extractPropertyFromPrompt(
   if (jsonStart === -1) {
     throw new AIProviderError(
       'AI_PROVIDER_ERROR',
-      'No se encontró el JSON del inmueble en el prompt.',
+      'No se encontrÃ³ el JSON del inmueble en el prompt.',
     )
   }
 
@@ -107,7 +108,7 @@ function extractPropertyFromPrompt(
   } catch {
     throw new AIProviderError(
       'AI_PROVIDER_ERROR',
-      'Los datos del inmueble no tienen un formato válido.',
+      'Los datos del inmueble no tienen un formato vÃ¡lido.',
     )
   }
 }
@@ -125,7 +126,7 @@ export class GeminiProvider
     if (!resolvedApiKey) {
       throw new AIProviderError(
         'AI_INVALID_API_KEY',
-        'La API key de Gemini no está configurada.',
+        'La API key de Gemini no estÃ¡ configurada.',
       )
     }
 
@@ -151,6 +152,30 @@ export class GeminiProvider
         extractPropertyFromPrompt(
           prompt,
         )
+
+      const propertyTypeLabel =
+        inputProperty.type === 'villa' ||
+        inputProperty.type === 'chalet'
+          ? 'Chalet'
+          : inputProperty.type === 'apartment' ||
+              inputProperty.type === 'flat'
+            ? 'Piso'
+            : inputProperty.type === 'house'
+              ? 'Casa'
+              : inputProperty.type === 'penthouse'
+                ? 'Ático'
+                : inputProperty.type === 'duplex'
+                  ? 'Dúplex'
+                  : inputProperty.type === 'studio'
+                    ? 'Estudio'
+                    : inputProperty.type === 'commercial'
+                      ? 'Local comercial'
+                      : inputProperty.type === 'office'
+                        ? 'Oficina'
+                        : inputProperty.type === 'land'
+                          ? 'Terreno'
+                          : 'Inmueble'
+
 
       const response =
         await this.client.models.generateContent(
@@ -210,7 +235,7 @@ export class GeminiProvider
       if (!text) {
         throw new AIProviderError(
           'AI_PROVIDER_ERROR',
-          'Gemini no devolvió contenido.',
+          'Gemini no devolviÃ³ contenido.',
         )
       }
 
@@ -222,7 +247,7 @@ export class GeminiProvider
       } catch {
         throw new AIProviderError(
           'AI_PROVIDER_ERROR',
-          'Gemini devolvió una respuesta que no es JSON válido.',
+          'Gemini devolviÃ³ una respuesta que no es JSON vÃ¡lido.',
         )
       }
 
@@ -232,7 +257,7 @@ export class GeminiProvider
       ) {
         throw new AIProviderError(
           'AI_PROVIDER_ERROR',
-          'Gemini devolvió un anuncio con un formato inválido.',
+          'Gemini devolviÃ³ un anuncio con un formato invÃ¡lido.',
         )
       }
 
@@ -241,6 +266,42 @@ export class GeminiProvider
           string,
           unknown
         >
+
+      if (
+        inputProperty.type === 'villa' ||
+        inputProperty.type === 'chalet'
+      ) {
+        const languageMatch =
+          prompt.match(/IDIOMA:\s*([\s\S]*?)\n\s*DATOS DEL INMUEBLE:/)
+        const isSpanish =
+          languageMatch?.[1]
+            ?.toLowerCase()
+            .includes('español') ?? false
+
+        if (isSpanish) {
+          for (const field of [
+            'title',
+            'description',
+            'highlights',
+            'callToAction',
+          ]) {
+            const value = parsedListing[field]
+
+            if (typeof value === 'string') {
+              parsedListing[field] = value.replace(
+                /\bvilla\b/gi,
+                propertyTypeLabel,
+              )
+            } else if (Array.isArray(value)) {
+              parsedListing[field] = value.map((item) =>
+                typeof item === 'string'
+                  ? item.replace(/\bvilla\b/gi, propertyTypeLabel)
+                  : item,
+              )
+            }
+          }
+        }
+      }
 
       if (
         inputProperty.title &&
@@ -268,7 +329,7 @@ export class GeminiProvider
       if (!validation.success) {
         throw new AIProviderError(
           'AI_PROVIDER_ERROR',
-          'Gemini devolvió un anuncio con un formato inválido.',
+          'Gemini devolviÃ³ un anuncio con un formato invÃ¡lido.',
         )
       }
 
@@ -283,7 +344,7 @@ export class GeminiProvider
       ) {
         throw new AIProviderError(
           'AI_TIMEOUT',
-          'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo límite de 40 segundos.',
+          'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo lÃ­mite de 40 segundos.',
         )
       }
 

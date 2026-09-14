@@ -21,7 +21,7 @@ import {
 
 const toneLabels: Record<string, string> = {
   professional: 'Profesional',
-  friendly: 'Amigable',
+  friendly: 'Cercano',
   commercial: 'Comercial',
   luxurious: 'De lujo',
   casual: 'Casual',
@@ -196,7 +196,7 @@ function deduplicateHighlights(
 }
 
 // ============================================================
-// FILTROS NUMÉRICOS
+// FILTROS NUMÃRICOS
 // ============================================================
 
 function getNumberValue(
@@ -381,7 +381,7 @@ function HistoryPage() {
   const itemsPerPage = 4
 
   // ==========================================================
-  // BÚSQUEDA / ORDENACIÓN
+  // BÃSQUEDA / ORDENACIÃN
   // ==========================================================
 
   const [searchTerm, setSearchTerm] =
@@ -701,7 +701,7 @@ function HistoryPage() {
     ])
 
   // ==========================================================
-  // PAGINACIÓN
+  // PAGINACIÃN
   // ==========================================================
 
   const totalPages = Math.max(
@@ -762,7 +762,7 @@ function HistoryPage() {
   }, [currentPage])
 
   // ==========================================================
-  // SELECCIÓN
+  // SELECCIÃN
   // ==========================================================
 
   const currentPageIds = useMemo(
@@ -1079,7 +1079,7 @@ function HistoryPage() {
     }, [generations])
 
   // ==========================================================
-  // COMPONENTE FILTRO NUMÉRICO
+  // COMPONENTE FILTRO NUMÃRICO
   // ==========================================================
 
   const renderNumericFilter = (
@@ -1281,7 +1281,7 @@ function HistoryPage() {
             </div>
           ) : (
             <div>
-              {/* BÚSQUEDA / ORDENAR / FILTRAR */}
+              {/* BÃSQUEDA / ORDENAR / FILTRAR */}
 
               <div className="mt-8 rounded-lg border bg-card p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -1462,7 +1462,7 @@ function HistoryPage() {
                 </span>
               </div>
 
-              {/* SELECCIÓN */}
+              {/* SELECCIÃN */}
 
               <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
@@ -1659,7 +1659,7 @@ function HistoryPage() {
                                 }`}
                             >
                               {isSelected
-                                ? '✓ Seleccionado'
+                                ? 'â Seleccionado'
                                 : 'Seleccionar'}
                             </div>
                           </div>
@@ -1909,7 +1909,7 @@ function HistoryPage() {
                 </div>
               )}
 
-              {/* PAGINACIÓN */}
+              {/* PAGINACIÃN */}
 
               {totalPages > 1 && (
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
@@ -2017,7 +2017,7 @@ function HistoryPage() {
             </div>
 
             <div className="space-y-6 p-5">
-              {/* NUMÉRICOS */}
+              {/* NUMÃRICOS */}
 
               <div className="grid gap-5 sm:grid-cols-2">
                 {renderNumericFilter(
@@ -2051,7 +2051,7 @@ function HistoryPage() {
                 )}
               </div>
 
-              {/* OPERACIÓN + TIPO */}
+              {/* OPERACIÃN + TIPO */}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

@@ -36,7 +36,7 @@ const operationLabels: Record<string, string> = {
 // Diccionario de traducción para los tonos
 const toneLabels: Record<string, string> = {
   professional: 'Profesional',
-  friendly: 'Amigable',
+  friendly: 'Cercano',
   commercial: 'Comercial',
   luxurious: 'De lujo',
   casual: 'Casual',
@@ -239,18 +239,6 @@ function GenerationDetailPage() {
     void loadGeneration()
   }, [id])
 
-  // ==========================================================
-  // TITULO DE LA PESTANA
-  // ==========================================================
-
-  useEffect(() => {
-    const title = generation?.title?.trim()
-
-    document.title = title
-      ? `${title} - Anuncio - EstateForge`
-      : 'Detalles del anuncio - EstateForge'
-  }, [generation?.title])
-
   function handleStartEdit() {
     if (!generation) return
 
@@ -371,12 +359,12 @@ function GenerationDetailPage() {
         '',
         highlights.length > 0
           ? [
-            'Características destacadas:',
-            ...highlights.map(
-              (highlight) =>
-                `• ${highlight}`,
-            ),
-          ].join('\n')
+              'Características destacadas:',
+              ...highlights.map(
+                (highlight) =>
+                  `• ${highlight}`,
+              ),
+            ].join('\n')
           : '',
         '',
         generation.callToAction,
@@ -508,7 +496,7 @@ function GenerationDetailPage() {
       </div>
 
       {/* =====================================================
-          EDICIÓN
+          EDICIÃN
       ====================================================== */}
 
       {isEditing ? (
@@ -559,7 +547,7 @@ function GenerationDetailPage() {
               />
             </div>
 
-            {/* DESCRIPCIÓN */}
+            {/* DESCRIPCIÃN */}
 
             <div>
               <label
@@ -701,7 +689,7 @@ function GenerationDetailPage() {
 
               <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
                 {generation.language ===
-                  'es'
+                'es'
                   ? 'Español'
                   : generation.language}
               </span>
@@ -762,7 +750,7 @@ function GenerationDetailPage() {
           </div>
 
           {/* =================================================
-              DESCRIPCIÓN
+              DESCRIPCIÃN
           ================================================== */}
 
           <section className="mt-8 rounded-lg border bg-card p-6">
@@ -785,7 +773,7 @@ function GenerationDetailPage() {
             </h2>
 
             {highlights.length ===
-              0 ? (
+            0 ? (
               <p className="mt-4 text-sm text-muted-foreground">
                 No se han indicado
                 características destacadas.
@@ -807,7 +795,7 @@ function GenerationDetailPage() {
           </section>
 
           {/* =================================================
-              LLAMADA A LA ACCIÓN
+              LLAMADA A LA ACCIÃN
           ================================================== */}
 
           <section className="mt-6 rounded-lg border bg-card p-6">
@@ -821,7 +809,7 @@ function GenerationDetailPage() {
           </section>
 
           {/* =================================================
-              INFORMACIÓN DE GENERACIÓN
+              INFORMACIÃN DE GENERACIÃN
           ================================================== */}
 
           <section className="mt-6 rounded-lg border bg-card p-6">
@@ -859,7 +847,7 @@ function GenerationDetailPage() {
 
                 <dd className="mt-1 font-medium capitalize">
                   {generation.language ===
-                    'es'
+                  'es'
                     ? 'Español'
                     : generation.language}
                 </dd>
@@ -882,7 +870,7 @@ function GenerationDetailPage() {
           </section>
 
           {/* =================================================
-              INFORMACIÓN DEL INMUEBLE ASOCIADO
+              INFORMACIÃN DEL INMUEBLE ASOCIADO
           ================================================== */}
 
           <section className="mt-6 rounded-lg border bg-card p-6">
@@ -1047,8 +1035,8 @@ function GenerationDetailPage() {
                   {(
                     property as {
                       floor?:
-                      | number
-                      | null
+                        | number
+                        | null
                     }
                   ).floor ?? '—'}
                 </dd>
@@ -1064,10 +1052,10 @@ function GenerationDetailPage() {
                 <dd className="mt-1 font-medium">
                   {generation.createdAt
                     ? new Date(
-                      generation.createdAt,
-                    ).toLocaleString(
-                      'es-ES',
-                    )
+                        generation.createdAt,
+                      ).toLocaleString(
+                        'es-ES',
+                      )
                     : 'No indicada'}
                 </dd>
               </div>
@@ -1080,4 +1068,3 @@ function GenerationDetailPage() {
 }
 
 export default GenerationDetailPage
-

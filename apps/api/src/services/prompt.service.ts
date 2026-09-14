@@ -34,6 +34,42 @@ de un anuncio inmobiliario.
 Puedes utilizar una redacción más cálida y accesible, pero nunca inventes
 características ni afirmaciones sobre el inmueble.
 `.trim()
+
+    case 'close':
+      return `
+El tono debe ser cercano, natural y humano, transmitiendo confianza y
+facilidad de lectura.
+
+Mantén siempre la precisión de los datos proporcionados y no inventes
+características ni afirmaciones sobre el inmueble.
+`.trim()
+
+    case 'enthusiastic':
+      return `
+El tono debe ser positivo, dinámico y atractivo, destacando las
+características reales del inmueble.
+
+No utilices exageraciones ni afirmaciones que no estén respaldadas por los
+datos proporcionados.
+`.trim()
+
+    case 'investment':
+      return `
+El tono debe estar orientado a compradores interesados en inversión
+inmobiliaria, utilizando una redacción clara y objetiva.
+
+No inventes rentabilidad, demanda, potencial de revalorización, retorno de
+inversión ni ninguna otra ventaja económica que no aparezca explícitamente
+en los datos proporcionados.
+`.trim()
+
+    default:
+      return `
+El tono debe ser claro, natural y adecuado para un anuncio inmobiliario.
+
+Mantén siempre la precisión de los datos proporcionados y no inventes
+características ni afirmaciones sobre el inmueble.
+`.trim()
   }
 }
 
@@ -42,13 +78,35 @@ function getLanguageInstructions(
 ): string {
   switch (language) {
     case 'español':
+    case 'es':
       return `
 Escribe todo el anuncio en español.
 `.trim()
 
     case 'english':
+    case 'en':
       return `
 Write the entire listing in English.
+`.trim()
+
+    case 'ca':
+      return `
+Escriu tot l'anunci en català.
+`.trim()
+
+    case 'gl':
+      return `
+Escribe todo o anuncio en galego.
+`.trim()
+
+    case 'eu':
+      return `
+Idatzi iragarki osoa euskaraz.
+`.trim()
+
+    default:
+      return `
+Escribe todo el anuncio en español.
 `.trim()
   }
 }
@@ -109,6 +167,17 @@ REGLAS DE CONTENIDO:
 
 14. No añadas información inmobiliaria genérica que pueda interpretarse
     como una característica real del inmueble.
+
+15. TERMINOLOGÍA DEL TIPO DE INMUEBLE:
+    Si los datos del inmueble indican que el tipo es "chalet" o "villa"
+    cuando se utilice como equivalente del tipo de vivienda en estos datos,
+    y el anuncio se escribe en español, utiliza siempre "Chalet" para
+    referirte al inmueble.
+
+    No utilices "Villa" como sustituto de "Chalet".
+
+    Respeta el tipo real indicado en los datos y no cambies otros tipos
+    de inmueble.
 
 REGLAS DE REDACCIÓN:
 
