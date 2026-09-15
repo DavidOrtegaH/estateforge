@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -907,9 +908,7 @@ function DashboardPage() {
               generationForm.title.trim(),
             description:
               generationForm.description,
-            highlights: JSON.stringify(
-              highlights,
-            ),
+            highlights,
             callToAction:
               generationForm.callToAction,
           },
@@ -1319,7 +1318,7 @@ function DashboardPage() {
             to="/inmuebles"
             className="text-sm font-medium text-primary hover:underline"
           >
-            Ver todos
+            Ver todos los inmuebles
           </Link>
         </div>
 
@@ -1491,12 +1490,6 @@ function DashboardPage() {
                               <span className="rounded-md bg-muted px-2 py-1">
                                 {getOperationLabel(
                                   property.operation,
-                                )}
-                              </span>
-
-                              <span className="rounded-md bg-muted px-2 py-1">
-                                {getPropertyTypeLabel(
-                                  property.type,
                                 )}
                               </span>
 
@@ -2214,7 +2207,7 @@ function DashboardPage() {
             to="/historial"
             className="text-sm font-medium text-primary hover:underline"
           >
-            Ver historial
+            Ver todos los anuncios
           </Link>
         </div>
 

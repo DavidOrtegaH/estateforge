@@ -29,7 +29,7 @@ const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
   flat: 'Piso',
   house: 'Casa',
-  chalet: 'Chalet',
+  villa: 'Chalet',
   penthouse: 'Ático',
   duplex: 'Dúplex',
   studio: 'Estudio',
@@ -1258,7 +1258,7 @@ function PropertyDetailPage() {
                     Casa
                   </option>
 
-                  <option value="chalet">
+                  <option value="villa">
                     Chalet
                   </option>
 

@@ -17,7 +17,7 @@ const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
   flat: 'Piso',
   house: 'Casa',
-  chalet: 'Chalet',
+  villa: 'Chalet',
   penthouse: 'Ático',
   duplex: 'Dúplex',
   studio: 'Estudio',
@@ -291,7 +291,7 @@ function GenerationDetailPage() {
             description:
               editForm.description,
             highlights:
-              highlightsArray.join('\n'),
+              highlightsArray,
             callToAction:
               editForm.callToAction,
           },

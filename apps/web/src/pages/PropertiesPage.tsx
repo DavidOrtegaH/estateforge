@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
-import { buildPropertyHighlights } from '@/utils/propertyHighlights'
-
 import {
   deleteProperties,
   getProperties,
@@ -18,6 +16,7 @@ const propertyTypeLabels: Record<string, string> = {
   flat: 'Piso',
   house: 'Casa',
   chalet: 'Chalet',
+  villa: 'Chalet',
   penthouse: 'Ático',
   duplex: 'Dúplex',
   studio: 'Estudio',
@@ -107,16 +106,16 @@ type PropertyFilters = {
 const propertyFeatureLabels: Array<
   [BooleanFilterField, string]
 > = [
-  ['pool', 'Piscina'],
-  ['garden', 'Jardín'],
-  ['terrace', 'Terraza'],
-  ['balcony', 'Balcón'],
-  ['garage', 'Garaje'],
-  ['storageRoom', 'Trastero'],
-  ['elevator', 'Ascensor'],
-  ['airConditioning', 'Aire acondicionado'],
-  ['heating', 'Calefacción'],
-]
+    ['pool', 'Piscina'],
+    ['garden', 'Jardín'],
+    ['terrace', 'Terraza'],
+    ['balcony', 'Balcón'],
+    ['garage', 'Garaje'],
+    ['storageRoom', 'Trastero'],
+    ['elevator', 'Ascensor'],
+    ['airConditioning', 'Aire acondicionado'],
+    ['heating', 'Calefacción'],
+  ]
 
 // ============================================================
 // FILTROS NUMÉRICOS
@@ -172,15 +171,11 @@ function normalizeBoolean(
     return value
   }
 
-  if (
-    typeof value === 'number'
-  ) {
+  if (typeof value === 'number') {
     return value !== 0
   }
 
-  if (
-    typeof value === 'string'
-  ) {
+  if (typeof value === 'string') {
     const normalized =
       value.trim().toLocaleLowerCase('es-ES')
 
@@ -222,25 +217,20 @@ function normalizeBoolean(
 function getNumericPropertyValue(
   value: unknown,
 ): number {
-  if (
-    typeof value === 'number'
-  ) {
+  if (typeof value === 'number') {
     return Number.isFinite(value)
       ? value
       : 0
   }
 
-  if (
-    typeof value === 'string'
-  ) {
+  if (typeof value === 'string') {
     const normalized =
       value
         .trim()
         .replace(/\./g, '')
         .replace(',', '.')
 
-    const parsed =
-      Number(normalized)
+    const parsed = Number(normalized)
 
     return Number.isFinite(parsed)
       ? parsed
@@ -257,51 +247,42 @@ function getNumericPropertyValue(
 function getPropertyOperation(
   operation: string | undefined,
 ): string {
-  const normalized =
-    normalizeText(operation)
+  const normalized = normalizeText(operation)
 
   if (!normalized) {
     return 'No indicado'
   }
 
   return (
-    propertyOperationLabels[
-      normalized
-    ] || operation || ''
+    propertyOperationLabels[normalized] || operation || ''
   )
 }
 
 function getPropertyTypeLabel(
   type: string | undefined,
 ): string {
-  const normalized =
-    normalizeText(type)
+  const normalized = normalizeText(type)
 
   if (!normalized) {
     return 'No indicado'
   }
 
   return (
-    propertyTypeLabels[
-      normalized
-    ] || type || ''
+    propertyTypeLabels[normalized] || type || ''
   )
 }
 
 function getPropertyCondition(
   condition: string | undefined,
 ): string {
-  const normalized =
-    normalizeText(condition)
+  const normalized = normalizeText(condition)
 
   if (!normalized) {
     return ''
   }
 
   return (
-    propertyConditionLabels[
-      normalized
-    ] || condition || ''
+    propertyConditionLabels[normalized] || condition || ''
   )
 }
 
@@ -312,315 +293,102 @@ function capitalizeFirstLetter(
     return ''
   }
 
-  return (
-    text.charAt(0).toUpperCase() +
-    text.slice(1)
-  )
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 // ============================================================
-// HIGHLIGHTS
+// PÍLDORAS ESTRUCTURADAS
 // ============================================================
 
-function parseHighlights(
-  highlights: unknown,
-): string[] {
-  if (Array.isArray(highlights)) {
-    return highlights.filter(
-      (item): item is string =>
-        typeof item === 'string' &&
-        item.trim().length > 0,
-    )
-  }
-
-  if (typeof highlights === 'string') {
-    try {
-      const parsed: unknown =
-        JSON.parse(highlights)
-
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (item): item is string =>
-            typeof item === 'string' &&
-            item.trim().length > 0,
-        )
-      }
-    } catch {
-      return highlights
-        .split('\n')
-        .map((item) =>
-          item
-            .replace(/^[-•*]\s*/, '')
-            .trim(),
-        )
-        .filter(Boolean)
-    }
-  }
-
-  return []
-}
-
-function getPropertyHighlights(
+function getPropertyStructuredPills(
   property: PropertyItem,
 ): string[] {
-  const highlights: string[] = []
+  const pills: string[] = []
 
-  for (const generation of property.generations) {
-    const currentGenerationHighlights: string[] =
-      []
+  // PRECIO
+  const price = getNumericPropertyValue(property.price)
+  if (price > 0) {
+    pills.push(`${price.toLocaleString('es-ES')} €`)
+  }
 
-    const structured =
-      buildPropertyHighlights(generation)
+  // SUPERFICIE
+  const area = getNumericPropertyValue(property.area)
+  if (area > 0) {
+    pills.push(`${area.toLocaleString('es-ES')} m²`)
+  }
 
-    if (
-      structured &&
-      structured.length > 0
-    ) {
-      currentGenerationHighlights.push(
-        ...structured,
-      )
-    }
-
-    let rawHighlights: string[] = []
-
-    if (
-      typeof generation.highlights ===
-      'string'
-    ) {
-      try {
-        const parsed: unknown =
-          JSON.parse(
-            generation.highlights,
-          )
-
-        if (Array.isArray(parsed)) {
-          rawHighlights = parsed.filter(
-            (
-              item,
-            ): item is string =>
-              typeof item === 'string',
-          )
-        } else {
-          rawHighlights = [
-            generation.highlights,
-          ]
-        }
-      } catch {
-        rawHighlights = [
-          generation.highlights,
-        ]
-      }
-    } else if (
-      Array.isArray(generation.highlights)
-    ) {
-      rawHighlights =
-        generation.highlights
-    }
-
-    const extractedFromText =
-      rawHighlights.flatMap((item) => {
-        if (
-          typeof item !== 'string'
-        ) {
-          return []
-        }
-
-        if (item.length < 50) {
-          return [item]
-        }
-
-        const extracted: string[] = []
-
-        const areaMatch =
-          item.match(
-            /(\d+(?:[.,]\d+)?)\s*m[²2]/i,
-          )
-
-        if (areaMatch) {
-          extracted.push(
-            `${areaMatch[1]} m²`,
-          )
-        }
-
-        const roomsMatch =
-          item.match(
-            /(\d+)\s*(hab[a-z]*|habitaci[oó]n[a-z]*)/i,
-          )
-
-        if (roomsMatch) {
-          const count =
-            roomsMatch[1]
-
-          extracted.push(
-            `${count} ${
-              Number(count) === 1
-                ? 'habitación'
-                : 'habitaciones'
-            }`,
-          )
-        }
-
-        const bathsMatch =
-          item.match(
-            /(\d+)\s*(ba[nñ]o[s]?)/i,
-          )
-
-        if (bathsMatch) {
-          const count =
-            bathsMatch[1]
-
-          extracted.push(
-            `${count} ${
-              Number(count) === 1
-                ? 'baño'
-                : 'baños'
-            }`,
-          )
-        }
-
-        const normalized =
-          item.toLocaleLowerCase(
-            'es-ES',
-          )
-
-        if (
-          normalized.includes(
-            'piscina',
-          )
-        ) {
-          extracted.push('Piscina')
-        }
-
-        if (
-          normalized.includes(
-            'jardín',
-          ) ||
-          normalized.includes(
-            'jardin',
-          )
-        ) {
-          extracted.push('Jardín')
-        }
-
-        if (
-          normalized.includes(
-            'terraza',
-          )
-        ) {
-          extracted.push('Terraza')
-        }
-
-        if (
-          normalized.includes(
-            'balcón',
-          ) ||
-          normalized.includes(
-            'balcon',
-          )
-        ) {
-          extracted.push('Balcón')
-        }
-
-        if (
-          normalized.includes(
-            'garaje',
-          ) ||
-          normalized.includes(
-            'parking',
-          )
-        ) {
-          extracted.push('Garaje')
-        }
-
-        if (
-          normalized.includes(
-            'trastero',
-          )
-        ) {
-          extracted.push('Trastero')
-        }
-
-        if (
-          normalized.includes(
-            'ascensor',
-          )
-        ) {
-          extracted.push('Ascensor')
-        }
-
-        if (
-          normalized.includes(
-            'aire acondicionado',
-          )
-        ) {
-          extracted.push(
-            'Aire acondicionado',
-          )
-        }
-
-        if (
-          normalized.includes(
-            'calefacción',
-          ) ||
-          normalized.includes(
-            'calefaccion',
-          )
-        ) {
-          extracted.push(
-            'Calefacción',
-          )
-        }
-
-        return extracted
-      })
-
-    currentGenerationHighlights.push(
-      ...extractedFromText,
+  // HABITACIONES
+  const bedrooms = getNumericPropertyValue(property.bedrooms)
+  if (bedrooms > 0) {
+    pills.push(
+      `${bedrooms.toLocaleString('es-ES')} ${bedrooms === 1 ? 'habitación' : 'habitaciones'
+      }`,
     )
+  }
 
-    for (
-      const highlight of parseHighlights(
-        currentGenerationHighlights,
-      )
-    ) {
-      const normalizedHighlight =
-        normalizeText(highlight)
+  // BAÑOS
+  const bathrooms = getNumericPropertyValue(property.bathrooms)
+  if (bathrooms > 0) {
+    pills.push(
+      `${bathrooms.toLocaleString('es-ES')} ${bathrooms === 1 ? 'baño' : 'baños'
+      }`,
+    )
+  }
 
-      const alreadyExists =
-        highlights.some(
-          (existing) =>
-            normalizeText(existing) ===
-            normalizedHighlight,
-        )
-
-      if (
-        !alreadyExists
-      ) {
-        highlights.push(highlight)
-      }
+  // ESTADO
+  if (property.condition) {
+    const condition = getPropertyCondition(property.condition)
+    if (condition) {
+      pills.push(condition)
     }
   }
 
-  return highlights
-}
+  // OPERACIÓN
+  if (property.operation) {
+    const operation = getPropertyOperation(property.operation)
+    if (operation) {
+      pills.push(operation)
+    }
+  }
 
-// ============================================================
-// CARACTERÍSTICAS DEL INMUEBLE
-// ============================================================
+  // TIPO
+  if (property.type) {
+    const type = getPropertyTypeLabel(property.type)
+    if (type) {
+      pills.push(type)
+    }
+  }
 
-function getPropertyFeaturePills(
-  property: PropertyItem,
-): string[] {
-  return propertyFeatureLabels
-    .filter(
-      ([field]) =>
-        normalizeBoolean(
-          property[field],
-        ),
-    )
-    .map(
-      ([, label]) => label,
-    )
+  // UBICACIÓN
+  if (property.city) {
+    const city = capitalizeFirstLetter(property.city)
+    if (city) {
+      pills.push(city)
+    }
+  }
+
+  if (property.neighborhood) {
+    const neighborhood = capitalizeFirstLetter(property.neighborhood)
+    if (neighborhood) {
+      pills.push(neighborhood)
+    }
+  }
+
+  if (property.address) {
+    const address = capitalizeFirstLetter(property.address)
+    if (address) {
+      pills.push(address)
+    }
+  }
+
+  // CARACTERÍSTICAS BOOLEANAS
+  for (const [field, label] of propertyFeatureLabels) {
+    if (normalizeBoolean(property[field])) {
+      pills.push(label)
+    }
+  }
+
+  return pills
 }
 
 // ============================================================
@@ -634,12 +402,9 @@ function getCreatedAtTimestamp(
     return 0
   }
 
-  const timestamp =
-    new Date(createdAt).getTime()
+  const timestamp = new Date(createdAt).getTime()
 
-  return Number.isNaN(timestamp)
-    ? 0
-    : timestamp
+  return Number.isNaN(timestamp) ? 0 : timestamp
 }
 
 // ============================================================
@@ -649,75 +414,42 @@ function getCreatedAtTimestamp(
 function getNumericFilterValue(
   value: string,
 ): number | null {
-  if (
-    value.trim() === ''
-  ) {
+  if (value.trim() === '') {
     return null
   }
 
-  const normalized =
-    value
-      .trim()
-      .replace(',', '.')
+  const normalized = value.trim().replace(',', '.')
+  const parsed = Number(normalized)
 
-  const parsed =
-    Number(normalized)
-
-  return Number.isFinite(parsed)
-    ? parsed
-    : null
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function compareNumericValue(
   propertyValue: unknown,
   filter: NumericFilter,
 ): boolean {
-  const numericPropertyValue =
-    getNumericPropertyValue(
-      propertyValue,
-    )
+  const numericPropertyValue = getNumericPropertyValue(propertyValue)
 
-  if (
-    filter.operator === 'range'
-  ) {
-    const min =
-      getNumericFilterValue(
-        filter.min,
-      )
+  if (filter.operator === 'range') {
+    const min = getNumericFilterValue(filter.min)
+    const max = getNumericFilterValue(filter.max)
 
-    const max =
-      getNumericFilterValue(
-        filter.max,
-      )
-
-    if (
-      min === null &&
-      max === null
-    ) {
+    if (min === null && max === null) {
       return true
     }
 
-    if (
-      min !== null &&
-      numericPropertyValue < min
-    ) {
+    if (min !== null && numericPropertyValue < min) {
       return false
     }
 
-    if (
-      max !== null &&
-      numericPropertyValue > max
-    ) {
+    if (max !== null && numericPropertyValue > max) {
       return false
     }
 
     return true
   }
 
-  const value =
-    getNumericFilterValue(
-      filter.value,
-    )
+  const value = getNumericFilterValue(filter.value)
 
   if (value === null) {
     return true
@@ -725,34 +457,19 @@ function compareNumericValue(
 
   switch (filter.operator) {
     case 'lt':
-      return (
-        numericPropertyValue <
-        value
-      )
+      return numericPropertyValue < value
 
     case 'lte':
-      return (
-        numericPropertyValue <=
-        value
-      )
+      return numericPropertyValue <= value
 
     case 'eq':
-      return (
-        numericPropertyValue ===
-        value
-      )
+      return numericPropertyValue === value
 
     case 'gte':
-      return (
-        numericPropertyValue >=
-        value
-      )
+      return numericPropertyValue >= value
 
     case 'gt':
-      return (
-        numericPropertyValue >
-        value
-      )
+      return numericPropertyValue > value
 
     default:
       return true
@@ -789,36 +506,21 @@ function getOperatorLabel(
 function hasActiveNumericFilter(
   filter: NumericFilter,
 ): boolean {
-  if (
-    filter.operator === 'range'
-  ) {
-    return (
-      filter.min.trim() !== '' ||
-      filter.max.trim() !== ''
-    )
+  if (filter.operator === 'range') {
+    return filter.min.trim() !== '' || filter.max.trim() !== ''
   }
 
-  return (
-    filter.value.trim() !== ''
-  )
+  return filter.value.trim() !== ''
 }
 
 function hasActiveFilters(
   filters: PropertyFilters,
 ): boolean {
   return (
-    hasActiveNumericFilter(
-      filters.price,
-    ) ||
-    hasActiveNumericFilter(
-      filters.area,
-    ) ||
-    hasActiveNumericFilter(
-      filters.bedrooms,
-    ) ||
-    hasActiveNumericFilter(
-      filters.bathrooms,
-    ) ||
+    hasActiveNumericFilter(filters.price) ||
+    hasActiveNumericFilter(filters.area) ||
+    hasActiveNumericFilter(filters.bedrooms) ||
+    hasActiveNumericFilter(filters.bathrooms) ||
     filters.operation !== '' ||
     filters.type !== '' ||
     filters.condition !== '' ||
@@ -839,45 +541,23 @@ function hasActiveFilters(
 // ============================================================
 
 function PropertiesPage() {
-  const [properties, setProperties] =
-    useState<PropertyItem[]>([])
-
-  const [loading, setLoading] =
-    useState(true)
-
-  const [error, setError] =
-    useState<string | null>(null)
-
-  const [deleting, setDeleting] =
-    useState(false)
-
-  const [deleteError, setDeleteError] =
-    useState<string | null>(null)
-
-  const [selectedIds, setSelectedIds] =
-    useState<Set<string>>(new Set())
-
-  const [currentPage, setCurrentPage] =
-    useState(1)
+  const [properties, setProperties] = useState<PropertyItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [currentPage, setCurrentPage] = useState(1)
 
   const itemsPerPage = 6
 
-  const [searchTerm, setSearchTerm] =
-    useState('')
-
-  const [sortOption, setSortOption] =
-    useState<SortOption>('newest')
-
-  const [isSortMenuOpen, setIsSortMenuOpen] =
-    useState(false)
-
-  const [isFilterOpen, setIsFilterOpen] =
-    useState(false)
-
-  const [filters, setFilters] =
-    useState<PropertyFilters>(
-      createDefaultFilters,
-    )
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortOption, setSortOption] = useState<SortOption>('newest')
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false)
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [filters, setFilters] = useState<PropertyFilters>(
+    createDefaultFilters,
+  )
 
   // ==========================================================
   // CARGA
@@ -886,14 +566,10 @@ function PropertiesPage() {
   useEffect(() => {
     async function loadProperties() {
       try {
-        const result =
-          await getProperties()
-
+        const result = await getProperties()
         setProperties(result)
       } catch {
-        setError(
-          'No se han podido cargar los inmuebles.',
-        )
+        setError('No se han podido cargar los inmuebles.')
       } finally {
         setLoading(false)
       }
@@ -912,8 +588,7 @@ function PropertiesPage() {
       return
     }
 
-    document.body.style.overflow =
-      'hidden'
+    document.body.style.overflow = 'hidden'
 
     return () => {
       document.body.style.overflow = ''
@@ -926,16 +601,11 @@ function PropertiesPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [
-    searchTerm,
-    sortOption,
-    filters,
-  ])
+  }, [searchTerm, sortOption, filters])
 
   useEffect(() => {
     window.scrollTo({
-      top: document.documentElement
-        .scrollHeight,
+      top: document.documentElement.scrollHeight,
       behavior: 'instant',
     })
   }, [currentPage])
@@ -944,308 +614,146 @@ function PropertiesPage() {
   // FILTRADO Y ORDENACIÓN
   // ==========================================================
 
-  const filteredAndSortedProperties =
-    useMemo(() => {
-      const normalizedSearch =
-        searchTerm
-          .trim()
-          .toLocaleLowerCase('es-ES')
+  const filteredAndSortedProperties = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLocaleLowerCase('es-ES')
 
-      const filtered =
-        properties.filter(
-          (property) => {
-            // ------------------------------------------------
-            // BÚSQUEDA
-            // ------------------------------------------------
+    const filtered = properties.filter((property) => {
+      // BÚSQUEDA
+      if (normalizedSearch) {
+        const title = String(property.title || '').toLocaleLowerCase('es-ES')
+        if (!title.includes(normalizedSearch)) {
+          return false
+        }
+      }
 
-            if (
-              normalizedSearch
-            ) {
-              const title =
-                String(
-                  property.title || '',
-                ).toLocaleLowerCase(
-                  'es-ES',
-                )
+      // FILTROS NUMÉRICOS
+      if (!compareNumericValue(property.price, filters.price)) {
+        return false
+      }
 
-              if (
-                !title.includes(
-                  normalizedSearch,
-                )
-              ) {
-                return false
-              }
-            }
+      if (!compareNumericValue(property.area, filters.area)) {
+        return false
+      }
 
-            // ------------------------------------------------
-            // FILTROS NUMÉRICOS
-            // ------------------------------------------------
+      if (!compareNumericValue(property.bedrooms, filters.bedrooms)) {
+        return false
+      }
 
-            if (
-              !compareNumericValue(
-                property.price,
-                filters.price,
-              )
-            ) {
-              return false
-            }
+      if (!compareNumericValue(property.bathrooms, filters.bathrooms)) {
+        return false
+      }
 
-            if (
-              !compareNumericValue(
-                property.area,
-                filters.area,
-              )
-            ) {
-              return false
-            }
+      // OPERACIÓN
+      if (
+        filters.operation &&
+        normalizeText(property.operation) !== normalizeText(filters.operation)
+      ) {
+        return false
+      }
 
-            if (
-              !compareNumericValue(
-                property.bedrooms,
-                filters.bedrooms,
-              )
-            ) {
-              return false
-            }
+      // TIPO
+      if (
+        filters.type &&
+        normalizeText(property.type) !== normalizeText(filters.type)
+      ) {
+        return false
+      }
 
-            if (
-              !compareNumericValue(
-                property.bathrooms,
-                filters.bathrooms,
-              )
-            ) {
-              return false
-            }
+      // ESTADO
+      if (
+        filters.condition &&
+        normalizeText(property.condition) !== normalizeText(filters.condition)
+      ) {
+        return false
+      }
 
-            // ------------------------------------------------
-            // OPERACIÓN
-            // ------------------------------------------------
+      // CARACTERÍSTICAS
+      if (filters.pool && !normalizeBoolean(property.pool)) {
+        return false
+      }
 
-            if (
-              filters.operation &&
-              normalizeText(
-                property.operation,
-              ) !==
-                normalizeText(
-                  filters.operation,
-                )
-            ) {
-              return false
-            }
+      if (filters.garden && !normalizeBoolean(property.garden)) {
+        return false
+      }
 
-            // ------------------------------------------------
-            // TIPO
-            // ------------------------------------------------
+      if (filters.terrace && !normalizeBoolean(property.terrace)) {
+        return false
+      }
 
-            if (
-              filters.type &&
-              normalizeText(
-                property.type,
-              ) !==
-                normalizeText(
-                  filters.type,
-                )
-            ) {
-              return false
-            }
+      if (filters.balcony && !normalizeBoolean(property.balcony)) {
+        return false
+      }
 
-            // ------------------------------------------------
-            // ESTADO
-            // ------------------------------------------------
+      if (filters.garage && !normalizeBoolean(property.garage)) {
+        return false
+      }
 
-            if (
-              filters.condition &&
-              normalizeText(
-                property.condition,
-              ) !==
-                normalizeText(
-                  filters.condition,
-                )
-            ) {
-              return false
-            }
+      if (filters.storageRoom && !normalizeBoolean(property.storageRoom)) {
+        return false
+      }
 
-            // ------------------------------------------------
-            // CARACTERÍSTICAS
-            //
-            // IMPORTANTE:
-            // usamos normalizeBoolean() para soportar
-            // true / false / "true" / "false" / 1 / 0 / etc.
-            // ------------------------------------------------
+      if (filters.elevator && !normalizeBoolean(property.elevator)) {
+        return false
+      }
 
-            if (
-              filters.pool &&
-              !normalizeBoolean(
-                property.pool,
-              )
-            ) {
-              return false
-            }
+      if (
+        filters.airConditioning &&
+        !normalizeBoolean(property.airConditioning)
+      ) {
+        return false
+      }
 
-            if (
-              filters.garden &&
-              !normalizeBoolean(
-                property.garden,
-              )
-            ) {
-              return false
-            }
+      if (filters.heating && !normalizeBoolean(property.heating)) {
+        return false
+      }
 
-            if (
-              filters.terrace &&
-              !normalizeBoolean(
-                property.terrace,
-              )
-            ) {
-              return false
-            }
+      return true
+    })
 
-            if (
-              filters.balcony &&
-              !normalizeBoolean(
-                property.balcony,
-              )
-            ) {
-              return false
-            }
+    return [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'newest':
+          return (
+            getCreatedAtTimestamp(b.createdAt) -
+            getCreatedAtTimestamp(a.createdAt)
+          )
 
-            if (
-              filters.garage &&
-              !normalizeBoolean(
-                property.garage,
-              )
-            ) {
-              return false
-            }
+        case 'oldest':
+          return (
+            getCreatedAtTimestamp(a.createdAt) -
+            getCreatedAtTimestamp(b.createdAt)
+          )
 
-            // ------------------------------------------------
-            // TRASTERO
-            // ------------------------------------------------
+        case 'most-expensive':
+          return (
+            getNumericPropertyValue(b.price) - getNumericPropertyValue(a.price)
+          )
 
-            if (
-              filters.storageRoom &&
-              !normalizeBoolean(
-                property.storageRoom,
-              )
-            ) {
-              return false
-            }
+        case 'cheapest':
+          return (
+            getNumericPropertyValue(a.price) - getNumericPropertyValue(b.price)
+          )
 
-            if (
-              filters.elevator &&
-              !normalizeBoolean(
-                property.elevator,
-              )
-            ) {
-              return false
-            }
-
-            if (
-              filters.airConditioning &&
-              !normalizeBoolean(
-                property.airConditioning,
-              )
-            ) {
-              return false
-            }
-
-            if (
-              filters.heating &&
-              !normalizeBoolean(
-                property.heating,
-              )
-            ) {
-              return false
-            }
-
-            return true
-          },
-        )
-
-      return [...filtered].sort(
-        (a, b) => {
-          switch (sortOption) {
-            case 'newest':
-              return (
-                getCreatedAtTimestamp(
-                  b.createdAt,
-                ) -
-                getCreatedAtTimestamp(
-                  a.createdAt,
-                )
-              )
-
-            case 'oldest':
-              return (
-                getCreatedAtTimestamp(
-                  a.createdAt,
-                ) -
-                getCreatedAtTimestamp(
-                  b.createdAt,
-                )
-              )
-
-            case 'most-expensive':
-              return (
-                getNumericPropertyValue(
-                  b.price,
-                ) -
-                getNumericPropertyValue(
-                  a.price,
-                )
-              )
-
-            case 'cheapest':
-              return (
-                getNumericPropertyValue(
-                  a.price,
-                ) -
-                getNumericPropertyValue(
-                  b.price,
-                )
-              )
-
-            default:
-              return 0
-          }
-        },
-      )
-    }, [
-      properties,
-      searchTerm,
-      sortOption,
-      filters,
-    ])
+        default:
+          return 0
+      }
+    })
+  }, [properties, searchTerm, sortOption, filters])
 
   const totalPages = Math.max(
     1,
-    Math.ceil(
-      filteredAndSortedProperties.length /
-        itemsPerPage,
-    ),
+    Math.ceil(filteredAndSortedProperties.length / itemsPerPage),
   )
 
-  const indexOfLastItem =
-    currentPage * itemsPerPage
-
-  const indexOfFirstItem =
-    indexOfLastItem -
-    itemsPerPage
-
-  const currentProperties =
-    filteredAndSortedProperties.slice(
-      indexOfFirstItem,
-      indexOfLastItem,
-    )
+  const indexOfLastItem = currentPage * itemsPerPage
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage
+  const currentProperties = filteredAndSortedProperties.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  )
 
   useEffect(() => {
-    setCurrentPage(
-      (previousPage) =>
-        Math.min(
-          previousPage,
-          totalPages,
-        ),
-    )
+    setCurrentPage((previousPage) => Math.min(previousPage, totalPages))
   }, [totalPages])
 
   // ==========================================================
@@ -1253,42 +761,28 @@ function PropertiesPage() {
   // ==========================================================
 
   const currentPageIds = useMemo(
-    () =>
-      currentProperties.map(
-        (property) =>
-          property.id,
-      ),
+    () => currentProperties.map((property) => property.id),
     [currentProperties],
   )
 
-  const selectedOnCurrentPage =
-    currentPageIds.filter(
-      (id) =>
-        selectedIds.has(id),
-    ).length
+  const selectedOnCurrentPage = currentPageIds.filter((id) =>
+    selectedIds.has(id),
+  ).length
 
   const allCurrentPageSelected =
     currentPageIds.length > 0 &&
-    selectedOnCurrentPage ===
-      currentPageIds.length
+    selectedOnCurrentPage === currentPageIds.length
 
   const someCurrentPageSelected =
-    selectedOnCurrentPage > 0 &&
-    !allCurrentPageSelected
+    selectedOnCurrentPage > 0 && !allCurrentPageSelected
 
-  const selectedCount =
-    selectedIds.size
+  const selectedCount = selectedIds.size
 
-  const handleToggleProperty = (
-    propertyId: string,
-  ) => {
+  const handleToggleProperty = (propertyId: string) => {
     setSelectedIds((previous) => {
-      const next =
-        new Set(previous)
+      const next = new Set(previous)
 
-      if (
-        next.has(propertyId)
-      ) {
+      if (next.has(propertyId)) {
         next.delete(propertyId)
       } else {
         next.add(propertyId)
@@ -1300,51 +794,31 @@ function PropertiesPage() {
     setDeleteError(null)
   }
 
-  const handleToggleCurrentPage =
-    () => {
-      setSelectedIds((previous) => {
-        const next =
-          new Set(previous)
+  const handleToggleCurrentPage = () => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
 
-        if (
-          allCurrentPageSelected
-        ) {
-          currentPageIds.forEach(
-            (id) =>
-              next.delete(id),
-          )
-        } else {
-          currentPageIds.forEach(
-            (id) =>
-              next.add(id),
-          )
-        }
+      if (allCurrentPageSelected) {
+        currentPageIds.forEach((id) => next.delete(id))
+      } else {
+        currentPageIds.forEach((id) => next.add(id))
+      }
 
-        return next
-      })
+      return next
+    })
 
-      setDeleteError(null)
-    }
+    setDeleteError(null)
+  }
 
   const handleNextPage = () => {
-    if (
-      currentPage < totalPages
-    ) {
-      setCurrentPage(
-        (previous) =>
-          previous + 1,
-      )
+    if (currentPage < totalPages) {
+      setCurrentPage((previous) => previous + 1)
     }
   }
 
   const handlePrevPage = () => {
-    if (
-      currentPage > 1
-    ) {
-      setCurrentPage(
-        (previous) =>
-          previous - 1,
-      )
+    if (currentPage > 1) {
+      setCurrentPage((previous) => previous - 1)
     }
   }
 
@@ -1352,94 +826,63 @@ function PropertiesPage() {
   // BORRADO
   // ==========================================================
 
-  const handleDeleteSelected =
-    async () => {
-      if (
-        selectedIds.size === 0 ||
-        deleting
-      ) {
-        return
-      }
-
-      const count =
-        selectedIds.size
-
-      const confirmed =
-        window.confirm(
-          `¿Seguro que quieres eliminar ${count} ${
-            count === 1
-              ? 'inmueble'
-              : 'inmuebles'
-          } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
-        )
-
-      if (!confirmed) {
-        return
-      }
-
-      setDeleting(true)
-      setDeleteError(null)
-
-      try {
-        await deleteProperties(
-          Array.from(selectedIds),
-        )
-
-        const result =
-          await getProperties()
-
-        setProperties(result)
-        setSelectedIds(new Set())
-
-        const newTotalPages =
-          Math.max(
-            1,
-            Math.ceil(
-              result.length /
-                itemsPerPage,
-            ),
-          )
-
-        setCurrentPage(
-          (previousPage) =>
-            Math.min(
-              previousPage,
-              newTotalPages,
-            ),
-        )
-      } catch (
-        deleteError
-      ) {
-        console.error(
-          'Error eliminando inmuebles:',
-          deleteError,
-        )
-
-        setDeleteError(
-          'No se han podido eliminar los inmuebles seleccionados.',
-        )
-      } finally {
-        setDeleting(false)
-      }
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0 || deleting) {
+      return
     }
+
+    const count = selectedIds.size
+
+    const confirmed = window.confirm(
+      `¿Seguro que quieres eliminar ${count} ${count === 1 ? 'inmueble' : 'inmuebles'
+      } seleccionados? También se eliminarán todos los anuncios generados asociados.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError(null)
+
+    try {
+      await deleteProperties(Array.from(selectedIds))
+
+      const result = await getProperties()
+
+      setProperties(result)
+      setSelectedIds(new Set())
+
+      const newTotalPages = Math.max(
+        1,
+        Math.ceil(result.length / itemsPerPage),
+      )
+
+      setCurrentPage((previousPage) =>
+        Math.min(previousPage, newTotalPages),
+      )
+    } catch (deleteError) {
+      console.error('Error eliminando inmuebles:', deleteError)
+
+      setDeleteError(
+        'No se han podido eliminar los inmuebles seleccionados.',
+      )
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   // ==========================================================
   // FILTROS
   // ==========================================================
 
   const handleResetFilters = () => {
-    setFilters(
-      createDefaultFilters(),
-    )
+    setFilters(createDefaultFilters())
   }
 
   const updateNumericFilter = (
     field: NumericFilterField,
-    property:
-      | 'operator'
-      | 'value'
-      | 'min'
-      | 'max',
+    property: 'operator' | 'value' | 'min' | 'max',
     value: string,
   ) => {
     setFilters((current) => ({
@@ -1461,40 +904,27 @@ function PropertiesPage() {
         ...current[field],
         operator,
         ...(operator === 'range'
-          ? {
-              value: '',
-            }
-          : {
-              min: '',
-              max: '',
-            }),
+          ? { value: '' }
+          : { min: '', max: '' }),
       },
     }))
   }
 
-  const toggleBooleanFilter = (
-    field: BooleanFilterField,
-  ) => {
+  const toggleBooleanFilter = (field: BooleanFilterField) => {
     setFilters((current) => ({
       ...current,
       [field]: !current[field],
     }))
   }
 
-  const sortLabels: Record<
-    SortOption,
-    string
-  > = {
+  const sortLabels: Record<SortOption, string> = {
     newest: 'Más nuevos',
     oldest: 'Más antiguos',
     'most-expensive': 'Más caros',
     cheapest: 'Más baratos',
   }
 
-  const numericOperators: [
-    NumericOperator,
-    string,
-  ][] = [
+  const numericOperators: [NumericOperator, string][] = [
     ['lt', 'Menor que'],
     ['lte', 'Menor o igual que'],
     ['eq', 'Igual a'],
@@ -1510,13 +940,8 @@ function PropertiesPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">
-          Inmuebles
-        </h1>
-
-        <p className="mt-4 text-muted-foreground">
-          Cargando inmuebles...
-        </p>
+        <h1 className="text-3xl font-bold">Inmuebles</h1>
+        <p className="mt-4 text-muted-foreground">Cargando inmuebles...</p>
       </div>
     )
   }
@@ -1524,13 +949,8 @@ function PropertiesPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">
-          Inmuebles
-        </h1>
-
-        <p className="mt-4 text-destructive">
-          {error}
-        </p>
+        <h1 className="text-3xl font-bold">Inmuebles</h1>
+        <p className="mt-4 text-destructive">{error}</p>
       </div>
     )
   }
@@ -1546,9 +966,7 @@ function PropertiesPage() {
 
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-3xl font-bold">
-              Inmuebles
-            </h1>
+            <h1 className="text-3xl font-bold">Inmuebles</h1>
 
             <p className="mt-2 text-muted-foreground">
               Consulta los inmuebles.
@@ -1565,21 +983,16 @@ function PropertiesPage() {
 
         {deleteError && (
           <div className="mt-5 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3">
-            <p className="text-sm text-destructive">
-              {deleteError}
-            </p>
+            <p className="text-sm text-destructive">{deleteError}</p>
           </div>
         )}
 
         {properties.length === 0 ? (
           <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
-            <h2 className="font-semibold">
-              No hay inmuebles todavía
-            </h2>
+            <h2 className="font-semibold">No hay inmuebles todavía</h2>
 
             <p className="mt-2 text-sm text-muted-foreground">
-              Crea tu primer inmueble para
-              empezar a generar anuncios.
+              Crea tu primer inmueble para empezar a generar anuncios.
             </p>
 
             <Link
@@ -1591,20 +1004,14 @@ function PropertiesPage() {
           </div>
         ) : (
           <div>
-            {/* ==================================================
-                BÚSQUEDA / ORDENACIÓN / FILTROS
-                ================================================== */}
+            {/* BÚSQUEDA / ORDENACIÓN / FILTROS */}
 
             <div className="mt-8 flex flex-col gap-3 rounded-lg border bg-card p-4 lg:flex-row lg:items-center">
               <div className="relative flex-1">
                 <input
                   type="search"
                   value={searchTerm}
-                  onChange={(event) =>
-                    setSearchTerm(
-                      event.target.value,
-                    )
-                  }
+                  onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Buscar por título del inmueble..."
                   aria-label="Buscar inmuebles por título"
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -1617,73 +1024,34 @@ function PropertiesPage() {
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() =>
-                      setIsSortMenuOpen(
-                        (current) =>
-                          !current,
-                      )
-                    }
-                    aria-expanded={
-                      isSortMenuOpen
-                    }
+                    onClick={() => setIsSortMenuOpen((current) => !current)}
+                    aria-expanded={isSortMenuOpen}
                     className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted"
                   >
                     Ordenar
-
-                    <span className="text-muted-foreground">
-                      ·
-                    </span>
-
-                    <span>
-                      {
-                        sortLabels[
-                          sortOption
-                        ]
-                      }
-                    </span>
-
-                    <span className="text-xs">
-                      ↓
-                    </span>
+                    <span className="text-muted-foreground">·</span>
+                    <span>{sortLabels[sortOption]}</span>
+                    <span className="text-xs">↓</span>
                   </button>
 
                   {isSortMenuOpen && (
                     <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-md border bg-card p-1 shadow-lg">
                       {(
-                        Object.entries(
-                          sortLabels,
-                        ) as [
-                          SortOption,
-                          string,
-                        ][]
-                      ).map(
-                        ([
-                          value,
-                          label,
-                        ]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => {
-                              setSortOption(
-                                value,
-                              )
-
-                              setIsSortMenuOpen(
-                                false,
-                              )
-                            }}
-                            className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${
-                              sortOption ===
-                              value
-                                ? 'bg-muted font-medium'
-                                : ''
+                        Object.entries(sortLabels) as [SortOption, string][]
+                      ).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => {
+                            setSortOption(value)
+                            setIsSortMenuOpen(false)
+                          }}
+                          className={`block w-full rounded px-3 py-2 text-left text-sm transition hover:bg-muted ${sortOption === value ? 'bg-muted font-medium' : ''
                             }`}
-                          >
-                            {label}
-                          </button>
-                        ),
-                      )}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1692,22 +1060,14 @@ function PropertiesPage() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setIsFilterOpen(true)
-                  }
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${
-                    hasActiveFilters(
-                      filters,
-                    )
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : ''
-                  }`}
+                  onClick={() => setIsFilterOpen(true)}
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${hasActiveFilters(filters)
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : ''
+                    }`}
                 >
                   Filtrar
-
-                  {hasActiveFilters(
-                    filters,
-                  ) && (
+                  {hasActiveFilters(filters) && (
                     <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
                       Activos
                     </span>
@@ -1721,21 +1081,14 @@ function PropertiesPage() {
             <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
               <span>
                 <span className="font-medium text-foreground">
-                  {
-                    filteredAndSortedProperties.length
-                  }{' '}
+                  {filteredAndSortedProperties.length}{' '}
                 </span>
-
-                {filteredAndSortedProperties.length ===
-                1
+                {filteredAndSortedProperties.length === 1
                   ? 'inmueble encontrado'
                   : 'inmuebles encontrados'}
               </span>
 
-              {(searchTerm ||
-                hasActiveFilters(
-                  filters,
-                )) && (
+              {(searchTerm || hasActiveFilters(filters)) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1744,8 +1097,7 @@ function PropertiesPage() {
                   }}
                   className="w-fit text-sm font-medium text-primary hover:underline"
                 >
-                  Limpiar búsqueda y
-                  filtros
+                  Limpiar búsqueda y filtros
                 </button>
               )}
             </div>
@@ -1757,23 +1109,14 @@ function PropertiesPage() {
                 <input
                   type="checkbox"
                   id="select-current-page"
-                  checked={
-                    allCurrentPageSelected
-                  }
+                  checked={allCurrentPageSelected}
                   ref={(element) => {
                     if (element) {
-                      element.indeterminate =
-                        someCurrentPageSelected
+                      element.indeterminate = someCurrentPageSelected
                     }
                   }}
-                  onChange={
-                    handleToggleCurrentPage
-                  }
-                  disabled={
-                    deleting ||
-                    currentProperties.length ===
-                      0
-                  }
+                  onChange={handleToggleCurrentPage}
+                  disabled={deleting || currentProperties.length === 0}
                   className="h-4 w-4 cursor-pointer"
                 />
 
@@ -1781,8 +1124,7 @@ function PropertiesPage() {
                   htmlFor="select-current-page"
                   className="cursor-pointer text-sm font-medium"
                 >
-                  Seleccionar todos los de
-                  esta página
+                  Seleccionar todos los de esta página
                 </label>
               </div>
 
@@ -1796,26 +1138,14 @@ function PropertiesPage() {
 
                 <button
                   type="button"
-                  onClick={
-                    handleDeleteSelected
-                  }
-                  disabled={
-                    deleting ||
-                    selectedCount === 0
-                  }
-                  aria-hidden={
-                    selectedCount === 0
-                  }
-                  tabIndex={
-                    selectedCount === 0
-                      ? -1
-                      : 0
-                  }
-                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    selectedCount > 0
-                      ? 'visible'
-                      : 'pointer-events-none invisible'
-                  }`}
+                  onClick={handleDeleteSelected}
+                  disabled={deleting || selectedCount === 0}
+                  aria-hidden={selectedCount === 0}
+                  tabIndex={selectedCount === 0 ? -1 : 0}
+                  className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
+                    ? 'visible'
+                    : 'pointer-events-none invisible'
+                    }`}
                 >
                   {deleting
                     ? 'Eliminando...'
@@ -1824,18 +1154,16 @@ function PropertiesPage() {
               </div>
             </div>
 
-            {/* RESULTADOS */}
+            {/* LISTA / GRID DE RESULTADOS */}
 
-            {currentProperties.length ===
-            0 ? (
+            {currentProperties.length === 0 ? (
               <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
                 <h2 className="font-semibold">
                   No hay inmuebles que coincidan
                 </h2>
 
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Prueba a cambiar la búsqueda
-                  o alguno de los filtros.
+                  Prueba a cambiar la búsqueda o alguno de los filtros.
                 </p>
 
                 <button
@@ -1846,363 +1174,175 @@ function PropertiesPage() {
                   }}
                   className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                 >
-                  Limpiar búsqueda y
-                  filtros
+                  Limpiar búsqueda y filtros
                 </button>
               </div>
             ) : (
               <div className="mt-8 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {currentProperties.map(
-                  (property) => {
-                    const generationCount =
-                      property.generations
-                        .length
+                {currentProperties.map((property) => {
+                  const generationCount = property.generations.length
+                  const isSelected = selectedIds.has(property.id)
+                  const propertyPills = getPropertyStructuredPills(property)
 
-                    const isSelected =
-                      selectedIds.has(
-                        property.id,
-                      )
-
-                    const highlights =
-                      getPropertyHighlights(
-                        property,
-                      )
-
-                    // ------------------------------------------------
-                    // CARACTERÍSTICAS REALES DEL INMUEBLE
-                    //
-                    // Esto hace que Trastero, Piscina, etc. aparezcan
-                    // aunque no estén dentro de "highlights".
-                    // ------------------------------------------------
-
-                    const featurePills =
-                      getPropertyFeaturePills(
-                        property,
-                      )
-
-                    // Evitamos duplicar una característica si también
-                    // viene dentro de los highlights generados.
-                    const normalizedFeatureLabels =
-                      new Set(
-                        featurePills.map(
-                          (feature) =>
-                            normalizeText(
-                              feature,
-                            ),
-                        ),
-                      )
-
-                    const generalHighlights =
-                      highlights.filter(
-                        (highlight) =>
-                          !normalizedFeatureLabels.has(
-                            normalizeText(
-                              highlight,
-                            ),
-                          ),
-                      )
-
-                    return (
-                      <div
-                        key={
-                          property.id
-                        }
-                        className={`relative flex h-full flex-col rounded-lg border bg-card transition ${
-                          isSelected
-                            ? 'border-primary ring-2 ring-primary/25'
-                            : 'border-border'
+                  return (
+                    <div
+                      key={property.id}
+                      className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
+                        ? 'border-primary ring-2 ring-primary/25'
+                        : 'border-border'
                         }`}
-                      >
-                        {/* SELECTOR */}
+                    >
+                      {/* SELECTOR */}
 
-                        <div className="group relative w-full overflow-hidden rounded-t-lg">
-                          <input
-                            type="checkbox"
-                            aria-label={`Seleccionar ${getPropertyTypeLabel(
-                              property.type,
-                            )} en ${
-                              property.city ||
-                              'Sin ciudad'
+                      <div className="group relative w-full overflow-hidden rounded-t-lg">
+                        <input
+                          type="checkbox"
+                          aria-label={`Seleccionar ${getPropertyTypeLabel(
+                            property.type,
+                          )} en ${property.city || 'Sin ciudad'}`}
+                          checked={isSelected}
+                          onChange={() => handleToggleProperty(property.id)}
+                          disabled={deleting}
+                          className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
+                            ? 'cursor-default bg-foreground'
+                            : 'bg-accent group-hover:bg-primary'
                             }`}
-                            checked={
-                              isSelected
-                            }
-                            onChange={() =>
-                              handleToggleProperty(
-                                property.id,
-                              )
-                            }
-                            disabled={
-                              deleting
-                            }
-                            className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${
-                              isSelected
-                                ? 'cursor-default bg-foreground'
-                                : 'bg-accent group-hover:bg-primary'
-                            }`}
-                          />
+                        />
 
-                          <div
-                            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${
-                              isSelected
-                                ? 'font-semibold text-background'
-                                : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
+                        <div
+                          className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
+                            ? 'font-semibold text-background'
+                            : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
                             }`}
-                          >
-                            {isSelected
-                              ? '✓ Seleccionado'
-                              : 'Seleccionar'}
+                        >
+                          {isSelected ? '✓ Seleccionado' : 'Seleccionar'}
+                        </div>
+                      </div>
+
+                      {/* CONTENIDO */}
+
+                      <div className="flex flex-1 flex-col p-5">
+                        <div>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <h2 className="mt-1 text-lg font-semibold">
+                                {property.title}
+                              </h2>
+                            </div>
+
+                            <p className="whitespace-nowrap text-lg font-bold">
+                              {getNumericPropertyValue(
+                                property.price,
+                              ).toLocaleString('es-ES')}{' '}
+                              €
+                            </p>
                           </div>
                         </div>
 
-                        {/* CONTENIDO */}
+                        <div className="mt-4">
+                          <div className="flex min-h-21 flex-col justify-end pb-4">
+                            <div className="flex flex-wrap items-end gap-2">
+                              {propertyPills.map((pill, index) => (
+                                <span
+                                  key={`${normalizeText(pill)}-${index}`}
+                                  className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                >
+                                  {pill}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
 
-                        <div className="flex flex-1 flex-col p-5">
-                          <div>
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="min-w-0">
-                                <h2 className="mt-1 text-lg font-semibold">
-                                  {
-                                    property.title
-                                  }
-                                </h2>
-                              </div>
+                          {/* FECHA + ANUNCIOS */}
 
-                              <p className="whitespace-nowrap text-lg font-bold">
-                                {getNumericPropertyValue(
-                                  property.price,
-                                ).toLocaleString(
+                          <div className="flex justify-between border-t pt-4">
+                            <div>
+                              <p className="text-xs text-muted-foreground">
+                                Anuncios generados
+                              </p>
+
+                              <p className="mt-1 text-sm font-medium">
+                                {generationCount}{' '}
+                                {generationCount === 1
+                                  ? 'anuncio'
+                                  : 'anuncios'}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-muted-foreground">
+                                Generado el:
+                              </p>
+
+                              <p className="mt-1 text-sm font-medium">
+                                {new Date(property.createdAt).toLocaleString(
                                   'es-ES',
-                                )}{' '}
-                                €
+                                )}
                               </p>
                             </div>
                           </div>
+                        </div>
+                      </div>
 
-                          <div className="mt-4">
-                            <div className="flex min-h-21 flex-col justify-end pb-4">
-                              <div className="flex flex-wrap items-end gap-2">
-                                {/* ==================================================
-                                    1. DATOS MÁS RELEVANTES
-                                    ================================================== */}
+                      {/* CTA */}
 
-                                {property.condition && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyCondition(
-                                      property.condition,
-                                    )}
-                                  </span>
-                                )}
+                      <Link
+                        to={`/inmuebles/${property.id}`}
+                        className="group mt-auto block"
+                      >
+                        <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
+                          <button
+                            type="button"
+                            aria-label="Ver detalles"
+                            className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary group-hover:text-primary-foreground focus:outline-none"
+                          />
 
-                                {property.operation && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyOperation(
-                                      property.operation,
-                                    )}
-                                  </span>
-                                )}
-
-                                {property.type && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {getPropertyTypeLabel(
-                                      property.type,
-                                    )}
-                                  </span>
-                                )}
-
-                                {/* ==================================================
-                                    2. UBICACIÓN
-                                    ================================================== */}
-
-                                {property.city && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(
-                                      property.city,
-                                    )}
-                                  </span>
-                                )}
-
-                                {property.neighborhood && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(
-                                      property.neighborhood,
-                                    )}
-                                  </span>
-                                )}
-
-                                {property.address && (
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    {capitalizeFirstLetter(
-                                      property.address,
-                                    )}
-                                  </span>
-                                )}
-
-                                {/* ==================================================
-                                    3. CARACTERÍSTICAS REALES
-                                    ==================================================
-                                    
-                                    Aquí está la mejora importante:
-                                    Trastero se pinta directamente desde
-                                    property.storageRoom.
-                                    ================================================== */}
-
-                                {featurePills.map(
-                                  (feature) => (
-                                    <span
-                                      key={
-                                        feature
-                                      }
-                                      className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
-                                    >
-                                      {
-                                        feature
-                                      }
-                                    </span>
-                                  ),
-                                )}
-
-                                {/* ==================================================
-                                    4. HIGHLIGHTS GENERALES
-                                    ================================================== */}
-
-                                {generalHighlights
-                                  .slice(0, 5)
-                                  .map(
-                                    (
-                                      highlight,
-                                    ) => (
-                                      <span
-                                        key={
-                                          highlight
-                                        }
-                                        className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
-                                      >
-                                        {
-                                          highlight
-                                        }
-                                      </span>
-                                    ),
-                                  )}
-                              </div>
-                            </div>
-
-                            {/* FECHA + ANUNCIOS */}
-
-                            <div className="flex justify-between border-t pt-4">
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  Anuncios generados
-                                </p>
-
-                                <p className="mt-1 text-sm font-medium">
-                                  {
-                                    generationCount
-                                  }{' '}
-                                  {generationCount ===
-                                  1
-                                    ? 'anuncio'
-                                    : 'anuncios'}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  Generado el:
-                                </p>
-
-                                <p className="mt-1 text-sm font-medium">
-                                  {new Date(
-                                    property.createdAt,
-                                  ).toLocaleString(
-                                    'es-ES',
-                                  )}
-                                </p>
-                              </div>
-                            </div>
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground transition-colors group-hover:font-semibold group-hover:text-primary-foreground">
+                            Ver detalles
                           </div>
                         </div>
-
-                        {/* CTA */}
-
-                        <Link
-                          to={`/inmuebles/${property.id}`}
-                          className="group mt-auto block"
-                        >
-                          <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
-                            <button
-                              type="button"
-                              aria-label="Ver detalles"
-                              className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary group-hover:text-primary-foreground focus:outline-none"
-                            />
-
-                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground transition-colors group-hover:font-semibold group-hover:text-primary-foreground">
-                              Ver detalles
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
-                    )
-                  },
-                )}
+                      </Link>
+                    </div>
+                  )
+                })}
               </div>
             )}
 
             {/* PAGINACIÓN */}
 
-            {totalPages > 1 &&
-              currentProperties.length >
-                0 && (
-                <div className="mt-6 flex items-center justify-between border-t pt-4">
-                  <button
-                    type="button"
-                    onClick={
-                      handlePrevPage
-                    }
-                    disabled={
-                      currentPage ===
-                        1 ||
-                      deleting
-                    }
-                    className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
-                  >
-                    Anterior
-                  </button>
+            {totalPages > 1 && currentProperties.length > 0 && (
+              <div className="mt-6 flex items-center justify-between border-t pt-4">
+                <button
+                  type="button"
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1 || deleting}
+                  className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  Anterior
+                </button>
 
-                  <span className="text-sm text-muted-foreground">
-                    Página{' '}
-                    <span className="font-semibold">
-                      {currentPage}
-                    </span>{' '}
-                    de{' '}
-                    <span className="font-semibold">
-                      {totalPages}
-                    </span>
-                  </span>
+                <span className="text-sm text-muted-foreground">
+                  Página <span className="font-semibold">{currentPage}</span> de{' '}
+                  <span className="font-semibold">{totalPages}</span>
+                </span>
 
-                  <button
-                    type="button"
-                    onClick={
-                      handleNextPage
-                    }
-                    disabled={
-                      currentPage ===
-                        totalPages ||
-                      deleting
-                    }
-                    className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
-                  >
-                    Siguiente
-                  </button>
-                </div>
-              )}
+                <button
+                  type="button"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages || deleting}
+                  className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* ======================================================
-          MODAL DE FILTROS
-          ====================================================== */}
+        MODAL DE FILTROS
+        ====================================================== */}
 
       {isFilterOpen && (
         <div
@@ -2211,10 +1351,7 @@ function PropertiesPage() {
           aria-modal="true"
           aria-labelledby="filter-dialog-title"
           onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
+            if (event.target === event.currentTarget) {
               setIsFilterOpen(false)
             }
           }}
@@ -2232,19 +1369,13 @@ function PropertiesPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Combina varios filtros para
-                  encontrar exactamente los
-                  inmuebles que buscas.
+                  Combina varios filtros para encontrar exactamente los inmuebles que buscas.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setIsFilterOpen(
-                    false,
-                  )
-                }
+                onClick={() => setIsFilterOpen(false)}
                 aria-label="Cerrar filtros"
                 className="rounded-md px-2 py-1 text-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
               >
@@ -2254,185 +1385,95 @@ function PropertiesPage() {
 
             <div className="overflow-y-auto p-6">
               <div className="grid gap-6 md:grid-cols-2">
-                {/* ==================================================
-                    FILTROS NUMÉRICOS
-                    ================================================== */}
+                {/* FILTROS NUMÉRICOS */}
 
                 {(
                   [
-                    [
-                      'price',
-                      'Precio',
-                      'Ej. 150000',
-                      false,
-                    ],
-                    [
-                      'area',
-                      'Superficie (m²)',
-                      'Ej. 42',
-                      false,
-                    ],
-                    [
-                      'bedrooms',
-                      'Habitaciones',
-                      'Ej. 3',
-                      true,
-                    ],
-                    [
-                      'bathrooms',
-                      'Baños',
-                      'Ej. 2',
-                      true,
-                    ],
-                  ] as [
-                    NumericFilterField,
-                    string,
-                    string,
-                    boolean,
-                  ][]
-                ).map(
-                  ([
-                    field,
-                    label,
-                    placeholder,
-                    integer,
-                  ]) => {
-                    const filter =
-                      filters[field]
+                    ['price', 'Precio', 'Ej. 150000', false],
+                    ['area', 'Superficie (m²)', 'Ej. 42', false],
+                    ['bedrooms', 'Habitaciones', 'Ej. 3', true],
+                    ['bathrooms', 'Baños', 'Ej. 2', true],
+                  ] as [NumericFilterField, string, string, boolean][]
+                ).map(([field, label, placeholder, integer]) => {
+                  const filter = filters[field]
 
-                    return (
-                      <div key={field}>
-                        <label className="text-sm font-medium">
-                          {label}
-                        </label>
+                  return (
+                    <div key={field}>
+                      <label className="text-sm font-medium">{label}</label>
 
-                        <div className="mt-2">
-                          <select
-                            value={
-                              filter.operator
-                            }
-                            onChange={(
-                              event,
-                            ) =>
-                              updateNumericOperator(
-                                field,
-                                event
-                                  .target
-                                  .value as NumericOperator,
-                              )
-                            }
-                            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                          >
-                            {numericOperators.map(
-                              ([
-                                value,
-                                operatorLabel,
-                              ]) => (
-                                <option
-                                  key={
-                                    value
-                                  }
-                                  value={
-                                    value
-                                  }
-                                >
-                                  {
-                                    operatorLabel
-                                  }
-                                </option>
-                              ),
-                            )}
-                          </select>
+                      <div className="mt-2">
+                        <select
+                          value={filter.operator}
+                          onChange={(event) =>
+                            updateNumericOperator(
+                              field,
+                              event.target.value as NumericOperator,
+                            )
+                          }
+                          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                        >
+                          {numericOperators.map(([value, operatorLabel]) => (
+                            <option key={value} value={value}>
+                              {operatorLabel}
+                            </option>
+                          ))}
+                        </select>
 
-                          {filter.operator ===
-                          'range' ? (
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step={
-                                  integer
-                                    ? '1'
-                                    : undefined
-                                }
-                                value={
-                                  filter.min
-                                }
-                                onChange={(
-                                  event,
-                                ) =>
-                                  updateNumericFilter(
-                                    field,
-                                    'min',
-                                    event
-                                      .target
-                                      .value,
-                                  )
-                                }
-                                placeholder="Mínimo"
-                                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                              />
-
-                              <input
-                                type="number"
-                                min="0"
-                                step={
-                                  integer
-                                    ? '1'
-                                    : undefined
-                                }
-                                value={
-                                  filter.max
-                                }
-                                onChange={(
-                                  event,
-                                ) =>
-                                  updateNumericFilter(
-                                    field,
-                                    'max',
-                                    event
-                                      .target
-                                      .value,
-                                  )
-                                }
-                                placeholder="Máximo"
-                                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                              />
-                            </div>
-                          ) : (
+                        {filter.operator === 'range' ? (
+                          <div className="mt-2 grid grid-cols-2 gap-2">
                             <input
                               type="number"
                               min="0"
-                              step={
-                                integer
-                                  ? '1'
-                                  : undefined
-                              }
-                              value={
-                                filter.value
-                              }
-                              onChange={(
-                                event,
-                              ) =>
+                              step={integer ? '1' : undefined}
+                              value={filter.min}
+                              onChange={(event) =>
                                 updateNumericFilter(
                                   field,
-                                  'value',
-                                  event
-                                    .target
-                                    .value,
+                                  'min',
+                                  event.target.value,
                                 )
                               }
-                              placeholder={
-                                placeholder
-                              }
-                              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                              placeholder="Mínimo"
+                              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                             />
-                          )}
-                        </div>
+
+                            <input
+                              type="number"
+                              min="0"
+                              step={integer ? '1' : undefined}
+                              value={filter.max}
+                              onChange={(event) =>
+                                updateNumericFilter(
+                                  field,
+                                  'max',
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="Máximo"
+                              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            min="0"
+                            step={integer ? '1' : undefined}
+                            value={filter.value}
+                            onChange={(event) =>
+                              updateNumericFilter(
+                                field,
+                                'value',
+                                event.target.value,
+                              )
+                            }
+                            placeholder={placeholder}
+                            className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                          />
+                        )}
                       </div>
-                    )
-                  },
-                )}
+                    </div>
+                  )
+                })}
 
                 {/* OPERACIÓN */}
 
@@ -2446,32 +1487,18 @@ function PropertiesPage() {
 
                   <select
                     id="filter-operation"
-                    value={
-                      filters.operation
-                    }
+                    value={filters.operation}
                     onChange={(event) =>
-                      setFilters(
-                        (current) => ({
-                          ...current,
-                          operation:
-                            event.target
-                              .value,
-                        }),
-                      )
+                      setFilters((current) => ({
+                        ...current,
+                        operation: event.target.value,
+                      }))
                     }
                     className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">
-                      Cualquier operación
-                    </option>
-
-                    <option value="sale">
-                      Venta
-                    </option>
-
-                    <option value="rent">
-                      Alquiler
-                    </option>
+                    <option value="">Cualquier operación</option>
+                    <option value="sale">Venta</option>
+                    <option value="rent">Alquiler</option>
                   </select>
                 </div>
 
@@ -2489,36 +1516,19 @@ function PropertiesPage() {
                     id="filter-type"
                     value={filters.type}
                     onChange={(event) =>
-                      setFilters(
-                        (current) => ({
-                          ...current,
-                          type: event
-                            .target
-                            .value,
-                        }),
-                      )
+                      setFilters((current) => ({
+                        ...current,
+                        type: event.target.value,
+                      }))
                     }
                     className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">
-                      Cualquier tipo
-                    </option>
-
-                    {Object.entries(
-                      propertyTypeLabels,
-                    ).map(
-                      ([
-                        value,
-                        label,
-                      ]) => (
-                        <option
-                          key={value}
-                          value={value}
-                        >
-                          {label}
-                        </option>
-                      ),
-                    )}
+                    <option value="">Cualquier tipo</option>
+                    {Object.entries(propertyTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -2534,89 +1544,50 @@ function PropertiesPage() {
 
                   <select
                     id="filter-condition"
-                    value={
-                      filters.condition
-                    }
+                    value={filters.condition}
                     onChange={(event) =>
-                      setFilters(
-                        (current) => ({
-                          ...current,
-                          condition:
-                            event.target
-                              .value,
-                        }),
-                      )
+                      setFilters((current) => ({
+                        ...current,
+                        condition: event.target.value,
+                      }))
                     }
                     className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">
-                      Cualquier estado
-                    </option>
-
-                    <option value="new">
-                      Obra nueva
-                    </option>
-
-                    <option value="good">
-                      Buen estado
-                    </option>
-
-                    <option value="renovated">
-                      Reformado
-                    </option>
-
-                    <option value="needs-renovation">
-                      Necesita reforma
-                    </option>
+                    <option value="">Cualquier estado</option>
+                    <option value="new">Obra nueva</option>
+                    <option value="good">Buen estado</option>
+                    <option value="renovated">Reformado</option>
+                    <option value="needs-renovation">Necesita reforma</option>
                   </select>
                 </div>
               </div>
 
-              {/* ==================================================
-                  CARACTERÍSTICAS
-                  ================================================== */}
+              {/* CARACTERÍSTICAS */}
 
               <div className="mt-7 border-t pt-6">
-                <h3 className="text-sm font-semibold">
-                  Características
-                </h3>
+                <h3 className="text-sm font-semibold">Características</h3>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                  {propertyFeatureLabels.map(
-                    ([field, label]) => (
-                      <label
-                        key={field}
-                        className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition hover:bg-muted"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={
-                            filters[field]
-                          }
-                          onChange={() =>
-                            toggleBooleanFilter(
-                              field,
-                            )
-                          }
-                          className="h-4 w-4 cursor-pointer"
-                        />
-
-                        <span>
-                          {label}
-                        </span>
-                      </label>
-                    ),
-                  )}
+                  {propertyFeatureLabels.map(([field, label]) => (
+                    <label
+                      key={field}
+                      className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition hover:bg-muted"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters[field]}
+                        onChange={() => toggleBooleanFilter(field)}
+                        className="h-4 w-4 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
-              {/* ==================================================
-                  RESUMEN DE FILTROS
-                  ================================================== */}
+              {/* RESUMEN DE FILTROS */}
 
-              {hasActiveFilters(
-                filters,
-              ) && (
+              {hasActiveFilters(filters) && (
                 <div className="mt-6 rounded-md bg-muted/50 p-4">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Filtros activos
@@ -2625,123 +1596,65 @@ function PropertiesPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(
                       [
-                        [
-                          'Precio',
-                          filters.price,
-                          '€',
-                        ],
-                        [
-                          'Superficie',
-                          filters.area,
-                          'm²',
-                        ],
-                        [
-                          'Habitaciones',
-                          filters.bedrooms,
-                          '',
-                        ],
-                        [
-                          'Baños',
-                          filters.bathrooms,
-                          '',
-                        ],
-                      ] as [
-                        string,
-                        NumericFilter,
-                        string,
-                      ][]
-                    ).map(
-                      ([
-                        label,
-                        filter,
-                        suffix,
-                      ]) => {
-                        if (
-                          !hasActiveNumericFilter(
-                            filter,
-                          )
-                        ) {
-                          return null
-                        }
+                        ['Precio', filters.price, '€'],
+                        ['Superficie', filters.area, 'm²'],
+                        ['Habitaciones', filters.bedrooms, ''],
+                        ['Baños', filters.bathrooms, ''],
+                      ] as [string, NumericFilter, string][]
+                    ).map(([label, filter, suffix]) => {
+                      if (!hasActiveNumericFilter(filter)) {
+                        return null
+                      }
 
-                        const text =
-                          filter.operator ===
-                          'range'
-                            ? `${label} entre ${
-                                filter.min ||
-                                'sin mínimo'
-                              } y ${
-                                filter.max ||
-                                'sin máximo'
-                              }${
-                                suffix
-                                  ? ` ${suffix}`
-                                  : ''
-                              }`
-                            : `${label} ${getOperatorLabel(
-                                filter.operator,
-                              )} ${
-                                filter.value
-                              }${
-                                suffix
-                                  ? ` ${suffix}`
-                                  : ''
-                              }`
+                      const text =
+                        filter.operator === 'range'
+                          ? `${label} entre ${filter.min || 'sin mínimo'
+                          } y ${filter.max || 'sin máximo'}${suffix ? ` ${suffix}` : ''
+                          }`
+                          : `${label} ${getOperatorLabel(
+                            filter.operator,
+                          )} ${filter.value}${suffix ? ` ${suffix}` : ''}`
 
-                        return (
-                          <span
-                            key={label}
-                            className="rounded-md bg-background px-2 py-1 text-xs"
-                          >
-                            {text}
-                          </span>
-                        )
-                      },
-                    )}
+                      return (
+                        <span
+                          key={label}
+                          className="rounded-md bg-background px-2 py-1 text-xs"
+                        >
+                          {text}
+                        </span>
+                      )
+                    })}
 
                     {/* FILTROS BOOLEANOS ACTIVOS */}
 
-                    {propertyFeatureLabels.map(
-                      ([
-                        field,
-                        label,
-                      ]) =>
-                        filters[field] ? (
-                          <span
-                            key={field}
-                            className="rounded-md bg-background px-2 py-1 text-xs"
-                          >
-                            {label}
-                          </span>
-                        ) : null,
+                    {propertyFeatureLabels.map(([field, label]) =>
+                      filters[field] ? (
+                        <span
+                          key={field}
+                          className="rounded-md bg-background px-2 py-1 text-xs"
+                        >
+                          {label}
+                        </span>
+                      ) : null,
                     )}
 
                     {/* OTROS FILTROS */}
 
                     {filters.operation && (
                       <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Operación:{' '}
-                        {getPropertyOperation(
-                          filters.operation,
-                        )}
+                        Operación: {getPropertyOperation(filters.operation)}
                       </span>
                     )}
 
                     {filters.type && (
                       <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Tipo:{' '}
-                        {getPropertyTypeLabel(
-                          filters.type,
-                        )}
+                        Tipo: {getPropertyTypeLabel(filters.type)}
                       </span>
                     )}
 
                     {filters.condition && (
                       <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Estado:{' '}
-                        {getPropertyCondition(
-                          filters.condition,
-                        )}
+                        Estado: {getPropertyCondition(filters.condition)}
                       </span>
                     )}
                   </div>
@@ -2754,14 +1667,8 @@ function PropertiesPage() {
             <div className="flex flex-col-reverse gap-3 border-t px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
-                onClick={
-                  handleResetFilters
-                }
-                disabled={
-                  !hasActiveFilters(
-                    filters,
-                  )
-                }
+                onClick={handleResetFilters}
+                disabled={!hasActiveFilters(filters)}
                 className="rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Limpiar filtros
@@ -2769,11 +1676,7 @@ function PropertiesPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setIsFilterOpen(
-                    false,
-                  )
-                }
+                onClick={() => setIsFilterOpen(false)}
                 className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
               >
                 Aplicar filtros

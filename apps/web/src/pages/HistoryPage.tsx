@@ -39,7 +39,7 @@ const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
   flat: 'Piso',
   house: 'Casa',
-  chalet: 'Chalet',
+  villa: 'Chalet',
   penthouse: 'Ático',
   duplex: 'Dúplex',
   studio: 'Estudio',
@@ -196,7 +196,7 @@ function deduplicateHighlights(
 }
 
 // ============================================================
-// FILTROS NUMÃRICOS
+// FILTROS NUMÉRICOS
 // ============================================================
 
 function getNumberValue(
@@ -381,7 +381,7 @@ function HistoryPage() {
   const itemsPerPage = 4
 
   // ==========================================================
-  // BÃSQUEDA / ORDENACIÃN
+  // BÚSQUEDA / ORDENACIÓN
   // ==========================================================
 
   const [searchTerm, setSearchTerm] =
@@ -701,7 +701,7 @@ function HistoryPage() {
     ])
 
   // ==========================================================
-  // PAGINACIÃN
+  // PAGINACIÓN
   // ==========================================================
 
   const totalPages = Math.max(
@@ -762,7 +762,7 @@ function HistoryPage() {
   }, [currentPage])
 
   // ==========================================================
-  // SELECCIÃN
+  // SELECCIÓN
   // ==========================================================
 
   const currentPageIds = useMemo(
@@ -1079,7 +1079,7 @@ function HistoryPage() {
     }, [generations])
 
   // ==========================================================
-  // COMPONENTE FILTRO NUMÃRICO
+  // COMPONENTE FILTRO NUMÉRICO
   // ==========================================================
 
   const renderNumericFilter = (
@@ -1281,7 +1281,7 @@ function HistoryPage() {
             </div>
           ) : (
             <div>
-              {/* BÃSQUEDA / ORDENAR / FILTRAR */}
+              {/* BÚSQUEDA / ORDENAR / FILTRAR */}
 
               <div className="mt-8 rounded-lg border bg-card p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -1462,7 +1462,7 @@ function HistoryPage() {
                 </span>
               </div>
 
-              {/* SELECCIÃN */}
+              {/* SELECCIÓN */}
 
               <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
@@ -1624,7 +1624,7 @@ function HistoryPage() {
                           key={
                             generation.id
                           }
-                          className={`relative rounded-lg border bg-card transition ${isSelected
+                          className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
                             ? 'border-primary ring-2 ring-primary/25'
                             : 'border-border'
                             }`}
@@ -1659,14 +1659,14 @@ function HistoryPage() {
                                 }`}
                             >
                               {isSelected
-                                ? 'â Seleccionado'
+                                ? '✓ Seleccionado'
                                 : 'Seleccionar'}
                             </div>
                           </div>
 
                           {/* CONTENIDO */}
 
-                          <div className="p-5">
+                          <div className="flex-1 p-5">
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                               <div className="min-w-0 flex-1">
                                 <h2 className="text-lg font-semibold">
@@ -1888,7 +1888,7 @@ function HistoryPage() {
 
                           <Link
                             to={`/historial/${generation.id}`}
-                            className="group block"
+                            className="group mt-auto block"
                           >
                             <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
                               <button
@@ -1909,7 +1909,7 @@ function HistoryPage() {
                 </div>
               )}
 
-              {/* PAGINACIÃN */}
+              {/* PAGINACIÓN */}
 
               {totalPages > 1 && (
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
@@ -1921,8 +1921,7 @@ function HistoryPage() {
                       ) {
                         setCurrentPage(
                           (previousPage) =>
-                            previousPage -
-                            1,
+                            previousPage - 1,
                         )
                       }
                     }}
@@ -2017,7 +2016,7 @@ function HistoryPage() {
             </div>
 
             <div className="space-y-6 p-5">
-              {/* NUMÃRICOS */}
+              {/* NUMÉRICOS */}
 
               <div className="grid gap-5 sm:grid-cols-2">
                 {renderNumericFilter(
@@ -2051,7 +2050,7 @@ function HistoryPage() {
                 )}
               </div>
 
-              {/* OPERACIÃN + TIPO */}
+              {/* OPERACIÓN + TIPO */}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

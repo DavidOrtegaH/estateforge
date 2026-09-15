@@ -1,6 +1,7 @@
 import type {
   GeneratedListing,
   GenerationRequest,
+  GenerationUpdate
 } from '@estateforge/shared'
 
 export type GenerationApiErrorCode =
@@ -178,15 +179,7 @@ export async function getGeneration(
 
 export async function updateGeneration(
   id: string,
-  data: Partial<
-    Pick<
-      GenerationItem,
-      | 'title'
-      | 'description'
-      | 'highlights'
-      | 'callToAction'
-    >
-  >,
+  data: Partial<GenerationUpdate>,
 ): Promise<GenerationItem> {
   const response = await fetch(
     `${API_URL}/api/generations/${id}`,
