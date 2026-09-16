@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test'
+import { describe, it } from 'vitest'
 import assert from 'node:assert/strict'
 
 import {
@@ -46,6 +46,15 @@ const validGeneration = {
 describe('PropertyInputSchema', () => {
   it('acepta un inmueble válido', () => {
     assert.equal(PropertyInputSchema.safeParse(validProperty).success, true)
+  })
+
+  it('acepta una zona vacía', () => {
+    const result = PropertyInputSchema.safeParse({
+      ...validProperty,
+      neighborhood: '',
+    })
+
+    assert.equal(result.success, true)
   })
 
   it('rechaza campos desconocidos', () => {

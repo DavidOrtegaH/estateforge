@@ -1,3 +1,4 @@
+
 import {
   afterAll,
   beforeAll,
@@ -173,11 +174,11 @@ describe('Security Configuration', () => {
     })
 
     it(
-      'debe limitar POST /api/generations después de 5 peticiones',
+      'debe limitar POST /api/generations después de 70 peticiones',
       async () => {
         const responses = []
 
-        for (let i = 0; i < 6; i += 1) {
+        for (let i = 0; i < 71; i += 1) {
           const response =
             await app.inject({
               method: 'POST',
@@ -188,14 +189,14 @@ describe('Security Configuration', () => {
           responses.push(response)
         }
 
-        const firstFive =
-          responses.slice(0, 5)
+        const firstTwenty =
+          responses.slice(0, 70)
 
         const rateLimitedResponse =
-          responses[5]
+          responses[70]
 
         expect(
-          firstFive.every(
+          firstTwenty.every(
             (response) =>
               response.statusCode !== 429,
           ),
@@ -214,11 +215,11 @@ describe('Security Configuration', () => {
     )
 
     it(
-      'debe limitar POST /api/generations/from-property después de 5 peticiones',
+      'debe limitar POST /api/generations/from-property después de 70 peticiones',
       async () => {
         const responses = []
 
-        for (let i = 0; i < 6; i += 1) {
+        for (let i = 0; i < 71; i += 1) {
           const response =
             await app.inject({
               method: 'POST',
@@ -230,7 +231,7 @@ describe('Security Configuration', () => {
         }
 
         const rateLimitedResponse =
-          responses[5]
+          responses[70]
 
         expect(
           rateLimitedResponse.statusCode,

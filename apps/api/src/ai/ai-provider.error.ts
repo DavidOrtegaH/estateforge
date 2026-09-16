@@ -8,6 +8,8 @@ export class AIProviderError extends Error {
   constructor(
     public readonly code: AIProviderErrorCode,
     message: string,
+    public readonly provider?: 'OpenAI' | 'Gemini',
+    public readonly status?: number,
   ) {
     super(message)
     this.name = 'AIProviderError'
@@ -88,6 +90,21 @@ function getErrorCode(
     : ''
 }
 
+function providerErrorMessage(
+  provider: 'OpenAI' | 'Gemini',
+  status: number | undefined,
+  code: string,
+): string {
+  const statusDetail =
+    status !== undefined
+      ? ` (HTTP ${status}${code ? `, código ${code}` : ''})`
+      : code
+        ? ` (código ${code})`
+        : ''
+
+  return `El proveedor ${provider} no está disponible en este momento${statusDetail}.`
+}
+
 export function classifyAIProviderError(
   provider: 'OpenAI' | 'Gemini',
   error: unknown,
@@ -108,7 +125,8 @@ export function classifyAIProviderError(
   const isTimeout =
     message.includes('timeout') ||
     message.includes('timed out') ||
-    message.includes('deadline exceeded')
+    message.includes('deadline exceeded') ||
+    code === 'deadline_exceeded'
 
   if (isTimeout) {
     const detailMessage =
@@ -119,6 +137,8 @@ export function classifyAIProviderError(
     return new AIProviderError(
       'AI_TIMEOUT',
       `Error al generar el anuncio con ${provider}: ${detailMessage}`,
+      provider,
+      status,
     )
   }
 
@@ -137,6 +157,8 @@ export function classifyAIProviderError(
     return new AIProviderError(
       'AI_INVALID_API_KEY',
       `La API key proporcionada para ${provider} no es válida.`,
+      provider,
+      status,
     )
   }
 
@@ -154,11 +176,15 @@ export function classifyAIProviderError(
     return new AIProviderError(
       'AI_QUOTA_EXCEEDED',
       `La cuota disponible de ${provider} se ha agotado.`,
+      provider,
+      status,
     )
   }
 
   return new AIProviderError(
     'AI_PROVIDER_ERROR',
-    `El proveedor ${provider} no está disponible en este momento.`,
+    providerErrorMessage(provider, status, code),
+    provider,
+    status,
   )
 }

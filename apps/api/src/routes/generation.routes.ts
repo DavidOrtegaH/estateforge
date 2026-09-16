@@ -1,3 +1,4 @@
+
 import type {
   FastifyInstance,
   FastifyReply,
@@ -50,7 +51,7 @@ app.post(
   {
     config: {
       rateLimit: {
-        max: 5,
+        max: 70,
         timeWindow: '1 minute',
       },
     },
@@ -87,7 +88,7 @@ app.post(
   {
     config: {
       rateLimit: {
-        max: 5,
+        max: 70,
         timeWindow: '1 minute',
       },
     },

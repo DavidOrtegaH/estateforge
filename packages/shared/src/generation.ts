@@ -7,20 +7,13 @@ export type AIProviderType =
 
 export type ListingTone =
   | 'professional'
-  | 'premium'
-  | 'friendly'
-  | 'close'
-  | 'enthusiastic'
-  | 'investment'
+  | 'luxurious'
+  | 'casual'
+  | 'persuasive'
 
 export type ListingLanguage =
   | 'español'
   | 'english'
-  | 'es'
-  | 'en'
-  | 'ca'
-  | 'gl'
-  | 'eu'
 
 export type GenerationRequest = {
   property: Property

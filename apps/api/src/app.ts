@@ -59,7 +59,7 @@ export async function buildApp() {
 
   await app.register(rateLimit, {
     global: false,
-    max: 5,
+    max: 20,
     timeWindow: '1 minute',
   })
 
@@ -137,18 +137,28 @@ export async function buildApp() {
                 code:
                   'AI_TIMEOUT',
                 message:
-                  'La generación ha superado el tiempo límite de 15 segundos.',
+                  'La generación ha superado el tiempo límite de 40 segundos.',
               })
 
           case 'AI_PROVIDER_ERROR':
           default:
+            console.error(
+              '[EstateForge] Error del proveedor de IA:',
+              {
+                provider: error.provider,
+                status: error.status,
+                code: error.code,
+                message: error.message,
+              },
+            )
+
             return reply
               .code(502)
               .send({
                 code:
                   'AI_PROVIDER_ERROR',
                 message:
-                  'El proveedor de IA no está disponible en este momento.',
+                  error.message,
               })
         }
       }
