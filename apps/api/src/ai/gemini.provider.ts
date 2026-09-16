@@ -344,7 +344,7 @@ export class GeminiProvider
       ) {
         throw new AIProviderError(
           'AI_TIMEOUT',
-          'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo lÃ­mite de 40 segundos.',
+          'Error al generar el anuncio con Gemini: La solicitud a Gemini ha superado el tiempo límite de 40 segundos.',
         )
       }
 

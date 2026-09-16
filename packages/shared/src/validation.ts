@@ -100,6 +100,7 @@ const propertyFields = {
   operation: z.enum([
     'sale',
     'rent',
+    'transfer',
   ]),
 
   type: z.enum([
@@ -107,7 +108,11 @@ const propertyFields = {
     'house',
     'villa',
     'penthouse',
+    'duplex',
+    'studio',
     'commercial',
+    'office',
+    'land',
   ]),
 
   price: nonNegativeNumber(100_000_000),
@@ -116,7 +121,7 @@ const propertyFields = {
 
   city: requiredText(100),
 
-  neighborhood: requiredText(120),
+  neighborhood: optionalText(120),
 
   area: nonNegativeNumber(100_000),
 
@@ -179,6 +184,7 @@ export const PropertyUpdateSchema = z
       .enum([
         'sale',
         'rent',
+        'transfer',
       ])
       .optional(),
 
@@ -188,7 +194,11 @@ export const PropertyUpdateSchema = z
         'house',
         'villa',
         'penthouse',
+        'duplex',
+        'studio',
         'commercial',
+        'office',
+        'land',
       ])
       .optional(),
 
@@ -200,7 +210,7 @@ export const PropertyUpdateSchema = z
 
     city: requiredText(100).optional(),
 
-    neighborhood: requiredText(120).optional(),
+    neighborhood: optionalText(120).optional(),
 
     area: nonNegativeNumber(
       100_000,
@@ -275,21 +285,14 @@ export const AIProviderSchema = z.enum([
 
 export const ListingToneSchema = z.enum([
   'professional',
-  'premium',
-  'friendly',
-  'close',
-  'enthusiastic',
-  'investment',
+  'luxurious',
+  'casual',
+  'persuasive',
 ])
 
 export const ListingLanguageSchema = z.enum([
   'español',
   'english',
-  'es',
-  'en',
-  'ca',
-  'gl',
-  'eu',
 ])
 
 /**

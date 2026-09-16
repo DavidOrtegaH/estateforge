@@ -13,9 +13,7 @@ import {
 
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
-  flat: 'Piso',
   house: 'Casa',
-  chalet: 'Chalet',
   villa: 'Chalet',
   penthouse: 'Ático',
   duplex: 'Dúplex',
@@ -28,14 +26,14 @@ const propertyTypeLabels: Record<string, string> = {
 const propertyOperationLabels: Record<string, string> = {
   sale: 'Venta',
   rent: 'Alquiler',
+  transfer: 'Traspaso',
 }
 
 const propertyConditionLabels: Record<string, string> = {
   new: 'Obra nueva',
   good: 'Buen estado',
   renovated: 'Reformado',
-  'needs-renovation': 'Necesita reforma',
-  'to-renovate': 'Necesita reforma',
+  'needs-renovation': 'A reformar',
 }
 
 // ============================================================
@@ -1499,6 +1497,7 @@ function PropertiesPage() {
                     <option value="">Cualquier operación</option>
                     <option value="sale">Venta</option>
                     <option value="rent">Alquiler</option>
+                    <option value="transfer">Traspaso</option>
                   </select>
                 </div>
 
@@ -1554,10 +1553,10 @@ function PropertiesPage() {
                     className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
                   >
                     <option value="">Cualquier estado</option>
-                    <option value="new">Obra nueva</option>
+                    <option value="new">Nuevo</option>
                     <option value="good">Buen estado</option>
                     <option value="renovated">Reformado</option>
-                    <option value="needs-renovation">Necesita reforma</option>
+                    <option value="needs-renovation">A reformar</option>
                   </select>
                 </div>
               </div>

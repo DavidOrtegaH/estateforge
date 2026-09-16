@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 
 import type {
@@ -92,6 +92,8 @@ function NewPropertyPage() {
   const [isCopied, setIsCopied] =
     useState(false)
 
+  const generatedListingRef = useRef<HTMLDivElement>(null)
+
   function preserveScrollPosition(
     callback: () => void,
   ) {
@@ -115,12 +117,27 @@ function NewPropertyPage() {
   }
 
   function scrollToBottom() {
-    setTimeout(() => {
+    requestAnimationFrame(() => {
+      const targetY = document.documentElement.scrollHeight - window.innerHeight
       window.scrollTo({
-        top: document.documentElement.scrollHeight,
-        behavior: 'smooth',
+        top: targetY,
+        behavior: 'instant',
       })
-    }, 100)
+    })
+  }
+
+  function scrollToElement(element: HTMLElement | null) {
+    if (!element) {
+      scrollToBottom()
+      return
+    }
+
+    requestAnimationFrame(() => {
+      element.scrollIntoView({
+        behavior: 'instant',
+        block: 'start',
+      })
+    })
   }
 
   function updateProperty<K extends keyof Property>(
@@ -207,7 +224,9 @@ function NewPropertyPage() {
       setApiKey('')
       setShowCustomApiKey(false)
 
-      scrollToBottom()
+      setTimeout(() => {
+        scrollToElement(generatedListingRef.current)
+      }, 50)
     } catch (generationError) {
       if (generationError instanceof GenerationApiError) {
         if (
@@ -290,13 +309,6 @@ function NewPropertyPage() {
     setError(null)
 
     try {
-      // Aquí invocarías tu servicio de actualización.
-      // Por ejemplo:
-      // await updateListingService(
-      //   createdGenerationId,
-      //   editedListing,
-      // )
-
       setGeneratedListing(editedListing)
       setIsEditing(false)
     } catch (err) {
@@ -332,12 +344,6 @@ function NewPropertyPage() {
     setError(null)
 
     try {
-      // Aquí invocarías tu servicio de borrado.
-      // Por ejemplo:
-      // await deleteListingService(
-      //   createdGenerationId,
-      // )
-
       handleResetGeneration()
     } catch (err) {
       console.error(
@@ -473,6 +479,10 @@ ${listingToCopy.callToAction}
                 <option value="rent">
                   Alquiler
                 </option>
+
+                <option value="transfer">
+                  Traspaso
+                </option>
               </select>
             </label>
 
@@ -493,7 +503,7 @@ ${listingToCopy.callToAction}
                 className="h-10 rounded-md border bg-background px-3"
               >
                 <option value="apartment">
-                  Piso
+                  Apartamento
                 </option>
 
                 <option value="house">
@@ -508,8 +518,24 @@ ${listingToCopy.callToAction}
                   Ático
                 </option>
 
+                <option value="duplex">
+                  Dúplex
+                </option>
+
+                <option value="studio">
+                  Estudio
+                </option>
+
                 <option value="commercial">
-                  Local
+                  Local comercial
+                </option>
+
+                <option value="office">
+                  Oficina
+                </option>
+
+                <option value="land">
+                  Terreno
                 </option>
               </select>
             </label>
@@ -710,7 +736,7 @@ ${listingToCopy.callToAction}
                 className="h-10 rounded-md border bg-background px-3"
               >
                 <option value="new">
-                  Obra nueva
+                  Nuevo
                 </option>
 
                 <option value="good">
@@ -722,7 +748,7 @@ ${listingToCopy.callToAction}
                 </option>
 
                 <option value="needs-renovation">
-                  Necesita reforma
+                  A reformar
                 </option>
               </select>
             </label>
@@ -809,88 +835,108 @@ ${listingToCopy.callToAction}
             </p>
           </div>
 
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
-            <label className="grid gap-2">
-              <span className="text-sm font-medium">
-                Proveedor de IA
-              </span>
+          <div className="mt-6">
+            {/* Fila 1: Tres selectores alineados horizontalmente */}
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium">
+                  Proveedor de IA
+                </span>
 
-              <select
-                value={provider}
-                onChange={(event) =>
-                  setProvider(
-                    event.target
-                      .value as AIProviderType,
-                  )
-                }
-                disabled={isGenerating}
-                className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="gemini">
-                  Gemini
-                </option>
+                <select
+                  value={provider}
+                  onChange={(event) =>
+                    setProvider(
+                      event.target
+                        .value as AIProviderType,
+                    )
+                  }
+                  disabled={isGenerating}
+                  className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="mock">
+                    Mock
+                  </option>
 
-                <option value="mock">
-                  Mock (no usa IA)
-                </option>
-              </select>
-            </label>
+                  <option value="gemini">
+                    Gemini
+                  </option>
 
-            <label className="grid gap-2">
-              <span className="text-sm font-medium">
-                Tono
-              </span>
+                  <option value="openai">
+                    OpenAI
+                  </option>
+                </select>
+              </label>
 
-              <select
-                value={tone}
-                onChange={(event) =>
-                  setTone(
-                    event.target
-                      .value as ListingTone,
-                  )
-                }
-                disabled={isGenerating}
-                className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="professional">
-                  Profesional
-                </option>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium">
+                  Tono
+                </span>
 
-                <option value="premium">
-                  Premium
-                </option>
+                <select
+                  value={tone}
+                  onChange={(event) =>
+                    setTone(
+                      event.target
+                        .value as ListingTone,
+                    )
+                  }
+                  disabled={isGenerating}
+                  className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="professional">
+                    Profesional
+                  </option>
 
-                <option value="friendly">
-                  Cercano
-                </option>
-              </select>
-            </label>
+                  <option value="luxurious">
+                    De lujo
+                  </option>
 
-            <label className="grid gap-2">
-              <span className="text-sm font-medium">
-                Idioma
-              </span>
+                  <option value="casual">
+                    Casual
+                  </option>
 
-              <select
-                value={language}
-                onChange={(event) =>
-                  setLanguage(
-                    event.target
-                      .value as ListingLanguage,
-                  )
-                }
-                disabled={isGenerating}
-                className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="español">
-                  Español
-                </option>
+                  <option value="persuasive">
+                    Persuasivo
+                  </option>
+                </select>
+              </label>
 
-                <option value="english">
-                  Inglés
-                </option>
-              </select>
-            </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium">
+                  Idioma
+                </span>
+
+                <select
+                  value={language}
+                  onChange={(event) =>
+                    setLanguage(
+                      event.target
+                        .value as ListingLanguage,
+                    )
+                  }
+                  disabled={isGenerating}
+                  className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="español">
+                    Español
+                  </option>
+
+                  <option value="english">
+                    Inglés
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            {/* Fila 2: Aviso informativo siempre visible con mt-2 justo bajo el proveedor */}
+            <div className="mt-2 grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Mock no consume ninguna API ni usa IA.
+                </p>
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -969,7 +1015,10 @@ ${listingToCopy.callToAction}
       </form>
 
       {generatedListing && (
-        <section className="mt-8 overflow-hidden rounded-lg border bg-card">
+        <section
+          ref={generatedListingRef}
+          className="mt-8 overflow-hidden rounded-lg border bg-card"
+        >
           {/* ENLACES SUPERIORES */}
           <div className="grid grid-cols-2">
             {createdPropertyId ? (

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -19,9 +18,8 @@ import {
 
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
-  flat: 'Piso',
   house: 'Casa',
-  chalet: 'Chalet',
+  villa: 'Chalet',
   penthouse: 'Ático',
   duplex: 'Dúplex',
   studio: 'Estudio',
@@ -38,20 +36,14 @@ const operationLabels: Record<string, string> = {
 
 const toneLabels: Record<string, string> = {
   professional: 'Profesional',
-  premium: 'Premium',
-  friendly: 'Cercano',
-  commercial: 'Comercial',
   luxurious: 'De lujo',
   casual: 'Casual',
   persuasive: 'Persuasivo',
-  direct: 'Directo',
 }
 
 const languageLabels: Record<string, string> = {
   español: 'Español',
-  es: 'Español',
   english: 'Inglés',
-  en: 'Inglés',
 }
 
 /*
@@ -59,10 +51,10 @@ const languageLabels: Record<string, string> = {
  * al texto que se muestra en el Dashboard.
  */
 const conditionLabels: Record<string, string> = {
-  new: 'Obra nueva',
+  new: 'Nuevo',
   good: 'Buen estado',
   renovated: 'Reformado',
-  needs_renovation: 'Necesita reforma',
+  'needs-renovation': 'A reformar',
 }
 
 function capitalizeFirstLetter(value: string): string {
@@ -1760,6 +1752,10 @@ function DashboardPage() {
                                 <option value="rent">
                                   Alquiler
                                 </option>
+
+                                <option value="transfer">
+                                  Traspaso
+                                </option>
                               </select>
                             </div>
 
@@ -1790,14 +1786,14 @@ function DashboardPage() {
                                 className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                               >
                                 <option value="apartment">
-                                  Piso
+                                  Apartamento
                                 </option>
 
                                 <option value="house">
                                   Casa
                                 </option>
 
-                                <option value="chalet">
+                                <option value="villa">
                                   Chalet
                                 </option>
 
@@ -1805,8 +1801,24 @@ function DashboardPage() {
                                   Ático
                                 </option>
 
+                                <option value="duplex">
+                                  Dúplex
+                                </option>
+
+                                <option value="studio">
+                                  Estudio
+                                </option>
+
                                 <option value="commercial">
-                                  Local
+                                  Local comercial
+                                </option>
+
+                                <option value="office">
+                                  Oficina
+                                </option>
+
+                                <option value="land">
+                                  Terreno
                                 </option>
                               </select>
                             </div>
@@ -1955,7 +1967,7 @@ function DashboardPage() {
                                 className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                               >
                                 <option value="new">
-                                  Obra nueva
+                                  Nuevo
                                 </option>
 
                                 <option value="good">
@@ -1966,8 +1978,8 @@ function DashboardPage() {
                                   Reformado
                                 </option>
 
-                                <option value="needs_renovation">
-                                  Necesita reforma
+                                <option value="needs-renovation">
+                                  A reformar
                                 </option>
                               </select>
                             </div>

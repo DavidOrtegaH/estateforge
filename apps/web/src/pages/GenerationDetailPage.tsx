@@ -15,7 +15,6 @@ import {
 // Diccionario de traducción para los tipos de inmueble
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
-  flat: 'Piso',
   house: 'Casa',
   villa: 'Chalet',
   penthouse: 'Ático',
@@ -36,12 +35,9 @@ const operationLabels: Record<string, string> = {
 // Diccionario de traducción para los tonos
 const toneLabels: Record<string, string> = {
   professional: 'Profesional',
-  friendly: 'Cercano',
-  commercial: 'Comercial',
   luxurious: 'De lujo',
   casual: 'Casual',
   persuasive: 'Persuasivo',
-  direct: 'Directo',
 }
 
 function capitalizeFirstLetter(

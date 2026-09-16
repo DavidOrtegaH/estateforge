@@ -27,7 +27,6 @@ import {
 
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
-  flat: 'Piso',
   house: 'Casa',
   villa: 'Chalet',
   penthouse: 'Ático',
@@ -48,18 +47,20 @@ const conditionLabels: Record<string, string> = {
   new: 'Nuevo',
   good: 'Buen estado',
   renovated: 'Reformado',
-  to_renovate: 'A reformar',
+  'needs-renovation': 'A reformar',
 }
 
 const providerLabels: Record<string, string> = {
-  gemini: 'Gemini',
   mock: 'Mock',
+  gemini: 'Gemini',
+  openai: 'OpenAI',
 }
 
 const toneLabels: Record<string, string> = {
   professional: 'Profesional',
-  premium: 'Premium',
-  friendly: 'Cercano',
+  luxurious: 'De lujo',
+  casual: 'Casual',
+  persuasive: 'Persuasivo',
 }
 
 const languageLabels: Record<string, string> = {
@@ -1250,8 +1251,8 @@ function PropertyDetailPage() {
                     Seleccionar
                   </option>
 
-                  <option value="flat">
-                    Piso
+                  <option value="apartment">
+                    Apartamento
                   </option>
 
                   <option value="house">
@@ -1335,7 +1336,7 @@ function PropertyDetailPage() {
                     Reformado
                   </option>
 
-                  <option value="to_renovate">
+                  <option value="needs-renovation">
                     A reformar
                   </option>
                 </select>
@@ -2249,20 +2250,21 @@ function PropertyDetailPage() {
               }
               className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
+              <option value="mock">
+                Mock
+              </option>
+
               <option value="gemini">
                 Gemini
               </option>
 
-              <option value="mock">
-                Mock
+              <option value="openai">
+                OpenAI
               </option>
             </select>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              Gemini utiliza la API
-              configurada en el
-              servidor. Mock no
-              consume ninguna API.
+              Mock no consume ninguna API ni usa IA.
             </p>
           </div>
 
@@ -2296,12 +2298,16 @@ function PropertyDetailPage() {
                 Profesional
               </option>
 
-              <option value="premium">
-                Premium
+              <option value="luxurious">
+                De lujo
               </option>
 
-              <option value="friendly">
-                Cercano
+              <option value="casual">
+                Casual
+              </option>
+
+              <option value="persuasive">
+                Persuasivo
               </option>
             </select>
           </div>
@@ -2805,6 +2811,3 @@ function PropertyDetailPage() {
 }
 
 export default PropertyDetailPage
-
-
-

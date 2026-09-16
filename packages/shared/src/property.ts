@@ -1,11 +1,15 @@
-export type PropertyOperation = 'sale' | 'rent'
+export type PropertyOperation = 'sale' | 'rent' | 'transfer'
 
 export type PropertyType =
   | 'apartment'
   | 'house'
   | 'villa'
   | 'penthouse'
+  | 'duplex'
+  | 'studio'
   | 'commercial'
+  | 'office'
+  | 'land'
 
 export type PropertyCondition =
   | 'new'

@@ -21,23 +21,19 @@ import {
 
 const toneLabels: Record<string, string> = {
   professional: 'Profesional',
-  friendly: 'Cercano',
-  commercial: 'Comercial',
   luxurious: 'De lujo',
   casual: 'Casual',
   persuasive: 'Persuasivo',
-  direct: 'Directo',
-  premium: 'Premium',
 }
 
 const operationLabels: Record<string, string> = {
   sale: 'Venta',
   rent: 'Alquiler',
+  transfer: 'Traspaso',
 }
 
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
-  flat: 'Piso',
   house: 'Casa',
   villa: 'Chalet',
   penthouse: 'Ático',
