@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
     "@types/node": "^24.13.3",
     "prisma": "7.9.1",
     "tsx": "^4.23.11",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^3.0.0"
   }
 }

@@ -1,22 +1,23 @@
 {
   "name": "@estateforge/shared",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./src/index.ts",
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
-    }
-  },
-  "dependencies": {
-    "zod": "^4.4.3"
+    ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:validation": "tsx --test src/validation.test.ts"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1"
+    "@types/node": "^24.13.3",
+    "typescript": "~6.0.2",
+    "vitest": "^3.0.0"
   }
 }
