@@ -6,17 +6,17 @@ import type { AIProviderType } from '@estateforge/shared'
 
 export function createAIProvider(
   provider: AIProviderType,
+  apiKey?: string,
 ): AIProvider {
-  console.log(
-    `[EstateForge] Generando anuncio con proveedor: ${provider}`,
-  )
-
   switch (provider) {
     case 'mock':
       return new MockAIProvider()
 
     case 'gemini':
-      return new GeminiProvider()
+      return new GeminiProvider(apiKey)
+
+    case 'openai':
+      return new OpenAIProvider(apiKey)
 
     default:
       throw new Error(

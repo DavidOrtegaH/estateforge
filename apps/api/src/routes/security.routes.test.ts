@@ -1,4 +1,3 @@
-
 import {
   afterAll,
   beforeAll,
@@ -11,6 +10,26 @@ import {
 import type {
   FastifyInstance,
 } from 'fastify'
+
+vi.mock(
+  '../services/generation.service.js',
+  () => ({
+    generateListing: vi.fn(
+      async (input: unknown) => ({
+        mocked: true,
+        input,
+      }),
+    ),
+
+    generateListingForExistingProperty:
+      vi.fn(
+        async (input: unknown) => ({
+          mocked: true,
+          input,
+        }),
+      ),
+  }),
+)
 
 describe('Security Configuration', () => {
   // ==========================================================
@@ -176,6 +195,37 @@ describe('Security Configuration', () => {
     it(
       'debe limitar POST /api/generations después de 70 peticiones',
       async () => {
+        const validPayload = {
+          property: {
+            title: 'Piso de prueba',
+            operation: 'sale',
+            type: 'apartment',
+            price: 250000,
+            address: 'Calle de Prueba 1',
+            city: 'Madrid',
+            neighborhood: 'Centro',
+            area: 80,
+            bedrooms: 2,
+            bathrooms: 1,
+            floor: 3,
+            condition: 'good',
+            elevator: true,
+            terrace: false,
+            balcony: true,
+            garage: false,
+            storageRoom: false,
+            pool: false,
+            garden: false,
+            airConditioning: false,
+            heating: true,
+            additionalInformation:
+              'Inmueble de prueba para test.',
+          },
+          provider: 'mock',
+          tone: 'professional',
+          language: 'español',
+        }
+
         const responses = []
 
         for (let i = 0; i < 71; i += 1) {
@@ -183,20 +233,20 @@ describe('Security Configuration', () => {
             await app.inject({
               method: 'POST',
               url: '/api/generations',
-              payload: {},
+              payload: validPayload,
             })
 
           responses.push(response)
         }
 
-        const firstTwenty =
+        const firstSeventy =
           responses.slice(0, 70)
 
         const rateLimitedResponse =
           responses[70]
 
         expect(
-          firstTwenty.every(
+          firstSeventy.every(
             (response) =>
               response.statusCode !== 429,
           ),
@@ -217,6 +267,14 @@ describe('Security Configuration', () => {
     it(
       'debe limitar POST /api/generations/from-property después de 70 peticiones',
       async () => {
+        const validPayload = {
+          propertyId:
+            'cmj7b5q8r0000v6y7g5q4m3n2',
+          provider: 'mock',
+          tone: 'professional',
+          language: 'español',
+        }
+
         const responses = []
 
         for (let i = 0; i < 71; i += 1) {
@@ -224,14 +282,24 @@ describe('Security Configuration', () => {
             await app.inject({
               method: 'POST',
               url: '/api/generations/from-property',
-              payload: {},
+              payload: validPayload,
             })
 
           responses.push(response)
         }
 
+        const firstSeventy =
+          responses.slice(0, 70)
+
         const rateLimitedResponse =
           responses[70]
+
+        expect(
+          firstSeventy.every(
+            (response) =>
+              response.statusCode !== 429,
+          ),
+        ).toBe(true)
 
         expect(
           rateLimitedResponse.statusCode,

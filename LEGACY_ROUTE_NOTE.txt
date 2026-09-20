@@ -1,0 +1,3 @@
+Punto 4 - generation-history.routes.ts
+
+La ruta legacy no está registrada en apps/api/src/app.ts en el volcado auditado. Por seguridad, esta entrega NO la elimina automáticamente: queda aislada y fuera del runtime. Tras verificar las pruebas y el build, puede eliminarse físicamente si no existen imports externos.

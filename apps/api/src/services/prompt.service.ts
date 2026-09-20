@@ -17,7 +17,7 @@ Utiliza un lenguaje comercial sobrio, evitando exageraciones y expresiones
 sensacionalistas.
 `.trim()
 
-    case 'premium':
+    case 'luxurious':
       return `
 El tono debe ser elegante, cuidado y atractivo, transmitiendo una sensación
 de calidad mediante la redacción.
@@ -26,7 +26,7 @@ No utilices lenguaje exagerado ni atribuyas características de lujo,
 exclusividad, calidad o prestigio que no aparezcan en los datos proporcionados.
 `.trim()
 
-    case 'friendly':
+    case 'casual':
       return `
 El tono debe ser cercano, natural y agradable, pero manteniendo la precisión
 de un anuncio inmobiliario.
@@ -35,32 +35,14 @@ Puedes utilizar una redacción más cálida y accesible, pero nunca inventes
 características ni afirmaciones sobre el inmueble.
 `.trim()
 
-    case 'close':
+    case 'persuasive':
       return `
-El tono debe ser cercano, natural y humano, transmitiendo confianza y
-facilidad de lectura.
+El tono debe ser atractivo y orientado a facilitar el interés del posible
+comprador o arrendatario, pero manteniendo siempre la veracidad de la
+información.
 
-Mantén siempre la precisión de los datos proporcionados y no inventes
-características ni afirmaciones sobre el inmueble.
-`.trim()
-
-    case 'enthusiastic':
-      return `
-El tono debe ser positivo, dinámico y atractivo, destacando las
-características reales del inmueble.
-
-No utilices exageraciones ni afirmaciones que no estén respaldadas por los
-datos proporcionados.
-`.trim()
-
-    case 'investment':
-      return `
-El tono debe estar orientado a compradores interesados en inversión
-inmobiliaria, utilizando una redacción clara y objetiva.
-
-No inventes rentabilidad, demanda, potencial de revalorización, retorno de
-inversión ni ninguna otra ventaja económica que no aparezca explícitamente
-en los datos proporcionados.
+No inventes ventajas, características, rentabilidad, demanda, exclusividad
+ni ninguna otra afirmación que no esté respaldada por los datos proporcionados.
 `.trim()
 
     default:
@@ -78,30 +60,13 @@ function getLanguageInstructions(
 ): string {
   switch (language) {
     case 'español':
-    case 'es':
       return `
 Escribe todo el anuncio en español.
 `.trim()
 
     case 'english':
-    case 'en':
       return `
 Write the entire listing in English.
-`.trim()
-
-    case 'ca':
-      return `
-Escriu tot l'anunci en català.
-`.trim()
-
-    case 'gl':
-      return `
-Escribe todo o anuncio en galego.
-`.trim()
-
-    case 'eu':
-      return `
-Idatzi iragarki osoa euskaraz.
 `.trim()
 
     default:

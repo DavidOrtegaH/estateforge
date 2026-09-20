@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm --filter @estateforge/shared typecheck && pnpm --filter api typecheck && pnpm --filter web typecheck",
     "test": "pnpm -r --workspace-concurrency=1 --if-present test",
     "test:api": "pnpm --filter api test",
     "test:web": "pnpm --filter web test",

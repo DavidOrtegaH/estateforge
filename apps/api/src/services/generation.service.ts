@@ -1,6 +1,7 @@
 import type {
   GeneratedListing,
   GenerationRequest,
+  Property,
   PropertyOperation,
   PropertyType,
   PropertyCondition,
@@ -11,25 +12,8 @@ import type {
 
 import { prisma } from '../db/prisma.js'
 import { buildListingPrompt } from './prompt.service.js'
-import type { AIProvider } from '../ai/ai-provider.js'
-import { MockAIProvider } from '../ai/mock-ai.provider.js'
-import { OpenAIProvider } from '../ai/openai.provider.js'
-import { GeminiProvider } from '../ai/gemini.provider.js'
-
-function createAIProvider(
-  provider: AIProviderType,
-  apiKey?: string,
-): AIProvider {
-  if (provider === 'gemini') {
-    return new GeminiProvider(apiKey)
-  }
-
-  if (provider === 'openai') {
-    return new OpenAIProvider(apiKey)
-  }
-
-  return new MockAIProvider()
-}
+import { validateGeneratedListing } from './listing-validator.service.js'
+import { createAIProvider } from '../ai/ai-provider.factory.js'
 
 interface ExistingPropertyGenerationRequest {
   propertyId: string
@@ -45,35 +29,121 @@ interface GenerationResult {
   generationId: string
 }
 
-async function createGeneration(
-  propertyId: string,
-  result: GeneratedListing,
-  provider: AIProviderType,
-  tone: string,
-  language: string,
-): Promise<string> {
-  const generation =
-    await prisma.generation.create({
-      data: {
-        propertyId,
-        title: result.title,
-        description: result.description,
-        highlights: JSON.stringify(
-          result.highlights,
-        ),
-        callToAction:
-          result.callToAction,
-        provider,
-        tone,
-        language,
-      },
-    })
+/**
+ * Convierte el modelo de Prisma al tipo Property utilizado
+ * por el paquete shared.
+ *
+ * El modelo de Prisma contiene campos adicionales como:
+ * - id
+ * - userId
+ * - createdAt
+ * - updatedAt
+ *
+ * Estos campos pertenecen a persistencia y no forman parte
+ * del tipo Property compartido utilizado por el validador.
+ *
+ * Además, Prisma utiliza null para floor cuando no existe
+ * valor, mientras que el tipo compartido utiliza undefined.
+ */
+function toSharedProperty(
+  property: {
+    title: string
+    operation: string
+    type: string
+    price: number
+    address: string
+    city: string
+    neighborhood: string
+    area: number
+    bedrooms: number
+    bathrooms: number
+    floor: number | null
+    condition: string
+    elevator: boolean
+    terrace: boolean
+    balcony: boolean
+    garage: boolean
+    storageRoom: boolean
+    pool: boolean
+    garden: boolean
+    airConditioning: boolean
+    heating: boolean
+    additionalInformation: string
+  },
+): Property {
+  return {
+    title:
+      property.title,
 
-  return generation.id
+    operation:
+      property.operation as PropertyOperation,
+
+    type:
+      property.type as PropertyType,
+
+    price:
+      property.price,
+
+    address:
+      property.address,
+
+    city:
+      property.city,
+
+    neighborhood:
+      property.neighborhood,
+
+    area:
+      property.area,
+
+    bedrooms:
+      property.bedrooms,
+
+    bathrooms:
+      property.bathrooms,
+
+    floor:
+      property.floor ?? undefined,
+
+    condition:
+      property.condition as PropertyCondition,
+
+    elevator:
+      property.elevator,
+
+    terrace:
+      property.terrace,
+
+    balcony:
+      property.balcony,
+
+    garage:
+      property.garage,
+
+    storageRoom:
+      property.storageRoom,
+
+    pool:
+      property.pool,
+
+    garden:
+      property.garden,
+
+    airConditioning:
+      property.airConditioning,
+
+    heating:
+      property.heating,
+
+    additionalInformation:
+      property.additionalInformation,
+  }
 }
 
 export async function generateListing(
-  request: GenerationRequest & { apiKey?: string },
+  request: GenerationRequest & {
+    apiKey?: string
+  },
 ): Promise<GenerationResult> {
   const aiProvider =
     createAIProvider(
@@ -87,93 +157,147 @@ export async function generateListing(
   const result =
     await aiProvider.generate(prompt)
 
-  const property =
-    await prisma.property.create({
-      data: {
-        title:
-          result.title ||
-          'Inmueble en ' +
-            request.property.city,
+  const {
+    property,
+    generation,
+    validatedListing,
+  } =
+    await prisma.$transaction(
+      async (tx) => {
+        const property =
+          await tx.property.create({
+            data: {
+              title:
+                result.title ||
+                'Inmueble en ' +
+                  request.property.city,
 
-        operation:
-          request.property.operation,
+              operation:
+                request.property.operation,
 
-        type:
-          request.property.type,
+              type:
+                request.property.type,
 
-        price:
-          request.property.price,
+              price:
+                request.property.price,
 
-        address:
-          request.property.address,
+              address:
+                request.property.address,
 
-        city:
-          request.property.city,
+              city:
+                request.property.city,
 
-        neighborhood:
-          request.property.neighborhood,
+              neighborhood:
+                request.property.neighborhood,
 
-        area:
-          request.property.area,
+              area:
+                request.property.area,
 
-        bedrooms:
-          request.property.bedrooms,
+              bedrooms:
+                request.property.bedrooms,
 
-        bathrooms:
-          request.property.bathrooms,
+              bathrooms:
+                request.property.bathrooms,
 
-        floor:
-          request.property.floor,
+              floor:
+                request.property.floor,
 
-        condition:
-          request.property.condition,
+              condition:
+                request.property.condition,
 
-        elevator:
-          request.property.elevator,
+              elevator:
+                request.property.elevator,
 
-        terrace:
-          request.property.terrace,
+              terrace:
+                request.property.terrace,
 
-        balcony:
-          request.property.balcony,
+              balcony:
+                request.property.balcony,
 
-        garage:
-          request.property.garage,
+              garage:
+                request.property.garage,
 
-        storageRoom:
-          request.property.storageRoom,
+              storageRoom:
+                request.property.storageRoom,
 
-        pool:
-          request.property.pool,
+              pool:
+                request.property.pool,
 
-        garden:
-          request.property.garden,
+              garden:
+                request.property.garden,
 
-        airConditioning:
-          request.property.airConditioning,
+              airConditioning:
+                request.property
+                  .airConditioning,
 
-        heating:
-          request.property.heating,
+              heating:
+                request.property.heating,
 
-        additionalInformation:
-          request.property
-            .additionalInformation,
+              additionalInformation:
+                request.property
+                  .additionalInformation,
+            },
+          })
+
+        const sharedProperty =
+          toSharedProperty(
+            property,
+          )
+
+        const validatedListing =
+          validateGeneratedListing(
+            result,
+            sharedProperty,
+          )
+
+        const generation =
+          await tx.generation.create({
+            data: {
+              propertyId:
+                property.id,
+
+              title:
+                validatedListing.title,
+
+              description:
+                validatedListing.description,
+
+              highlights:
+                JSON.stringify(
+                  validatedListing.highlights,
+                ),
+
+              callToAction:
+                validatedListing.callToAction,
+
+              provider:
+                request.provider,
+
+              tone:
+                request.tone,
+
+              language:
+                request.language,
+            },
+          })
+
+        return {
+          property,
+          generation,
+          validatedListing,
+        }
       },
-    })
-
-  const generationId =
-    await createGeneration(
-      property.id,
-      result,
-      request.provider,
-      request.tone,
-      request.language,
     )
 
   return {
-    listing: result,
-    propertyId: property.id,
-    generationId,
+    listing:
+      validatedListing,
+
+    propertyId:
+      property.id,
+
+    generationId:
+      generation.id,
   }
 }
 
@@ -193,73 +317,79 @@ export async function generateListingForExistingProperty(
     )
   }
 
-  const generationRequest = {
+  const sharedProperty =
+    toSharedProperty(
+      property,
+    )
+
+  const generationRequest: GenerationRequest = {
     property: {
+      title:
+        sharedProperty.title,
+
       operation:
-        property.operation as PropertyOperation,
+        sharedProperty.operation,
 
       type:
-        property.type as PropertyType,
-
-      title:
-        property.title,
+        sharedProperty.type,
 
       price:
-        property.price,
+        sharedProperty.price,
 
       address:
-        property.address,
+        sharedProperty.address,
 
       city:
-        property.city,
+        sharedProperty.city,
 
       neighborhood:
-        property.neighborhood,
+        sharedProperty.neighborhood,
 
       area:
-        property.area,
+        sharedProperty.area,
 
       bedrooms:
-        property.bedrooms,
+        sharedProperty.bedrooms,
 
       bathrooms:
-        property.bathrooms,
+        sharedProperty.bathrooms,
 
       floor:
-        property.floor ?? undefined,
+        sharedProperty.floor,
 
       condition:
-        property.condition as PropertyCondition,
+        sharedProperty.condition,
 
       elevator:
-        property.elevator,
+        sharedProperty.elevator,
 
       terrace:
-        property.terrace,
+        sharedProperty.terrace,
 
       balcony:
-        property.balcony,
+        sharedProperty.balcony,
 
       garage:
-        property.garage,
+        sharedProperty.garage,
 
       storageRoom:
-        property.storageRoom,
+        sharedProperty.storageRoom,
 
       pool:
-        property.pool,
+        sharedProperty.pool,
 
       garden:
-        property.garden,
+        sharedProperty.garden,
 
       airConditioning:
-        property.airConditioning,
+        sharedProperty.airConditioning,
 
       heating:
-        property.heating,
+        sharedProperty.heating,
 
       additionalInformation:
-        property.additionalInformation,
+        sharedProperty
+          .additionalInformation,
     },
 
     provider:
@@ -289,18 +419,51 @@ export async function generateListingForExistingProperty(
   const result =
     await aiProvider.generate(prompt)
 
-  const generationId =
-    await createGeneration(
-      property.id,
+  const validatedListing =
+    validateGeneratedListing(
       result,
-      request.provider,
-      request.tone,
-      request.language,
+      sharedProperty,
     )
 
+  const generation =
+    await prisma.generation.create({
+      data: {
+        propertyId:
+          property.id,
+
+        title:
+          validatedListing.title,
+
+        description:
+          validatedListing.description,
+
+        highlights:
+          JSON.stringify(
+            validatedListing.highlights,
+          ),
+
+        callToAction:
+          validatedListing.callToAction,
+
+        provider:
+          request.provider,
+
+        tone:
+          request.tone,
+
+        language:
+          request.language,
+      },
+    })
+
   return {
-    listing: result,
-    propertyId: property.id,
-    generationId,
+    listing:
+      validatedListing,
+
+    propertyId:
+      property.id,
+
+    generationId:
+      generation.id,
   }
 }

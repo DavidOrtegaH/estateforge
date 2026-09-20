@@ -1,4 +1,3 @@
-
 import type {
   FastifyInstance,
   FastifyReply,
@@ -46,36 +45,36 @@ export async function generationRoutes(
    * ==========================================================
    */
 
-app.post(
-  '/api/generations',
-  {
-    config: {
-      rateLimit: {
-        max: 70,
-        timeWindow: '1 minute',
+  app.post(
+    '/api/generations',
+    {
+      config: {
+        rateLimit: {
+          max: 70,
+          timeWindow: '1 minute',
+        },
       },
     },
-  },
-  async (request, reply) => {
-    const bodyResult =
-      GenerationRequestSchema.safeParse(
-        request.body,
+    async (request, reply) => {
+      const bodyResult =
+        GenerationRequestSchema.safeParse(
+          request.body,
+        )
+
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
+      }
+
+      const result = await generateListing(
+        bodyResult.data,
       )
 
-    if (!bodyResult.success) {
-      return sendValidationError(
-        reply,
-        bodyResult.error,
-      )
-    }
-
-    const result = await generateListing(
-      bodyResult.data,
-    )
-
-    return result
-  },
-)
+      return result
+    },
+  )
 
   /**
    * ==========================================================
@@ -83,37 +82,37 @@ app.post(
    * ==========================================================
    */
 
-app.post(
-  '/api/generations/from-property',
-  {
-    config: {
-      rateLimit: {
-        max: 70,
-        timeWindow: '1 minute',
+  app.post(
+    '/api/generations/from-property',
+    {
+      config: {
+        rateLimit: {
+          max: 70,
+          timeWindow: '1 minute',
+        },
       },
     },
-  },
-  async (request, reply) => {
-    const bodyResult =
-      ExistingPropertyGenerationSchema.safeParse(
-        request.body,
-      )
+    async (request, reply) => {
+      const bodyResult =
+        ExistingPropertyGenerationSchema.safeParse(
+          request.body,
+        )
 
-    if (!bodyResult.success) {
-      return sendValidationError(
-        reply,
-        bodyResult.error,
-      )
-    }
+      if (!bodyResult.success) {
+        return sendValidationError(
+          reply,
+          bodyResult.error,
+        )
+      }
 
-    const result =
-      await generateListingForExistingProperty(
-        bodyResult.data,
-      )
+      const result =
+        await generateListingForExistingProperty(
+          bodyResult.data,
+        )
 
-    return result
-  },
-)
+      return result
+    },
+  )
 
   /**
    * ==========================================================
@@ -236,8 +235,7 @@ app.post(
               title: body.title,
             }),
 
-            ...(body.description !==
-              undefined && {
+            ...(body.description !== undefined && {
               description: body.description,
             }),
 
@@ -247,8 +245,7 @@ app.post(
               ),
             }),
 
-            ...(body.callToAction !==
-              undefined && {
+            ...(body.callToAction !== undefined && {
               callToAction: body.callToAction,
             }),
 

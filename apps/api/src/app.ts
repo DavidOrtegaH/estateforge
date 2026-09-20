@@ -10,6 +10,7 @@ import {
   isAIProviderError,
 } from './ai/ai-provider.error.js'
 
+import { authRoutes } from './routes/auth.routes.js'
 import { generationRoutes } from './routes/generation.routes.js'
 import { propertyRoutes } from './routes/property.routes.js'
 import { dashboardRoutes } from './routes/dashboard.routes.js'
@@ -57,6 +58,8 @@ export async function buildApp() {
   // RATE LIMITING
   // ==========================================================
 
+  // El plugin debe registrarse antes que las rutas
+  // que utilizan config.rateLimit.
   await app.register(rateLimit, {
     global: false,
     max: 20,
@@ -137,7 +140,7 @@ export async function buildApp() {
                 code:
                   'AI_TIMEOUT',
                 message:
-                  'La generación ha superado el tiempo límite de 40 segundos.',
+                  'La generación ha superado el límite de 40 segundos.',
               })
 
           case 'AI_PROVIDER_ERROR':
@@ -206,6 +209,15 @@ export async function buildApp() {
   )
 
   // ==========================================================
+  // ROUTES
+  // ==========================================================
+
+  await app.register(authRoutes)
+  await app.register(generationRoutes)
+  await app.register(dashboardRoutes)
+  await app.register(propertyRoutes)
+
+  // ==========================================================
   // HEALTH CHECK
   // ==========================================================
 
@@ -215,14 +227,6 @@ export async function buildApp() {
       service: 'estateforge-api',
     }
   })
-
-  // ==========================================================
-  // ROUTES
-  // ==========================================================
-
-  await app.register(generationRoutes)
-  await app.register(dashboardRoutes)
-  await app.register(propertyRoutes)
 
   return app
 }

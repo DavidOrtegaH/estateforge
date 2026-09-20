@@ -1,5 +1,4 @@
 const API_URL =
-  import.meta.env.VITE_API_URL ||
   'http://localhost:3000'
 
 export interface PropertyItem {
@@ -33,7 +32,7 @@ export interface PropertyItem {
 }
 
 /**
- * Obtiene la lista completa de propiedades
+ * Obtiene la lista completa de propiedades.
  */
 export async function getProperties(): Promise<
   PropertyItem[]
@@ -43,7 +42,8 @@ export async function getProperties(): Promise<
     {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':
+          'application/json',
       },
     },
   )
@@ -60,7 +60,7 @@ export async function getProperties(): Promise<
 }
 
 /**
- * Obtiene una propiedad por su ID
+ * Obtiene una propiedad por su ID.
  */
 export async function getProperty(
   id: string,
@@ -70,7 +70,8 @@ export async function getProperty(
     {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':
+          'application/json',
       },
     },
   )
@@ -85,7 +86,7 @@ export async function getProperty(
 }
 
 /**
- * Actualiza parcialmente una propiedad
+ * Actualiza parcialmente una propiedad.
  */
 export async function updateProperty(
   id: string,
@@ -96,7 +97,8 @@ export async function updateProperty(
     {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':
+          'application/json',
       },
       body: JSON.stringify(data),
     },
@@ -108,11 +110,13 @@ export async function updateProperty(
     )
   }
 
-  return response.json() as Promise<PropertyItem>
+  return response.json() as Promise<
+    PropertyItem
+  >
 }
 
 /**
- * Elimina una propiedad individual por su ID
+ * Elimina una propiedad individual por su ID.
  */
 export async function deleteProperty(
   id: string,
@@ -122,7 +126,8 @@ export async function deleteProperty(
     {
       method: 'DELETE',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':
+          'application/json',
       },
     },
   )
@@ -135,7 +140,7 @@ export async function deleteProperty(
 }
 
 /**
- * Elimina múltiples propiedades (en lote / plural)
+ * Elimina múltiples propiedades.
  */
 export async function deleteProperties(
   ids: string[],
@@ -145,9 +150,12 @@ export async function deleteProperties(
     {
       method: 'DELETE',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':
+          'application/json',
       },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({
+        ids,
+      }),
     },
   )
 
