@@ -1,7 +1,7 @@
 import type {
   GeneratedListing,
   GenerationRequest,
-  GenerationUpdate
+  GenerationUpdate,
 } from '@estateforge/shared'
 
 export type GenerationApiErrorCode =
@@ -79,6 +79,7 @@ export async function generateListing(
     `${API_URL}/api/generations`,
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -96,7 +97,10 @@ export async function generateListing(
         message?: unknown
       }
 
-      if (typeof error.message === 'string' && error.message) {
+      if (
+        typeof error.message === 'string' &&
+        error.message
+      ) {
         message = error.message
       }
 
@@ -127,6 +131,9 @@ export async function getGenerations(): Promise<
 > {
   const response = await fetch(
     `${API_URL}/api/generations`,
+    {
+      credentials: 'include',
+    },
   )
 
   if (!response.ok) {
@@ -145,6 +152,7 @@ export async function deleteGenerations(
     `${API_URL}/api/generations`,
     {
       method: 'DELETE',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -166,6 +174,9 @@ export async function getGeneration(
 ): Promise<GenerationItem> {
   const response = await fetch(
     `${API_URL}/api/generations/${id}`,
+    {
+      credentials: 'include',
+    },
   )
 
   if (!response.ok) {
@@ -185,6 +196,7 @@ export async function updateGeneration(
     `${API_URL}/api/generations/${id}`,
     {
       method: 'PUT',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -208,6 +220,7 @@ export async function deleteGeneration(
     `${API_URL}/api/generations/${id}`,
     {
       method: 'DELETE',
+      credentials: 'include',
     },
   )
 

@@ -1,3 +1,7 @@
+const API_URL =
+  import.meta.env.VITE_API_URL ??
+  'http://localhost:3000'
+
 export interface DashboardStats {
   properties: number
   generations: number
@@ -5,7 +9,10 @@ export interface DashboardStats {
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const response = await fetch(
-    'http://localhost:3000/api/dashboard/stats',
+    `${API_URL}/api/dashboard/stats`,
+    {
+      credentials: 'include',
+    },
   )
 
   if (!response.ok) {

@@ -31,9 +31,6 @@ export interface PropertyItem {
   createdAt: string
 }
 
-/**
- * Obtiene la lista completa de propiedades.
- */
 export async function getProperties(): Promise<
   PropertyItem[]
 > {
@@ -41,6 +38,7 @@ export async function getProperties(): Promise<
     `${API_URL}/api/properties`,
     {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type':
           'application/json',
@@ -59,9 +57,6 @@ export async function getProperties(): Promise<
   >
 }
 
-/**
- * Obtiene una propiedad por su ID.
- */
 export async function getProperty(
   id: string,
 ): Promise<PropertyItem> {
@@ -69,6 +64,7 @@ export async function getProperty(
     `${API_URL}/api/properties/${id}`,
     {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type':
           'application/json',
@@ -85,9 +81,6 @@ export async function getProperty(
   return response.json() as Promise<PropertyItem>
 }
 
-/**
- * Actualiza parcialmente una propiedad.
- */
 export async function updateProperty(
   id: string,
   data: Partial<PropertyItem>,
@@ -96,6 +89,7 @@ export async function updateProperty(
     `${API_URL}/api/properties/${id}`,
     {
       method: 'PUT',
+      credentials: 'include',
       headers: {
         'Content-Type':
           'application/json',
@@ -115,9 +109,6 @@ export async function updateProperty(
   >
 }
 
-/**
- * Elimina una propiedad individual por su ID.
- */
 export async function deleteProperty(
   id: string,
 ): Promise<void> {
@@ -125,6 +116,7 @@ export async function deleteProperty(
     `${API_URL}/api/properties/${id}`,
     {
       method: 'DELETE',
+      credentials: 'include',
       headers: {
         'Content-Type':
           'application/json',
@@ -139,9 +131,6 @@ export async function deleteProperty(
   }
 }
 
-/**
- * Elimina múltiples propiedades.
- */
 export async function deleteProperties(
   ids: string[],
 ): Promise<void> {
@@ -149,6 +138,7 @@ export async function deleteProperties(
     `${API_URL}/api/properties`,
     {
       method: 'DELETE',
+      credentials: 'include',
       headers: {
         'Content-Type':
           'application/json',

@@ -1,3 +1,7 @@
+const API_URL =
+  import.meta.env.VITE_API_URL ??
+  'http://localhost:3000'
+
 export interface GenerationHistoryItem {
   id: string
   propertyId: string
@@ -9,6 +13,7 @@ export interface GenerationHistoryItem {
   tone: string
   language: string
   createdAt: string
+
   property: {
     id: string
     operation: string
@@ -26,7 +31,10 @@ export async function getGenerationHistory(): Promise<
   GenerationHistoryItem[]
 > {
   const response = await fetch(
-    'http://localhost:3000/api/generations',
+    `${API_URL}/api/generations`,
+    {
+      credentials: 'include',
+    },
   )
 
   if (!response.ok) {

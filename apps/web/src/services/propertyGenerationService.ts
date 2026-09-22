@@ -75,6 +75,7 @@ export async function generatePropertyListing(
     'http://localhost:3000/api/generations/from-property',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -131,6 +132,7 @@ export async function updateGeneration(
     `http://localhost:3000/api/generations/${id}`,
     {
       method: 'PUT',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -166,6 +168,7 @@ export async function deleteGeneration(
     `http://localhost:3000/api/generations/${id}`,
     {
       method: 'DELETE',
+      credentials: 'include',
     },
   )
 
@@ -191,5 +194,3 @@ export async function deleteGeneration(
     success: boolean
   }>
 }
-
-
