@@ -1,6 +1,7 @@
-
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+
+import { useAuth } from '@/hooks/useAuth'
 
 import appIcon from '@/assets/appIcon.svg'
 import appIconWhite from '@/assets/appIconWhite.svg'
@@ -198,6 +199,29 @@ function ChevronRightIcon({
   )
 }
 
+function LogoutIcon({
+  className = 'h-5 w-5',
+}: {
+  className?: string
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M14 4.5h4.5A1.5 1.5 0 0 1 20 6v12a1.5 1.5 0 0 1-1.5 1.5H14" />
+      <path d="M11 8l4 4-4 4" />
+      <path d="M15 12H4" />
+    </svg>
+  )
+}
+
 function SunIcon({
   className = 'h-5 w-5',
 }: {
@@ -258,11 +282,6 @@ const navigationItems: NavigationItem[] = [
     label: 'Inmuebles',
     to: '/inmuebles',
     icon: 'properties',
-  },
-  {
-    label: 'Crear inmueble',
-    to: '/inmuebles/nuevo',
-    icon: 'create',
   },
   {
     label: 'Anuncios',
@@ -414,6 +433,8 @@ function getInitialDarkMode() {
 function AppLayout() {
   const location = useLocation()
 
+  const { user, logout } = useAuth()
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] =
     useState(false)
 
@@ -422,6 +443,9 @@ function AppLayout() {
 
   const [isDarkMode, setIsDarkMode] =
     useState(getInitialDarkMode)
+
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] =
+    useState(false)
 
   const currentLogo = isDarkMode
     ? appLogoWhite
@@ -464,6 +488,36 @@ function AppLayout() {
       return nextTheme
     })
   }
+
+  const handleLogout = () => {
+    setIsLogoutDialogOpen(false)
+    void logout()
+  }
+
+  const handleRequestLogout = () => {
+    setIsLogoutDialogOpen(true)
+  }
+
+  const handleCancelLogout = () => {
+    setIsLogoutDialogOpen(false)
+  }
+
+  useEffect(() => {
+    if (!isLogoutDialogOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsLogoutDialogOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () =>
+      window.removeEventListener('keydown', handleKeyDown)
+  }, [isLogoutDialogOpen])
 
   // ============================================================
   // TÍTULO DE LA PESTAÑA
@@ -589,7 +643,7 @@ function AppLayout() {
           'border-r border-border bg-card',
           'shadow-xl md:shadow-sm',
 
-          'md:relative md:inset-auto md:z-auto',
+          'md:fixed md:inset-y-0 md:left-0 md:z-50',
           'md:translate-x-0',
 
           isSidebarCollapsed
@@ -868,7 +922,209 @@ function AppLayout() {
             </span>
           </button>
         </nav>
+
+        {/* ===================================================
+            CUENTA / CERRAR SESIÓN
+            =================================================== */}
+
+        <div
+          className={[
+            'shrink-0 border-t border-border/70',
+            'p-3',
+          ].join(' ')}
+        >
+          <div
+            className={[
+              'mb-2 overflow-hidden',
+              'transition-[height,opacity] duration-200',
+              isSidebarCollapsed
+                ? 'h-0 opacity-0'
+                : 'h-10 opacity-100',
+            ].join(' ')}
+            aria-hidden={isSidebarCollapsed}
+          >
+            <p className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Cuenta
+            </p>
+            <p
+              className="truncate text-sm font-medium text-foreground"
+              title={user?.email}
+            >
+              {user?.email}
+            </p>
+          </div>
+
+          <div
+            className={[
+              'mb-2 flex items-center justify-center',
+              'transition-[height,opacity] duration-200',
+              isSidebarCollapsed
+                ? 'h-7 opacity-100'
+                : 'h-0 opacity-0',
+            ].join(' ')}
+            aria-hidden={!isSidebarCollapsed}
+          >
+            <span
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-foreground"
+              title={user?.email}
+            >
+              {(user?.email?.[0] ?? 'U').toUpperCase()}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRequestLogout}
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+            className={[
+              'group relative flex h-11 shrink-0',
+              'items-center rounded-xl',
+              'border border-border/80',
+              'bg-background',
+              'text-muted-foreground',
+              'shadow-sm',
+              'transition-all duration-200',
+              'hover:-translate-y-0.5',
+              'hover:bg-accent',
+              'hover:text-foreground',
+              'hover:shadow-md',
+              'focus-visible:outline-none',
+              'focus-visible:ring-2',
+              'focus-visible:ring-ring',
+              'focus-visible:ring-offset-2',
+              'focus-visible:ring-offset-background',
+
+              isSidebarCollapsed
+                ? 'w-11 justify-center px-0'
+                : 'w-full gap-3 px-3',
+            ].join(' ')}
+          >
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+              <LogoutIcon className="h-5 w-5" />
+            </span>
+
+            <span
+              className={[
+                'pointer-events-none absolute',
+                'left-13',
+                'whitespace-nowrap',
+                'leading-none',
+                'font-medium',
+                'transition-[opacity,visibility]',
+                'duration-150',
+
+                isSidebarCollapsed
+                  ? 'invisible opacity-0'
+                  : 'visible opacity-100',
+              ].join(' ')}
+            >
+              Cerrar sesión
+            </span>
+          </button>
+        </div>
       </aside>
+
+      {/* =====================================================
+          CONFIRMACIÓN DE CIERRE DE SESIÓN
+          ===================================================== */}
+
+      {isLogoutDialogOpen && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              handleCancelLogout()
+            }
+          }}
+        >
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+            aria-hidden="true"
+          />
+
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-dialog-title"
+            aria-describedby="logout-dialog-description"
+            className={[
+              'relative z-10 w-full max-w-md',
+              'rounded-2xl border border-border',
+              'bg-card p-6 shadow-2xl',
+              'animate-in fade-in zoom-in-95 duration-200',
+            ].join(' ')}
+          >
+            <div className="flex items-start gap-4">
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-accent text-foreground"
+                aria-hidden="true"
+              >
+                <LogoutIcon className="h-5 w-5" />
+              </span>
+
+              <div className="min-w-0">
+                <h2
+                  id="logout-dialog-title"
+                  className="text-lg font-semibold text-foreground"
+                >
+                  Cerrar sesión
+                </h2>
+                <p
+                  id="logout-dialog-description"
+                  className="mt-1 text-sm leading-6 text-muted-foreground"
+                >
+                  ¿Quieres cerrar la sesión de EstateForge?
+                </p>
+                <p
+                  className="mt-2 truncate text-sm font-medium text-foreground"
+                  title={user?.email}
+                >
+                  {user?.email}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCancelLogout}
+                className={[
+                  'h-10 rounded-xl px-4',
+                  'border border-border/80',
+                  'bg-background text-sm font-medium',
+                  'text-foreground shadow-sm',
+                  'transition',
+                  'hover:bg-accent',
+                  'focus-visible:outline-none',
+                  'focus-visible:ring-2 focus-visible:ring-ring',
+                  'focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                ].join(' ')}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className={[
+                  'h-10 rounded-xl px-4',
+                  'bg-primary text-primary-foreground',
+                  'text-sm font-medium shadow-sm',
+                  'transition',
+                  'hover:bg-primary/90',
+                  'focus-visible:outline-none',
+                  'focus-visible:ring-2 focus-visible:ring-ring',
+                  'focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                ].join(' ')}
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* =====================================================
           MAIN
@@ -879,6 +1135,10 @@ function AppLayout() {
           'min-w-0 w-0 flex-1',
           'max-w-full',
           'overflow-x-hidden',
+          'transition-[margin-left] duration-300 ease-in-out',
+          isSidebarCollapsed
+            ? 'md:ml-19'
+            : 'md:ml-60',
         ].join(' ')}
       >
         {/* ===================================================
@@ -1032,6 +1292,21 @@ function AppLayout() {
                 )}
               </ol>
             </nav>
+
+            {/* =================================================
+                USUARIO
+                ================================================= */}
+
+            <span
+              className={[
+                'hidden max-w-56 truncate',
+                'text-sm text-muted-foreground',
+                'sm:inline',
+              ].join(' ')}
+              title={user?.email}
+            >
+              {user?.email}
+            </span>
 
             {/* =================================================
                 TOGGLE MODO OSCURO

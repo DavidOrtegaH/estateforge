@@ -11,6 +11,10 @@ import {
   PropertyUpdateSchema,
 } from '@estateforge/shared'
 
+import {
+  requireAuth,
+} from '../middleware/auth.middleware.js'
+
 function sendValidationError(
   reply: FastifyReply,
   error: {
@@ -38,19 +42,28 @@ export async function propertyRoutes(
    * ==========================================================
    */
 
-  app.get('/api/properties', async () => {
-    const properties =
-      await prisma.property.findMany({
-        include: {
-          generations: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      })
+  app.get(
+    '/api/properties',
+    {
+      preHandler: requireAuth,
+    },
+    async (request) => {
+      const properties =
+        await prisma.property.findMany({
+          where: {
+            userId: request.userId,
+          },
+          include: {
+            generations: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        })
 
-    return properties
-  })
+      return properties
+    },
+  )
 
   /**
    * ==========================================================
@@ -60,6 +73,9 @@ export async function propertyRoutes(
 
   app.get(
     '/api/properties/:id',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const paramsResult =
         IdParamsSchema.safeParse(request.params)
@@ -74,9 +90,10 @@ export async function propertyRoutes(
       const { id } = paramsResult.data
 
       const property =
-        await prisma.property.findUnique({
+        await prisma.property.findFirst({
           where: {
             id,
+            userId: request.userId,
           },
           include: {
             generations: true,
@@ -101,6 +118,9 @@ export async function propertyRoutes(
 
   app.put(
     '/api/properties/:id',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const paramsResult =
         IdParamsSchema.safeParse(request.params)
@@ -128,9 +148,10 @@ export async function propertyRoutes(
       const body = bodyResult.data
 
       const existingProperty =
-        await prisma.property.findUnique({
+        await prisma.property.findFirst({
           where: {
             id,
+            userId: request.userId,
           },
         })
 
@@ -163,6 +184,9 @@ export async function propertyRoutes(
 
   app.delete(
     '/api/properties',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const bodyResult =
         BulkIdsSchema.safeParse(request.body)
@@ -182,6 +206,7 @@ export async function propertyRoutes(
             id: {
               in: ids,
             },
+            userId: request.userId,
           },
         })
 
@@ -200,6 +225,9 @@ export async function propertyRoutes(
 
   app.delete(
     '/api/properties/:id',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const paramsResult =
         IdParamsSchema.safeParse(request.params)
@@ -214,9 +242,10 @@ export async function propertyRoutes(
       const { id } = paramsResult.data
 
       const existingProperty =
-        await prisma.property.findUnique({
+        await prisma.property.findFirst({
           where: {
             id,
+            userId: request.userId,
           },
         })
 

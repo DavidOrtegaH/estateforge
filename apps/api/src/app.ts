@@ -21,6 +21,11 @@ export async function buildApp() {
     bodyLimit: 1_048_576,
   })
 
+  app.decorateRequest(
+    'userId',
+    null,
+  )
+
   // ==========================================================
   // CORS
   // ==========================================================
@@ -43,6 +48,11 @@ export async function buildApp() {
 
       cb(null, false)
     },
+
+    // Necesario para que el navegador envíe y acepte
+    // la cookie de sesión (estateforge_session) en
+    // peticiones cross-origin.
+    credentials: true,
 
     methods: [
       'GET',

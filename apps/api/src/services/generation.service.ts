@@ -21,6 +21,7 @@ interface ExistingPropertyGenerationRequest {
   tone: ListingTone
   language: ListingLanguage
   apiKey?: string
+  userId: string
 }
 
 interface GenerationResult {
@@ -143,6 +144,7 @@ function toSharedProperty(
 export async function generateListing(
   request: GenerationRequest & {
     apiKey?: string
+    userId: string
   },
 ): Promise<GenerationResult> {
   const aiProvider =
@@ -236,6 +238,9 @@ export async function generateListing(
               additionalInformation:
                 request.property
                   .additionalInformation,
+
+              userId:
+                request.userId,
             },
           })
 
@@ -305,9 +310,10 @@ export async function generateListingForExistingProperty(
   request: ExistingPropertyGenerationRequest,
 ): Promise<GenerationResult> {
   const property =
-    await prisma.property.findUnique({
+    await prisma.property.findFirst({
       where: {
         id: request.propertyId,
+        userId: request.userId,
       },
     })
 

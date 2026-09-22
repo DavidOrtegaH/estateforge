@@ -18,6 +18,10 @@ import {
 
 import { prisma } from '../db/prisma.js'
 
+import {
+  requireAuth,
+} from '../middleware/auth.middleware.js'
+
 function sendValidationError(
   reply: FastifyReply,
   error: {
@@ -48,6 +52,7 @@ export async function generationRoutes(
   app.post(
     '/api/generations',
     {
+      preHandler: requireAuth,
       config: {
         rateLimit: {
           max: 70,
@@ -68,9 +73,19 @@ export async function generationRoutes(
         )
       }
 
-      const result = await generateListing(
-        bodyResult.data,
-      )
+      const userId = request.userId
+
+      if (!userId) {
+        return reply.code(401).send({
+          message:
+            'Se requiere una sesión activa.',
+        })
+      }
+
+      const result = await generateListing({
+        ...bodyResult.data,
+        userId,
+      })
 
       return result
     },
@@ -85,6 +100,7 @@ export async function generationRoutes(
   app.post(
     '/api/generations/from-property',
     {
+      preHandler: requireAuth,
       config: {
         rateLimit: {
           max: 70,
@@ -105,10 +121,20 @@ export async function generationRoutes(
         )
       }
 
+      const userId = request.userId
+
+      if (!userId) {
+        return reply.code(401).send({
+          message:
+            'Se requiere una sesión activa.',
+        })
+      }
+
       const result =
-        await generateListingForExistingProperty(
-          bodyResult.data,
-        )
+        await generateListingForExistingProperty({
+          ...bodyResult.data,
+          userId,
+        })
 
       return result
     },
@@ -122,9 +148,26 @@ export async function generationRoutes(
 
   app.get(
     '/api/generations',
-    async () => {
+    {
+      preHandler: requireAuth,
+    },
+    async (request, reply) => {
+      const userId = request.userId
+
+      if (!userId) {
+        return reply.code(401).send({
+          message:
+            'Se requiere una sesión activa.',
+        })
+      }
+
       const generations =
         await prisma.generation.findMany({
+          where: {
+            property: {
+              userId,
+            },
+          },
           orderBy: {
             createdAt: 'desc',
           },
@@ -145,6 +188,9 @@ export async function generationRoutes(
 
   app.get(
     '/api/generations/:id',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const paramsResult =
         IdParamsSchema.safeParse(request.params)
@@ -158,10 +204,22 @@ export async function generationRoutes(
 
       const { id } = paramsResult.data
 
+      const userId = request.userId
+
+      if (!userId) {
+        return reply.code(401).send({
+          message:
+            'Se requiere una sesión activa.',
+        })
+      }
+
       const generation =
-        await prisma.generation.findUnique({
+        await prisma.generation.findFirst({
           where: {
             id,
+            property: {
+              userId,
+            },
           },
           include: {
             property: true,
@@ -186,6 +244,9 @@ export async function generationRoutes(
 
   app.put(
     '/api/generations/:id',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const paramsResult =
         IdParamsSchema.safeParse(request.params)
@@ -212,10 +273,22 @@ export async function generationRoutes(
       const { id } = paramsResult.data
       const body = bodyResult.data
 
+      const userId = request.userId
+
+      if (!userId) {
+        return reply.code(401).send({
+          message:
+            'Se requiere una sesión activa.',
+        })
+      }
+
       const existingGeneration =
-        await prisma.generation.findUnique({
+        await prisma.generation.findFirst({
           where: {
             id,
+            property: {
+              userId,
+            },
           },
         })
 
@@ -278,6 +351,9 @@ export async function generationRoutes(
 
   app.delete(
     '/api/generations/:id',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const paramsResult =
         IdParamsSchema.safeParse(request.params)
@@ -291,10 +367,22 @@ export async function generationRoutes(
 
       const { id } = paramsResult.data
 
+      const userId = request.userId
+
+      if (!userId) {
+        return reply.code(401).send({
+          message:
+            'Se requiere una sesión activa.',
+        })
+      }
+
       const existingGeneration =
-        await prisma.generation.findUnique({
+        await prisma.generation.findFirst({
           where: {
             id,
+            property: {
+              userId,
+            },
           },
         })
 
@@ -324,6 +412,9 @@ export async function generationRoutes(
 
   app.delete(
     '/api/generations',
+    {
+      preHandler: requireAuth,
+    },
     async (request, reply) => {
       const bodyResult =
         BulkIdsSchema.safeParse(request.body)
@@ -337,11 +428,23 @@ export async function generationRoutes(
 
       const { ids } = bodyResult.data
 
+      const userId = request.userId
+
+      if (!userId) {
+        return reply.code(401).send({
+          message:
+            'Se requiere una sesión activa.',
+        })
+      }
+
       const result =
         await prisma.generation.deleteMany({
           where: {
             id: {
               in: ids,
+            },
+            property: {
+              userId,
             },
           },
         })
