@@ -8,12 +8,19 @@ export interface AuthContextValue {
   login: (
     email: string,
     password: string,
+    turnstileToken?: string,
   ) => Promise<void>
   register: (
     email: string,
     password: string,
+    turnstileToken?: string,
   ) => Promise<void>
   logout: () => Promise<void>
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<string>
+  deleteAccount: (currentPassword: string) => Promise<string>
 }
 
 export const AuthContext =

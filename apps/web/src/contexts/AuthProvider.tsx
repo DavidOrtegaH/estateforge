@@ -57,9 +57,14 @@ export function AuthProvider({
     login: async (
       email: string,
       password: string,
+      turnstileToken?: string,
     ) => {
       const loggedInUser =
-        await authService.login(email, password)
+        await authService.login(
+          email,
+          password,
+          turnstileToken,
+        )
 
       setUser(loggedInUser)
     },
@@ -67,11 +72,13 @@ export function AuthProvider({
     register: async (
       email: string,
       password: string,
+      turnstileToken?: string,
     ) => {
       const registeredUser =
         await authService.register(
           email,
           password,
+          turnstileToken,
         )
 
       setUser(registeredUser)
@@ -80,6 +87,23 @@ export function AuthProvider({
     logout: async () => {
       await authService.logout()
       setUser(null)
+    },
+
+    changePassword: async (
+      currentPassword: string,
+      newPassword: string,
+    ) =>
+      authService.changePassword(
+        currentPassword,
+        newPassword,
+      ),
+
+    deleteAccount: async (currentPassword: string) => {
+      const message =
+        await authService.deleteAccount(currentPassword)
+
+      setUser(null)
+      return message
     },
   }
 

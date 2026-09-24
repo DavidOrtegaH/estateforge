@@ -6,6 +6,10 @@ import {
 } from 'react-router'
 
 import { useAuth } from '@/hooks/useAuth'
+import {
+  TurnstileField,
+  isTurnstileConfigured,
+} from '@/components/security/TurnstileField'
 
 function RegisterPage() {
   const { register, user } = useAuth()
@@ -16,6 +20,7 @@ function RegisterPage() {
     useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string>()
 
   useEffect(() => {
     document.title = 'Crear cuenta - EstateForge'
@@ -27,6 +32,11 @@ function RegisterPage() {
 
   async function handleSubmit() {
     if (submitting) {
+      return
+    }
+
+    if (isTurnstileConfigured() && !turnstileToken) {
+      setError('Completa la verificación de seguridad e inténtalo de nuevo.')
       return
     }
 
@@ -46,7 +56,7 @@ function RegisterPage() {
     setError(null)
 
     try {
-      await register(email.trim(), password)
+      await register(email.trim(), password, turnstileToken)
     } catch (registerError) {
       setError(
         registerError instanceof Error
@@ -149,6 +159,8 @@ function RegisterPage() {
               className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
+
+          <TurnstileField onTokenChange={setTurnstileToken} />
 
           {error && (
             <p className="text-sm text-destructive">

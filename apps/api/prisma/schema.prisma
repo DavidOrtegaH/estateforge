@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id         String    @id @default(cuid())
-  email      String    @unique
-  password   String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  properties Property[]
-  sessions   Session[]
+  id                  String              @id @default(cuid())
+  email               String              @unique
+  password            String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  properties          Property[]
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Session {
@@ -23,6 +24,20 @@ model Session {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

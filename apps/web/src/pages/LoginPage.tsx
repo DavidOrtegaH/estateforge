@@ -7,6 +7,10 @@ import {
 } from 'react-router'
 
 import { useAuth } from '@/hooks/useAuth'
+import {
+  TurnstileField,
+  isTurnstileConfigured,
+} from '@/components/security/TurnstileField'
 
 interface LocationState {
   from?: {
@@ -22,6 +26,7 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string>()
 
   useEffect(() => {
     document.title = 'Iniciar sesión - EstateForge'
@@ -42,11 +47,16 @@ function LoginPage() {
       return
     }
 
+    if (isTurnstileConfigured() && !turnstileToken) {
+      setError('Completa la verificación de seguridad e inténtalo de nuevo.')
+      return
+    }
+
     setSubmitting(true)
     setError(null)
 
     try {
-      await login(email.trim(), password)
+      await login(email.trim(), password, turnstileToken)
     } catch (loginError) {
       setError(
         loginError instanceof Error
@@ -62,10 +72,12 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm rounded-lg border bg-card p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">
+          <p className="text-sm font-semibold text-primary">
+            EstateForge
+          </p>
+          <h1 className="mt-2 text-2xl font-bold">
             Iniciar sesión
           </h1>
-
           <p className="mt-1 text-sm text-muted-foreground">
             Accede a tu cuenta de EstateForge.
           </p>
@@ -85,14 +97,11 @@ function LoginPage() {
             >
               Email
             </label>
-
             <input
               id="login-email"
               type="email"
               value={email}
-              onChange={(event) =>
-                setEmail(event.target.value)
-              }
+              onChange={(event) => setEmail(event.target.value)}
               disabled={submitting}
               required
               autoComplete="email"
@@ -101,26 +110,34 @@ function LoginPage() {
           </div>
 
           <div>
-            <label
-              htmlFor="login-password"
-              className="text-sm font-medium"
-            >
-              Contraseña
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="login-password"
+                className="text-sm font-medium"
+              >
+                Contraseña
+              </label>
+              <Link
+                to="/recuperar-contrasena"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                ¿Has olvidado tu contraseña?
+              </Link>
+            </div>
 
             <input
               id="login-password"
               type="password"
               value={password}
-              onChange={(event) =>
-                setPassword(event.target.value)
-              }
+              onChange={(event) => setPassword(event.target.value)}
               disabled={submitting}
               required
               autoComplete="current-password"
               className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
+
+          <TurnstileField onTokenChange={setTurnstileToken} />
 
           {error && (
             <p className="text-sm text-destructive">

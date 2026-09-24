@@ -1,3 +1,7 @@
+const API_URL =
+  import.meta.env.VITE_API_URL ??
+  'http://localhost:3000'
+
 import type {
   GeneratedListing,
   GenerationRequest,
@@ -25,8 +29,6 @@ export class GenerationApiError extends Error {
     this.status = status
   }
 }
-
-const API_URL = 'http://localhost:3000'
 
 export interface GenerationResult {
   listing: GeneratedListing
