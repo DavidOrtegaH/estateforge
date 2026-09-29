@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -1203,22 +1204,22 @@ function DashboardPage() {
   }
 
   return (
-    <div className="max-w-6xl">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="mx-auto w-full max-w-7xl">
+      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-3xl font-bold">
+          <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
             Dashboard
           </h1>
 
-          <p className="mt-2 text-muted-foreground">
-            Gestiona tus inmuebles y anuncios
-            generados.
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+            Consulta información general y gestiona tus inmuebles y anuncios generados más recientes desde 
+            un único lugar.
           </p>
         </div>
 
         <Link
           to="/inmuebles/nuevo"
-          className="inline-flex w-fit rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          className="inline-flex min-h-11 w-fit items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           Crear inmueble
         </Link>
@@ -1234,33 +1235,33 @@ function DashboardPage() {
           RESUMEN
           ===================================================== */}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-card p-5">
-          <p className="text-sm text-muted-foreground">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border bg-card p-5 shadow-sm transition hover:shadow-md">
+          <p className="text-sm font-medium text-muted-foreground">
             Inmuebles
           </p>
 
-          <p className="mt-1 text-2xl font-bold">
+          <p className="mt-2 text-3xl font-bold tracking-tight">
             {properties.length}
           </p>
         </div>
 
-        <div className="rounded-lg border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-sm transition hover:shadow-md">
           <p className="text-sm text-muted-foreground">
             Anuncios generados
           </p>
 
-          <p className="mt-1 text-2xl font-bold">
+          <p className="mt-2 text-3xl font-bold tracking-tight">
             {generations.length}
           </p>
         </div>
 
-        <div className="rounded-lg border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-sm transition hover:shadow-md">
           <p className="text-sm text-muted-foreground">
             Ventas
           </p>
 
-          <p className="mt-1 text-2xl font-bold">
+          <p className="mt-2 text-3xl font-bold tracking-tight">
             {
               properties.filter(
                 (property) =>
@@ -1272,12 +1273,12 @@ function DashboardPage() {
           </p>
         </div>
 
-        <div className="rounded-lg border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-sm transition hover:shadow-md">
           <p className="text-sm text-muted-foreground">
             Alquileres
           </p>
 
-          <p className="mt-1 text-2xl font-bold">
+          <p className="mt-2 text-3xl font-bold tracking-tight">
             {
               properties.filter(
                 (property) =>
@@ -1294,10 +1295,10 @@ function DashboardPage() {
           INMUEBLES RECIENTES
           ===================================================== */}
 
-      <section className="mt-10">
+      <section className="mt-12">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold">
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
               Inmuebles recientes
             </h2>
 
@@ -1308,14 +1309,14 @@ function DashboardPage() {
 
           <Link
             to="/inmuebles"
-            className="text-sm font-medium text-primary hover:underline"
+            className="rounded-md px-2 py-1 text-sm font-semibold text-primary transition hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Ver todos los inmuebles
           </Link>
         </div>
 
         {recentProperties.length === 0 ? (
-          <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
+          <div className="mt-5 rounded-xl border border-dashed bg-card/50 p-10 text-center">
             <p className="text-sm text-muted-foreground">
               Todavía no hay inmuebles.
             </p>
@@ -1420,7 +1421,7 @@ function DashboardPage() {
                   return (
                     <div
                       key={property.id}
-                      className={`rounded-lg border bg-card transition ${
+                      className={`overflow-hidden rounded-xl border bg-card shadow-sm transition ${
                         isSelected
                           ? 'border-primary ring-2 ring-primary/20'
                           : ''
@@ -1445,10 +1446,10 @@ function DashboardPage() {
                               aria-pressed={
                                 isSelected
                               }
-                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                              className={`block h-11 w-full cursor-pointer border-0 border-b p-0 text-xs font-semibold transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
                                 isSelected
                                   ? 'bg-foreground font-semibold text-background'
-                                  : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
+                                  : 'bg-accent text-muted-foreground'
                               }`}
                             >
                               {isSelected
@@ -1479,118 +1480,118 @@ function DashboardPage() {
                                 PÍLDORAS DEL INMUEBLE
                                 ================================================= */}
                             <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {getOperationLabel(
                                   property.operation,
                                 )}
                               </span>
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {getPropertyTypeLabel(
                                   property.type,
                                 )}
                               </span>
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {getConditionLabel(
                                   property.condition,
                                 )}
                               </span>
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {formatLocationLabel(
                                   property.city,
                                 )}
                               </span>
 
                               {property.neighborhood && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   {formatLocationLabel(
                                     property.neighborhood,
                                   )}
                                 </span>
                               )}
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {property.area} m²
                               </span>
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {property.address}
                               </span>
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {property.bedrooms}{' '}
                                 habitaciones
                               </span>
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {property.bathrooms}{' '}
                                 baños
                               </span>
 
                               {property.elevator && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Ascensor
                                 </span>
                               )}
 
                               {property.terrace && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Terraza
                                 </span>
                               )}
 
                               {property.balcony && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Balcón
                                 </span>
                               )}
 
                               {property.garage && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Garaje
                                 </span>
                               )}
 
                               {property.storageRoom && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Trastero
                                 </span>
                               )}
 
                               {property.pool && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Piscina
                                 </span>
                               )}
 
                               {property.garden && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Jardín
                                 </span>
                               )}
 
                               {property.airConditioning && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Aire acondicionado
                                 </span>
                               )}
 
                               {property.heating && (
-                                <span className="rounded-md bg-muted px-2 py-1">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   Calefacción
                                 </span>
                               )}
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 Generado el{' '}
                                 {formatGenerationDate(
                                   property.createdAt,
                                 )}
                               </span>
 
-                              <span className="rounded-md bg-muted px-2 py-1">
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {property.generations
                                   ?.length ??
                                   0}{' '}
@@ -1603,7 +1604,7 @@ function DashboardPage() {
                           <div className="grid grid-cols-3 border-t">
                             <Link
                               to={`/inmuebles/${property.id}`}
-                              className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted"
+                              className="flex min-h-11 items-center justify-center border-r border-border text-sm font-medium transition-colors hover:bg-primary hover:text-primary-foreground"
                             >
                               Ver
                             </Link>
@@ -2203,10 +2204,10 @@ function DashboardPage() {
           ANUNCIOS RECIENTES
           ===================================================== */}
 
-      <section className="mt-10">
+      <section className="mt-12">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold">
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
               Anuncios recientes
             </h2>
 
@@ -2217,14 +2218,14 @@ function DashboardPage() {
 
           <Link
             to="/historial"
-            className="text-sm font-medium text-primary hover:underline"
+            className="rounded-md px-2 py-1 text-sm font-semibold text-primary transition hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Ver todos los anuncios
           </Link>
         </div>
 
         {recentGenerations.length === 0 ? (
-          <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
+          <div className="mt-5 rounded-xl border border-dashed bg-card/50 p-10 text-center">
             <p className="text-sm text-muted-foreground">
               Todavía no hay anuncios
               generados.
@@ -2328,7 +2329,7 @@ function DashboardPage() {
                   return (
                     <div
                       key={generation.id}
-                      className={`rounded-lg border bg-card transition ${
+                      className={`overflow-hidden rounded-xl border bg-card shadow-sm transition ${
                         isSelected
                           ? 'border-primary ring-2 ring-primary/20'
                           : ''
@@ -2353,10 +2354,10 @@ function DashboardPage() {
                               aria-pressed={
                                 isSelected
                               }
-                              className={`block h-8 w-full cursor-pointer border-0 p-0 text-xs font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                              className={`block h-11 w-full cursor-pointer border-0 border-b p-0 text-xs font-semibold transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
                                 isSelected
                                   ? 'bg-foreground font-semibold text-background'
-                                  : 'bg-accent text-muted-foreground group-hover:bg-primary group-hover:font-semibold group-hover:text-primary-foreground'
+                                  : 'bg-accent text-muted-foreground'
                               }`}
                             >
                               {isSelected
@@ -2370,19 +2371,19 @@ function DashboardPage() {
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                                  <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                     {getProviderLabel(
                                       generation.provider,
                                     )}
                                   </span>
 
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                  <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                     {getToneLabel(
                                       generation.tone,
                                     )}
                                   </span>
 
-                                  <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                  <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                     {getLanguageLabel(
                                       generation.language,
                                     )}
@@ -2450,7 +2451,7 @@ function DashboardPage() {
                           <div className="grid grid-cols-3 border-t">
                             <Link
                               to={`/historial/${generation.id}`}
-                              className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted"
+                              className="flex min-h-11 items-center justify-center border-r border-border text-sm font-medium transition-colors hover:bg-primary hover:text-primary-foreground"
                             >
                               Ver
                             </Link>

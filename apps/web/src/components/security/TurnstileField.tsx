@@ -123,7 +123,7 @@ export function TurnstileField({
   return (
     <div
       ref={containerRef}
-      className="min-h-[65px]"
+      className="min-h-16.25"
       aria-label="Verificación de seguridad"
     />
   )

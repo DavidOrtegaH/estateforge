@@ -2178,7 +2178,7 @@ function PropertyDetailPage() {
               (feature) => (
                 <span
                   key={feature}
-                  className="rounded-full bg-muted px-3 py-1.5 text-sm"
+                  className="rounded-full border bg-muted/70 px-2.5 py-1 text-xs font-medium text-muted-foreground"
                 >
                   {feature}
                 </span>
@@ -2644,20 +2644,20 @@ function PropertyDetailPage() {
                       <div className="p-5">
                         {/* METADATOS */}
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="w-fit shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                          <span className="w-fit shrink-0 rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                             {getProviderLabel(generation.provider)}
                           </span>
 
-                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                          <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                             {getToneLabel(generation.tone)}
                           </span>
 
-                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                          <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                             {getLanguageLabel(generation.language)}
                           </span>
 
                           {/* Fecha de generación */}
-                          <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                          <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                             Generado el{' '}
                             {formatGenerationDate(generation.createdAt)
                             }

@@ -1620,14 +1620,14 @@ function HistoryPage() {
                           key={
                             generation.id
                           }
-                          className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
+                          className={`relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card transition ${isSelected
                             ? 'border-primary ring-2 ring-primary/25'
                             : 'border-border'
                             }`}
                         >
                           {/* SELECTOR */}
 
-                          <div className="group relative w-full overflow-hidden rounded-t-lg">
+                          <div className="relative w-full overflow-hidden border-b border-border">
                             <input
                               type="checkbox"
                               aria-label={`Seleccionar anuncio ${generation.title}`}
@@ -1642,17 +1642,17 @@ function HistoryPage() {
                               disabled={
                                 deleting
                               }
-                              className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
-                                ? 'cursor-default bg-foreground'
-                                : 'bg-accent group-hover:bg-primary'
+                              className={`peer block h-11 w-full cursor-pointer appearance-none border-0 bg-muted/40 text-xs font-semibold transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
+                                ? 'cursor-default bg-primary text-primary-foreground'
+                                : 'bg-muted/40 text-muted-foreground'
                                 }`}
                             />
 
                             <div
-                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
-                                ? 'font-semibold text-background'
-                                : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                                }`}
+                              className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-semibold transition-colors ${isSelected
+                                ? 'text-primary-foreground'
+                                : 'text-muted-foreground'
+                                } peer-hover:text-primary-foreground`}
                             >
                               {isSelected
                                 ? '✓ Seleccionado'
@@ -1679,7 +1679,7 @@ function HistoryPage() {
                               </div>
 
                               <div className="flex shrink-0 flex-wrap gap-2">
-                                <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   {generation.provider
                                     ? generation.provider
                                       .charAt(
@@ -1692,13 +1692,13 @@ function HistoryPage() {
                                     : ''}
                                 </span>
 
-                                <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   {getToneLabel(
                                     generation.tone,
                                   )}
                                 </span>
 
-                                <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                   {getLanguageLabel(
                                     generation.language,
                                   )}
@@ -1736,7 +1736,7 @@ function HistoryPage() {
                                 {generation
                                   .property
                                   ?.operation && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                       {getOperationLabel(
                                         generation
                                           .property
@@ -1748,7 +1748,7 @@ function HistoryPage() {
                                 {generation
                                   .property
                                   ?.type && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                       {getPropertyTypeLabel(
                                         generation
                                           .property
@@ -1761,7 +1761,7 @@ function HistoryPage() {
                                   .property
                                   ?.price !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                       {generation.property.price.toLocaleString(
                                         'es-ES',
                                       )}{' '}
@@ -1773,7 +1773,7 @@ function HistoryPage() {
                                   .property
                                   ?.area !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                       {
                                         generation
                                           .property
@@ -1787,7 +1787,7 @@ function HistoryPage() {
                                   .property
                                   ?.bedrooms !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                       {
                                         generation
                                           .property
@@ -1806,7 +1806,7 @@ function HistoryPage() {
                                   .property
                                   ?.bathrooms !==
                                   undefined && (
-                                    <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                                    <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                       {
                                         generation
                                           .property
@@ -1838,7 +1838,7 @@ function HistoryPage() {
                                               key={
                                                 highlight
                                               }
-                                              className="rounded-md bg-muted px-2 py-1 text-xs"
+                                              className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
                                             >
                                               {
                                                 highlight
@@ -1884,19 +1884,10 @@ function HistoryPage() {
 
                           <Link
                             to={`/historial/${generation.id}`}
-                            className="group mt-auto block"
+                            aria-label="Ver anuncio"
+                            className="mt-auto flex h-11 w-full items-center justify-center border-t bg-card text-xs font-semibold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                           >
-                            <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
-                              <button
-                                type="button"
-                                aria-label="Ver anuncio"
-                                className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary focus:outline-none"
-                              />
-
-                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground transition-colors group-hover:font-semibold group-hover:text-primary-foreground">
-                                Ver anuncio
-                              </div>
-                            </div>
+                            Ver anuncio
                           </Link>
                         </div>
                       )

@@ -938,7 +938,7 @@ function PropertiesPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">Inmuebles</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Inmuebles</h1>
         <p className="mt-4 text-muted-foreground">Cargando inmuebles...</p>
       </div>
     )
@@ -947,7 +947,7 @@ function PropertiesPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-3xl font-bold">Inmuebles</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Inmuebles</h1>
         <p className="mt-4 text-destructive">{error}</p>
       </div>
     )
@@ -959,34 +959,34 @@ function PropertiesPage() {
 
   return (
     <>
-      <div className="max-w-6xl">
+      <div className="mx-auto w-full max-w-7xl">
         {/* CABECERA */}
 
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-5 px-1 py-1 sm:px-1 sm:py-2 lg:flex-row lg:items-end">
           <div>
-            <h1 className="text-3xl font-bold">Inmuebles</h1>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Inmuebles</h1>
 
-            <p className="mt-2 text-muted-foreground">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
               Consulta los inmuebles.
             </p>
           </div>
 
           <Link
             to="/inmuebles/nuevo"
-            className="inline-flex w-fit rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/30 sm:w-auto"
           >
             Crear inmueble
           </Link>
         </div>
 
         {deleteError && (
-          <div className="mt-5 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <div className="mt-5 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3.5">
             <p className="text-sm text-destructive">{deleteError}</p>
           </div>
         )}
 
         {properties.length === 0 ? (
-          <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
+          <div className="mt-8 rounded-3xl border border-dashed bg-card px-6 py-14 text-center shadow-sm">
             <h2 className="font-semibold">No hay inmuebles todavía</h2>
 
             <p className="mt-2 text-sm text-muted-foreground">
@@ -1004,7 +1004,7 @@ function PropertiesPage() {
           <div>
             {/* BÚSQUEDA / ORDENACIÓN / FILTROS */}
 
-            <div className="mt-8 flex flex-col gap-3 rounded-lg border bg-card p-4 lg:flex-row lg:items-center">
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border bg-card p-3 shadow-sm sm:p-4 xl:flex-row xl:items-center">
               <div className="relative flex-1">
                 <input
                   type="search"
@@ -1012,7 +1012,7 @@ function PropertiesPage() {
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Buscar por título del inmueble..."
                   aria-label="Buscar inmuebles por título"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
               </div>
 
@@ -1024,7 +1024,7 @@ function PropertiesPage() {
                     type="button"
                     onClick={() => setIsSortMenuOpen((current) => !current)}
                     aria-expanded={isSortMenuOpen}
-                    className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted"
+                    className="inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition hover:bg-muted"
                   >
                     Ordenar
                     <span className="text-muted-foreground">·</span>
@@ -1033,7 +1033,7 @@ function PropertiesPage() {
                   </button>
 
                   {isSortMenuOpen && (
-                    <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-md border bg-card p-1 shadow-lg">
+                    <div className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border bg-card p-1.5 shadow-xl">
                       {(
                         Object.entries(sortLabels) as [SortOption, string][]
                       ).map(([value, label]) => (
@@ -1059,7 +1059,7 @@ function PropertiesPage() {
                 <button
                   type="button"
                   onClick={() => setIsFilterOpen(true)}
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition hover:bg-muted ${hasActiveFilters(filters)
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition hover:bg-muted ${hasActiveFilters(filters)
                     ? 'border-primary bg-primary/5 text-primary'
                     : ''
                     }`}
@@ -1102,7 +1102,7 @@ function PropertiesPage() {
 
             {/* SELECCIÓN */}
 
-            <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
+            <div className={`mt-5 flex flex-col justify-between gap-3 rounded-2xl border px-4 py-3.5 shadow-sm transition sm:flex-row sm:items-center bg-card`}>
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -1155,7 +1155,7 @@ function PropertiesPage() {
             {/* LISTA / GRID DE RESULTADOS */}
 
             {currentProperties.length === 0 ? (
-              <div className="mt-8 rounded-lg border border-dashed p-10 text-center">
+              <div className="mt-8 rounded-3xl border border-dashed bg-card px-6 py-14 text-center shadow-sm">
                 <h2 className="font-semibold">
                   No hay inmuebles que coincidan
                 </h2>
@@ -1185,14 +1185,14 @@ function PropertiesPage() {
                   return (
                     <div
                       key={property.id}
-                      className={`relative flex h-full flex-col rounded-lg border bg-card transition ${isSelected
+                      className={`group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition duration-200 ${isSelected
                         ? 'border-primary ring-2 ring-primary/25'
                         : 'border-border'
                         }`}
                     >
                       {/* SELECTOR */}
 
-                      <div className="group relative w-full overflow-hidden rounded-t-lg">
+                      <div className="relative w-full overflow-hidden border-b border-border">
                         <input
                           type="checkbox"
                           aria-label={`Seleccionar ${getPropertyTypeLabel(
@@ -1201,17 +1201,17 @@ function PropertiesPage() {
                           checked={isSelected}
                           onChange={() => handleToggleProperty(property.id)}
                           disabled={deleting}
-                          className={`block h-8 w-full cursor-pointer appearance-none border-0 transition-colors focus:outline-none ${isSelected
-                            ? 'cursor-default bg-foreground'
-                            : 'bg-accent group-hover:bg-primary'
+                          className={`peer block h-11 w-full cursor-pointer appearance-none border-0 bg-muted/40 text-xs font-semibold transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
+                            ? 'cursor-default bg-primary text-primary-foreground'
+                            : 'bg-muted/40 text-muted-foreground'
                             }`}
                         />
 
                         <div
-                          className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium transition-colors ${isSelected
-                            ? 'font-semibold text-background'
-                            : 'text-muted-foreground group-hover:font-semibold group-hover:text-primary-foreground'
-                            }`}
+                          className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-semibold transition-colors ${isSelected
+                            ? 'text-primary-foreground'
+                            : 'text-muted-foreground'
+                            } peer-hover:text-primary-foreground`}
                         >
                           {isSelected ? '✓ Seleccionado' : 'Seleccionar'}
                         </div>
@@ -1221,9 +1221,9 @@ function PropertiesPage() {
 
                       <div className="flex flex-1 flex-col p-5">
                         <div>
-                          <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <h2 className="mt-1 text-lg font-semibold">
+                              <h2 className="mt-2 line-clamp-2 text-lg font-semibold leading-6 tracking-tight">
                                 {property.title}
                               </h2>
                             </div>
@@ -1237,13 +1237,13 @@ function PropertiesPage() {
                           </div>
                         </div>
 
-                        <div className="mt-4">
+                        <div className="mt-5">
                           <div className="flex min-h-21 flex-col justify-end pb-4">
                             <div className="flex flex-wrap items-end gap-2">
                               {propertyPills.map((pill, index) => (
                                 <span
                                   key={`${normalizeText(pill)}-${index}`}
-                                  className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                  className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
                                 >
                                   {pill}
                                 </span>
@@ -1286,19 +1286,10 @@ function PropertiesPage() {
 
                       <Link
                         to={`/inmuebles/${property.id}`}
-                        className="group mt-auto block"
+                        aria-label="Ver inmueble"
+                        className="mt-auto flex h-11 w-full items-center justify-center border-t bg-card text-xs font-semibold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                       >
-                        <div className="relative h-8 w-full overflow-hidden rounded-b-lg">
-                          <button
-                            type="button"
-                            aria-label="Ver detalles"
-                            className="block h-full w-full cursor-pointer border-0 bg-accent transition-colors group-hover:bg-primary group-hover:text-primary-foreground focus:outline-none"
-                          />
-
-                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground transition-colors group-hover:font-semibold group-hover:text-primary-foreground">
-                            Ver detalles
-                          </div>
-                        </div>
+                        Ver inmueble
                       </Link>
                     </div>
                   )
@@ -1309,7 +1300,7 @@ function PropertiesPage() {
             {/* PAGINACIÓN */}
 
             {totalPages > 1 && currentProperties.length > 0 && (
-              <div className="mt-6 flex items-center justify-between border-t pt-4">
+              <div className="mt-8 flex items-center justify-between gap-4 border-t pt-5">
                 <button
                   type="button"
                   onClick={handlePrevPage}
@@ -1344,7 +1335,7 @@ function PropertiesPage() {
 
       {isFilterOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 backdrop-blur-sm sm:p-5"
           role="dialog"
           aria-modal="true"
           aria-labelledby="filter-dialog-title"
@@ -1354,10 +1345,10 @@ function PropertiesPage() {
             }
           }}
         >
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
+          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl">
             {/* CABECERA */}
 
-            <div className="flex items-center justify-between border-b px-6 py-4">
+            <div className="flex items-start justify-between gap-4 border-b px-5 py-5 sm:px-6">
               <div>
                 <h2
                   id="filter-dialog-title"
@@ -1381,7 +1372,7 @@ function PropertiesPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto p-6">
+            <div className="overflow-y-auto p-5 sm:p-6">
               <div className="grid gap-6 md:grid-cols-2">
                 {/* FILTROS NUMÉRICOS */}
 
@@ -1563,14 +1554,14 @@ function PropertiesPage() {
 
               {/* CARACTERÍSTICAS */}
 
-              <div className="mt-7 border-t pt-6">
+              <div className="mt-6 rounded-2xl border bg-muted/15 p-4 sm:p-5">
                 <h3 className="text-sm font-semibold">Características</h3>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {propertyFeatureLabels.map(([field, label]) => (
                     <label
                       key={field}
-                      className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition hover:bg-muted"
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border bg-background px-3.5 py-3 text-sm transition hover:bg-muted"
                     >
                       <input
                         type="checkbox"
@@ -1663,7 +1654,7 @@ function PropertiesPage() {
 
             {/* PIE */}
 
-            <div className="flex flex-col-reverse gap-3 border-t px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col-reverse gap-3 border-t px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <button
                 type="button"
                 onClick={handleResetFilters}

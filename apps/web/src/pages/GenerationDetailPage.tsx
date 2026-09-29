@@ -673,17 +673,17 @@ function GenerationDetailPage() {
 
           <div className="mt-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary capitalize">
                 {generation.provider}
               </span>
 
-              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                 {getToneLabel(
                   generation.tone,
                 )}
               </span>
 
-              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
+              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground capitalize">
                 {generation.language ===
                 'es'
                   ? 'Español'
@@ -780,7 +780,7 @@ function GenerationDetailPage() {
                   (highlight) => (
                     <li
                       key={highlight}
-                      className="rounded-md bg-muted px-3 py-2 text-sm"
+                      className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
                     >
                       {highlight}
                     </li>

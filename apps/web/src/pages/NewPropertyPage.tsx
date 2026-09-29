@@ -418,7 +418,7 @@ ${listingToCopy.callToAction}
 
         <p className="mt-2 text-muted-foreground">
           Introduce los datos del inmueble para
-          generar posteriormente su anuncio con IA.
+          generarlo junto a su anuncio procesado por IA.
         </p>
       </div>
 
