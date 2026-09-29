@@ -24,7 +24,7 @@ function CookieNotice() {
   return (
     <aside
       aria-label="Información sobre cookies"
-      className="fixed inset-x-3 bottom-3 z-[100] rounded-xl border bg-card p-4 shadow-lg sm:inset-x-auto sm:right-5 sm:max-w-xl"
+      className="fixed inset-x-3 bottom-3 z-100 rounded-xl border bg-card p-4 shadow-lg sm:inset-x-auto sm:right-5 sm:max-w-xl"
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">

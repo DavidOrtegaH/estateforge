@@ -5,7 +5,6 @@ import {
 } from 'react-router'
 
 import AppLayout from '@/components/layout/AppLayout'
-import CookieNotice from '@/components/layout/CookieNotice'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 
 import DashboardPage from '@/pages/DashboardPage'
@@ -19,7 +18,6 @@ import RegisterPage from '@/pages/RegisterPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import AccountPage from '@/pages/AccountPage'
-import PrivacyPage from '@/pages/PrivacyPage'
 
 function App() {
   return (
@@ -29,7 +27,6 @@ function App() {
         <Route path="/registro" element={<RegisterPage />} />
         <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
         <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
-        <Route path="/privacidad" element={<PrivacyPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
@@ -43,7 +40,6 @@ function App() {
           </Route>
         </Route>
       </Routes>
-      <CookieNotice />
     </BrowserRouter>
   )
 }

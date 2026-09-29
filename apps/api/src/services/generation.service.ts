@@ -14,6 +14,8 @@ import { prisma } from '../db/prisma.js'
 import { buildListingPrompt } from './prompt.service.js'
 import { validateGeneratedListing } from './listing-validator.service.js'
 import { createAIProvider } from '../ai/ai-provider.factory.js'
+import { isAIProviderError } from '../ai/ai-provider.error.js'
+import { getUserAIKey } from './user-ai-key.service.js'
 
 interface ExistingPropertyGenerationRequest {
   propertyId: string
@@ -28,6 +30,55 @@ interface GenerationResult {
   listing: GeneratedListing
   propertyId: string
   generationId: string
+}
+
+export async function generateWithUserKeyFallback(
+  provider: AIProviderType,
+  prompt: string,
+  apiKey: string | undefined,
+  userId: string,
+): Promise<GeneratedListing> {
+  // Mock never needs an API key and must never consult stored keys.
+  if (provider === 'mock') {
+    return createAIProvider(provider).generate(prompt)
+  }
+
+  // An explicitly supplied key always has priority and remains temporary.
+  if (apiKey) {
+    return createAIProvider(provider, apiKey).generate(prompt)
+  }
+
+  try {
+    return await createAIProvider(provider).generate(prompt)
+  } catch (error) {
+    if (!isAIProviderError(error) || error.code !== 'AI_QUOTA_EXCEEDED') {
+      throw error
+    }
+
+    // Only when the server-side provider quota is exhausted do we try
+    // the encrypted key saved by the authenticated user.
+    try {
+      const storedKey = await getUserAIKey(
+        userId,
+        provider,
+      )
+
+      if (!storedKey) {
+        throw error
+      }
+
+      return createAIProvider(provider, storedKey).generate(prompt)
+    } catch (storedKeyError) {
+      // A missing encryption key or a damaged stored secret must not turn
+      // the provider quota error into an unrelated 500. The user can still
+      // recover by supplying a temporary API key manually.
+      if (storedKeyError === error) {
+        throw error
+      }
+
+      throw error
+    }
+  }
 }
 
 /**
@@ -147,17 +198,16 @@ export async function generateListing(
     userId: string
   },
 ): Promise<GenerationResult> {
-  const aiProvider =
-    createAIProvider(
-      request.provider,
-      request.apiKey,
-    )
-
   const prompt =
     buildListingPrompt(request)
 
   const result =
-    await aiProvider.generate(prompt)
+    await generateWithUserKeyFallback(
+      request.provider,
+      prompt,
+      request.apiKey,
+      request.userId,
+    )
 
   const {
     property,
@@ -411,19 +461,18 @@ export async function generateListingForExistingProperty(
       request.apiKey,
   }
 
-  const aiProvider =
-    createAIProvider(
-      request.provider,
-      request.apiKey,
-    )
-
   const prompt =
     buildListingPrompt(
       generationRequest,
     )
 
   const result =
-    await aiProvider.generate(prompt)
+    await generateWithUserKeyFallback(
+      request.provider,
+      prompt,
+      request.apiKey,
+      request.userId,
+    )
 
   const validatedListing =
     validateGeneratedListing(
