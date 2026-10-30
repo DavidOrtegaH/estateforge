@@ -98,6 +98,12 @@ export function AuthProvider({
         newPassword,
       ),
 
+    updateEmail: async (code: string) => {
+      const updatedUser = await authService.verifyEmailChange(code)
+      setUser(updatedUser)
+      return updatedUser
+    },
+
     deleteAccount: async (currentPassword: string) => {
       const message =
         await authService.deleteAccount(currentPassword)

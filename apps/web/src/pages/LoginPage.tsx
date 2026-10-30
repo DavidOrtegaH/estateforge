@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 
 import {
@@ -6,17 +7,83 @@ import {
   useLocation,
 } from 'react-router'
 
+import { useAuth } from '@/hooks/useAuth'
 import {
   TurnstileField,
   isTurnstileConfigured,
 } from '@/components/security/TurnstileField'
-import { useAuth } from '@/hooks/useAuth'
-import FooterLoginRegister from '@/components/layout/FooterLoginRegister'
+
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 interface LocationState {
   from?: {
     pathname: string
   }
+}
+
+
+function getInitialDarkMode(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  const storedTheme = window.localStorage.getItem(
+    'estateforge-theme',
+  )
+
+  if (storedTheme === 'dark') {
+    return true
+  }
+
+  if (storedTheme === 'light') {
+    return false
+  }
+
+  return window.matchMedia(
+    '(prefers-color-scheme: dark)',
+  ).matches
+}
+
+function SunIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.42 1.42" />
+      <path d="m17.65 17.65 1.42 1.42" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.35 17.65-1.42 1.42" />
+      <path d="m19.07 4.93-1.42 1.42" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <path d="M20.8 14.4A8.7 8.7 0 0 1 9.6 3.2 8.7 8.7 0 1 0 20.8 14.4Z" />
+    </svg>
+  )
 }
 
 function LoginPage() {
@@ -27,12 +94,38 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [turnstileToken, setTurnstileToken] =
-    useState<string>()
+  const [turnstileToken, setTurnstileToken] = useState<string>()
+  const [isDarkMode, setIsDarkMode] =
+    useState(getInitialDarkMode)
 
   useEffect(() => {
     document.title = 'Iniciar sesión - EstateForge'
   }, [])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'dark',
+      isDarkMode,
+    )
+  }, [isDarkMode])
+
+  function handleToggleTheme() {
+    setIsDarkMode((previous) => {
+      const nextTheme = !previous
+
+      document.documentElement.classList.toggle(
+        'dark',
+        nextTheme,
+      )
+
+      window.localStorage.setItem(
+        'estateforge-theme',
+        nextTheme ? 'dark' : 'light',
+      )
+
+      return nextTheme
+    })
+  }
 
   if (user) {
     const state = location.state as
@@ -49,13 +142,8 @@ function LoginPage() {
       return
     }
 
-    if (
-      isTurnstileConfigured() &&
-      !turnstileToken
-    ) {
-      setError(
-        'Completa la verificación de seguridad e inténtalo de nuevo.',
-      )
+    if (isTurnstileConfigured() && !turnstileToken) {
+      setError('Completa la verificación de seguridad e inténtalo de nuevo.')
       return
     }
 
@@ -63,11 +151,7 @@ function LoginPage() {
     setError(null)
 
     try {
-      await login(
-        email.trim(),
-        password,
-        turnstileToken,
-      )
+      await login(email.trim(), password, turnstileToken)
     } catch (loginError) {
       setError(
         loginError instanceof Error
@@ -80,140 +164,133 @@ function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-8">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
+      <button
+        type="button"
+        onClick={handleToggleTheme}
+        aria-label={
+          isDarkMode
+            ? 'Cambiar a modo claro'
+            : 'Cambiar a modo oscuro'
+        }
+        title={
+          isDarkMode
+            ? 'Modo claro'
+            : 'Modo oscuro'
+        }
+        className={[
+          'absolute right-4 top-4 z-10',
+          'flex h-10 w-10 items-center justify-center',
+          'rounded-xl border border-border/80',
+          'bg-card text-muted-foreground shadow-sm',
+          'transition-colors',
+          'hover:bg-accent hover:text-foreground',
+          'focus-visible:outline-none',
+          'focus-visible:ring-2 focus-visible:ring-ring',
+          'focus-visible:ring-offset-2',
+          'focus-visible:ring-offset-background',
+        ].join(' ')}
       >
-        <div className="absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-64 w-64 translate-x-1/3 translate-y-1/3 rounded-full bg-primary/5 blur-3xl" />
-      </div>
+        {isDarkMode ? <SunIcon /> : <MoonIcon />}
+      </button>
 
-      <div className="relative w-full max-w-md">
+      <div className="w-full max-w-sm rounded-lg border bg-card p-6">
+        <div className="mb-6">
+          <p className="text-sm font-semibold text-primary">
+            EstateForge
+          </p>
+          <h1 className="mt-2 text-2xl font-bold">
+            Iniciar sesión
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Accede a tu cuenta de EstateForge.
+          </p>
+        </div>
 
-        <section className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold tracking-tight">
-              Iniciar sesión
-            </h1>
-
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Accede a tu cuenta para gestionar tus
-              inmuebles y anuncios.
-            </p>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSubmit()
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label
+              htmlFor="login-email"
+              className="text-sm font-medium"
+            >
+              Email
+            </label>
+            <input
+              id="login-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={submitting}
+              required
+              autoComplete="email"
+              className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+            />
           </div>
 
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void handleSubmit()
-            }}
-            className="space-y-5"
-          >
-            <div>
+          <div>
+            <div className="flex items-center justify-between gap-3">
               <label
-                htmlFor="login-email"
+                htmlFor="login-password"
                 className="text-sm font-medium"
               >
-                Correo electrónico
+                Contraseña
               </label>
-
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
-                disabled={submitting}
-                required
-                autoComplete="email"
-                inputMode="email"
-                aria-invalid={Boolean(error)}
-                className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="tu@email.com"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between gap-3">
-                <label
-                  htmlFor="login-password"
-                  className="text-sm font-medium"
-                >
-                  Contraseña
-                </label>
-
-                <Link
-                  to="/recuperar-contrasena"
-                  className="shrink-0 text-xs font-medium text-primary transition hover:underline focus:outline-none focus:ring-2 focus:ring-primary/40"
-                >
-                  ¿Has olvidado tu contraseña?
-                </Link>
-              </div>
-
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(event) =>
-                  setPassword(event.target.value)
-                }
-                disabled={submitting}
-                required
-                autoComplete="current-password"
-                className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Introduce tu contraseña"
-              />
-            </div>
-
-            <TurnstileField
-              onTokenChange={setTurnstileToken}
-            />
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+              <Link
+                to="/recuperar-contrasena"
+                className="text-xs font-medium text-primary hover:underline"
               >
-                {error}
-              </div>
-            )}
+                ¿Has olvidado tu contraseña?
+              </Link>
+            </div>
 
-            <button
-              type="submit"
+            <PasswordInput
+              id="login-password"
+              
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
               disabled={submitting}
-              className="h-11 w-full rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {submitting
-                ? 'Iniciando sesión...'
-                : 'Iniciar sesión'}
-            </button>
-          </form>
-
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-
-            <span className="text-xs text-muted-foreground">
-              o
-            </span>
-
-            <div className="h-px flex-1 bg-border" />
+              required
+              autoComplete="current-password"
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+             wrapperClassName="mt-2"  visibilityLabel="contraseña" />
           </div>
 
-          <p className="text-center text-sm text-muted-foreground">
-            ¿No tienes cuenta?{' '}
-            <Link
-              to="/registro"
-              className="font-semibold text-primary transition hover:underline focus:outline-none focus:ring-2 focus:ring-primary/40"
-            >
-              Crear una cuenta
-            </Link>
-          </p>
-        </section>
-        <FooterLoginRegister />
+          <TurnstileField onTokenChange={setTurnstileToken} />
+
+          {error && (
+            <p className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="h-10 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting
+              ? 'Iniciando...'
+              : 'Iniciar sesión'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-sm text-muted-foreground">
+          ¿No tienes cuenta?{' '}
+          <Link
+            to="/registro"
+            className="font-medium text-primary hover:underline"
+          >
+            Crear una cuenta
+          </Link>
+        </p>
       </div>
-    </main>
+    </div>
   )
 }
 

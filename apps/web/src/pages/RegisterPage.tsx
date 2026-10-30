@@ -1,21 +1,83 @@
-import { useEffect, useMemo, useState } from 'react'
+
+import { useEffect, useState } from 'react'
 
 import {
   Link,
   Navigate,
 } from 'react-router'
 
+import { useAuth } from '@/hooks/useAuth'
 import {
   TurnstileField,
   isTurnstileConfigured,
 } from '@/components/security/TurnstileField'
-import { useAuth } from '@/hooks/useAuth'
-import {
-  getPasswordValidationErrors,
-  MAX_PASSWORD_LENGTH,
-  MIN_PASSWORD_LENGTH,
-} from '@/lib/passwordPolicy'
-import FooterLoginRegister from '@/components/layout/FooterLoginRegister'
+
+
+import { PasswordInput } from '@/components/ui/PasswordInput'
+
+function getInitialDarkMode(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  const storedTheme = window.localStorage.getItem(
+    'estateforge-theme',
+  )
+
+  if (storedTheme === 'dark') {
+    return true
+  }
+
+  if (storedTheme === 'light') {
+    return false
+  }
+
+  return window.matchMedia(
+    '(prefers-color-scheme: dark)',
+  ).matches
+}
+
+function SunIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.42 1.42" />
+      <path d="m17.65 17.65 1.42 1.42" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.35 17.65-1.42 1.42" />
+      <path d="m19.07 4.93-1.42 1.42" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <path d="M20.8 14.4A8.7 8.7 0 0 1 9.6 3.2 8.7 8.7 0 1 0 20.8 14.4Z" />
+    </svg>
+  )
+}
 
 function RegisterPage() {
   const { register, user } = useAuth()
@@ -26,17 +88,38 @@ function RegisterPage() {
     useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [turnstileToken, setTurnstileToken] =
-    useState<string>()
-
-  const passwordErrors = useMemo(
-    () => getPasswordValidationErrors(password),
-    [password],
-  )
+  const [turnstileToken, setTurnstileToken] = useState<string>()
+  const [isDarkMode, setIsDarkMode] =
+    useState(getInitialDarkMode)
 
   useEffect(() => {
     document.title = 'Crear cuenta - EstateForge'
   }, [])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'dark',
+      isDarkMode,
+    )
+  }, [isDarkMode])
+
+  function handleToggleTheme() {
+    setIsDarkMode((previous) => {
+      const nextTheme = !previous
+
+      document.documentElement.classList.toggle(
+        'dark',
+        nextTheme,
+      )
+
+      window.localStorage.setItem(
+        'estateforge-theme',
+        nextTheme ? 'dark' : 'light',
+      )
+
+      return nextTheme
+    })
+  }
 
   if (user) {
     return <Navigate to="/" replace />
@@ -47,18 +130,15 @@ function RegisterPage() {
       return
     }
 
-    if (
-      isTurnstileConfigured() &&
-      !turnstileToken
-    ) {
-      setError(
-        'Completa la verificación de seguridad e inténtalo de nuevo.',
-      )
+    if (isTurnstileConfigured() && !turnstileToken) {
+      setError('Completa la verificación de seguridad e inténtalo de nuevo.')
       return
     }
 
-    if (passwordErrors.length > 0) {
-      setError(passwordErrors[0])
+    if (password.length < 8) {
+      setError(
+        'La contraseña debe tener al menos 8 caracteres.',
+      )
       return
     }
 
@@ -71,11 +151,7 @@ function RegisterPage() {
     setError(null)
 
     try {
-      await register(
-        email.trim(),
-        password,
-        turnstileToken,
-      )
+      await register(email.trim(), password, turnstileToken)
     } catch (registerError) {
       setError(
         registerError instanceof Error
@@ -88,10 +164,39 @@ function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
+      <button
+        type="button"
+        onClick={handleToggleTheme}
+        aria-label={
+          isDarkMode
+            ? 'Cambiar a modo claro'
+            : 'Cambiar a modo oscuro'
+        }
+        title={
+          isDarkMode
+            ? 'Modo claro'
+            : 'Modo oscuro'
+        }
+        className={[
+          'absolute right-4 top-4 z-10',
+          'flex h-10 w-10 items-center justify-center',
+          'rounded-xl border border-border/80',
+          'bg-card text-muted-foreground shadow-sm',
+          'transition-colors',
+          'hover:bg-accent hover:text-foreground',
+          'focus-visible:outline-none',
+          'focus-visible:ring-2 focus-visible:ring-ring',
+          'focus-visible:ring-offset-2',
+          'focus-visible:ring-offset-background',
+        ].join(' ')}
+      >
+        {isDarkMode ? <SunIcon /> : <MoonIcon />}
+      </button>
+
+      <div className="w-full max-w-sm rounded-lg border bg-card p-6">
         <div className="mb-6">
-          <h1 className="mt-2 text-2xl font-bold">
+          <h1 className="text-2xl font-bold">
             Crear cuenta
           </h1>
 
@@ -112,7 +217,7 @@ function RegisterPage() {
               htmlFor="register-email"
               className="text-sm font-medium"
             >
-              Correo electrónico
+              Email
             </label>
 
             <input
@@ -125,8 +230,7 @@ function RegisterPage() {
               disabled={submitting}
               required
               autoComplete="email"
-              inputMode="email"
-              className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 
@@ -138,84 +242,23 @@ function RegisterPage() {
               Contraseña
             </label>
 
-            <input
+            <PasswordInput
               id="register-password"
-              type="password"
+              
               value={password}
               onChange={(event) =>
                 setPassword(event.target.value)
               }
               disabled={submitting}
               required
-              minLength={MIN_PASSWORD_LENGTH}
-              maxLength={MAX_PASSWORD_LENGTH}
+              minLength={8}
               autoComplete="new-password"
-              aria-invalid={
-                password.length > 0 &&
-                passwordErrors.length > 0
-              }
-              className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-            />
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+             wrapperClassName="mt-2"  visibilityLabel="contraseña" />
 
-            <div className="mt-2 space-y-1">
-              <p className="text-xs text-muted-foreground">
-                La contraseña debe cumplir estos requisitos:
-              </p>
-
-              <ul className="space-y-1 text-xs">
-                <li
-                  className={
-                    password.length >= MIN_PASSWORD_LENGTH &&
-                      password.length <= MAX_PASSWORD_LENGTH
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  • Entre {MIN_PASSWORD_LENGTH} y{' '}
-                  {MAX_PASSWORD_LENGTH} caracteres
-                </li>
-
-                <li
-                  className={
-                    /\p{Ll}/u.test(password)
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  • Una letra minúscula
-                </li>
-
-                <li
-                  className={
-                    /\p{Lu}/u.test(password)
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  • Una letra mayúscula
-                </li>
-
-                <li
-                  className={
-                    /\p{N}/u.test(password)
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  • Un número
-                </li>
-
-                <li
-                  className={
-                    /[^\p{L}\p{N}\s]/u.test(password)
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  • Un carácter especial
-                </li>
-              </ul>
-            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Mínimo 8 caracteres.
+            </p>
           </div>
 
           <div>
@@ -226,35 +269,25 @@ function RegisterPage() {
               Repite la contraseña
             </label>
 
-            <input
+            <PasswordInput
               id="register-password-confirm"
-              type="password"
+              
               value={confirmPassword}
               onChange={(event) =>
                 setConfirmPassword(event.target.value)
               }
               disabled={submitting}
               required
-              minLength={MIN_PASSWORD_LENGTH}
-              maxLength={MAX_PASSWORD_LENGTH}
+              minLength={8}
               autoComplete="new-password"
-              aria-invalid={
-                confirmPassword.length > 0 &&
-                confirmPassword !== password
-              }
-              className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-            />
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+             wrapperClassName="mt-2"  visibilityLabel="contraseña" />
           </div>
 
-          <TurnstileField
-            onTokenChange={setTurnstileToken}
-          />
+          <TurnstileField onTokenChange={setTurnstileToken} />
 
           {error && (
-            <p
-              role="alert"
-              className="text-sm text-destructive"
-            >
+            <p className="text-sm text-destructive">
               {error}
             </p>
           )}
@@ -262,7 +295,7 @@ function RegisterPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="h-10 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-10 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting
               ? 'Creando cuenta...'
@@ -274,14 +307,12 @@ function RegisterPage() {
           ¿Ya tienes cuenta?{' '}
           <Link
             to="/login"
-            className="font-medium text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="font-medium text-primary hover:underline"
           >
             Iniciar sesión
           </Link>
         </p>
       </div>
-
-      <FooterLoginRegister />
     </div>
   )
 }

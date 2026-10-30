@@ -15,6 +15,11 @@ import {
 } from '../services/password-reset.service.js'
 import { emailService } from '../services/email.service.js'
 import {
+  consumeEmailChangeCode,
+  issueEmailChangeCode,
+  normalizeEmail,
+} from '../services/email-change.service.js'
+import {
   hashPassword,
   verifyPassword,
 } from '../services/password.service.js'
@@ -28,6 +33,8 @@ import {
 import {
   ChangePasswordSchema,
   DeleteAccountSchema,
+  ChangeEmailRequestSchema,
+  VerifyEmailChangeSchema,
 } from './account.schemas.js'
 
 const TurnstileTokenSchema = z.string().trim().min(1).max(2_048).optional()
@@ -249,7 +256,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const { email, password } = result.data
-      const normalizedEmail = email.toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
 
       const existingUser = await prisma.user.findUnique({
         where: { email: normalizedEmail },
@@ -306,7 +313,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const { email, password } = result.data
-      const normalizedEmail = email.toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
       const user = await prisma.user.findUnique({
         where: { email: normalizedEmail },
       })
@@ -358,7 +365,7 @@ export async function authRoutes(app: FastifyInstance) {
         return
       }
 
-      const normalizedEmail = result.data.email.toLowerCase()
+      const normalizedEmail = normalizeEmail(result.data.email)
       const user = await prisma.user.findUnique({
         where: { email: normalizedEmail },
         select: { id: true, email: true },
@@ -432,6 +439,110 @@ export async function authRoutes(app: FastifyInstance) {
       return {
         message:
           'Contraseña restablecida correctamente. Ya puedes iniciar sesión.',
+      }
+    },
+  )
+
+  app.post(
+    '/api/auth/change-email/request',
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '15 minutes',
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = ChangeEmailRequestSchema.safeParse(request.body)
+
+      if (!result.success) {
+        return sendValidationError(reply, 'Introduce un email válido.')
+      }
+
+      const user = await getAuthenticatedUser(request, reply)
+
+      if (!user) {
+        return
+      }
+
+      const newEmail = normalizeEmail(result.data.newEmail)
+
+      if (newEmail === user.email) {
+        return reply.code(400).send({
+          message: 'El nuevo email debe ser diferente del actual.',
+        })
+      }
+
+      const existingUser = await prisma.user.findUnique({
+        where: { email: newEmail },
+        select: { id: true },
+      })
+
+      if (existingUser) {
+        return reply.code(409).send({
+          message: 'Ya existe una cuenta con ese email.',
+        })
+      }
+
+      const verification = await issueEmailChangeCode(user.id, newEmail)
+
+      await emailService.sendEmailChangeCodeEmail({
+        to: newEmail,
+        code: verification.code,
+        expiresAt: verification.expiresAt,
+      })
+
+      return {
+        message: 'Hemos enviado un código de verificación al nuevo email.',
+        expiresAt: verification.expiresAt.toISOString(),
+      }
+    },
+  )
+
+  app.post(
+    '/api/auth/change-email/verify',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '15 minutes',
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = VerifyEmailChangeSchema.safeParse(request.body)
+
+      if (!result.success) {
+        return sendValidationError(reply, 'El código de verificación no es válido.')
+      }
+
+      const user = await getAuthenticatedUser(request, reply)
+
+      if (!user) {
+        return
+      }
+
+      const verification = await consumeEmailChangeCode(user.id, result.data.code)
+
+      if (!verification.success) {
+        if (verification.reason === 'email_taken') {
+          return reply.code(409).send({
+            message: 'Ese email ya pertenece a otra cuenta.',
+          })
+        }
+
+        return reply.code(400).send({
+          message: 'El código de verificación no es válido o ha caducado.',
+        })
+      }
+
+      return {
+        user: {
+          id: user.id,
+          email: verification.email,
+        },
+        message: 'Email actualizado correctamente.',
       }
     },
   )

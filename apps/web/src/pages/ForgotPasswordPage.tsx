@@ -69,29 +69,7 @@ function ForgotPasswordPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        <div className="mb-6 text-center">
-          <Link
-            to="/login"
-            aria-label="EstateForge - Recuperar contraseña"
-            className="inline-flex items-center justify-center rounded-2xl border bg-card p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            <img
-              src="/logo.svg"
-              alt="EstateForge"
-              className="h-12 w-auto dark:hidden"
-            />
 
-            <img
-              src="/logo-dark.svg"
-              alt="EstateForge"
-              className="hidden h-12 w-auto dark:block"
-            />
-          </Link>
-
-          <p className="mt-4 text-sm font-medium text-primary">
-            Gestión inmobiliaria inteligente
-          </p>
-        </div>
 
         <section className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
           <div className="mb-6">
@@ -189,10 +167,6 @@ function ForgotPasswordPage() {
             </Link>
           </p>
         </section>
-
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          EstateForge · Gestión inmobiliaria con IA
-        </p>
       </div>
     </main>
   )

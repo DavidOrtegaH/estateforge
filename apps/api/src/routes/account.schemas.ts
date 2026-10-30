@@ -18,3 +18,11 @@ export const ChangePasswordSchema = z.object({
 export const DeleteAccountSchema = z.object({
   currentPassword: z.string().min(1).max(MAX_PASSWORD_LENGTH),
 })
+
+export const ChangeEmailRequestSchema = z.object({
+  newEmail: z.string().trim().email().max(254),
+})
+
+export const VerifyEmailChangeSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/),
+})

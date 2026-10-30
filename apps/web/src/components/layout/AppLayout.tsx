@@ -357,6 +357,18 @@ function getBreadcrumbs(
     ]
   }
 
+  if (pathname === '/cuenta') {
+    return [
+      {
+        label: 'Dashboard',
+        to: '/',
+      },
+      {
+        label: 'Cuenta',
+      },
+    ]
+  }
+
   if (pathname.startsWith('/historial/')) {
     return [
       {
@@ -404,6 +416,10 @@ function getPageTitle(pathname: string) {
 
   if (pathname.startsWith('/historial/')) {
     return 'Detalles del anuncio - EstateForge'
+  }
+
+  if (pathname === '/cuenta') {
+    return 'Cuenta - EstateForge'
   }
 
   return 'EstateForge'
@@ -971,6 +987,61 @@ function AppLayout() {
               {(user?.email?.[0] ?? 'U').toUpperCase()}
             </span>
           </div>
+
+          <NavLink
+            to="/cuenta"
+            onClick={closeMobileMenu}
+            title={isSidebarCollapsed ? 'Cuenta' : undefined}
+            aria-label="Cuenta"
+            className={({ isActive }) =>
+              [
+                'group relative mb-2 flex h-11 shrink-0',
+                'items-center rounded-xl',
+                'border',
+                'text-sm font-medium',
+                'transition-colors duration-200',
+                isSidebarCollapsed
+                  ? 'w-11 justify-center px-0'
+                  : 'w-full gap-3 px-3',
+                isActive
+                  ? 'border-primary/20 bg-primary text-primary-foreground shadow-sm'
+                  : 'border-border/80 bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
+              ].join(' ')
+            }
+          >
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="8" r="3.25" />
+                <path d="M5.5 20c.9-3.15 3.15-4.75 6.5-4.75S17.6 16.85 18.5 20" />
+              </svg>
+            </span>
+
+            <span
+              className={[
+                'pointer-events-none absolute',
+                'left-13',
+                'whitespace-nowrap',
+                'leading-none',
+                'font-medium',
+                'transition-[opacity,visibility]',
+                'duration-150',
+                isSidebarCollapsed
+                  ? 'invisible opacity-0'
+                  : 'visible opacity-100',
+              ].join(' ')}
+            >
+              Cuenta
+            </span>
+          </NavLink>
 
           <button
             type="button"

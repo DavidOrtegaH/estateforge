@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
@@ -11,6 +12,9 @@ import {
   TurnstileField,
   isTurnstileConfigured,
 } from '@/components/security/TurnstileField'
+
+
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
@@ -116,9 +120,9 @@ function ResetPasswordPage() {
             >
               Nueva contraseña
             </label>
-            <input
+            <PasswordInput
               id="reset-password"
-              type="password"
+              
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={submitting || !token}
@@ -126,8 +130,8 @@ function ResetPasswordPage() {
               minLength={MIN_PASSWORD_LENGTH}
               maxLength={MAX_PASSWORD_LENGTH}
               autoComplete="new-password"
-              className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-            />
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+             wrapperClassName="mt-2"  visibilityLabel="contraseña" />
           </div>
 
           <div>
@@ -137,9 +141,9 @@ function ResetPasswordPage() {
             >
               Repetir contraseña
             </label>
-            <input
+            <PasswordInput
               id="reset-password-confirm"
-              type="password"
+              
               value={confirmPassword}
               onChange={(event) =>
                 setConfirmPassword(event.target.value)
@@ -147,8 +151,8 @@ function ResetPasswordPage() {
               disabled={submitting || !token}
               required
               autoComplete="new-password"
-              className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-            />
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+             wrapperClassName="mt-2"  visibilityLabel="contraseña" />
           </div>
 
           {password.length > 0 && validationErrors.length > 0 && (

@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 
@@ -7,12 +8,16 @@ import {
   MIN_PASSWORD_LENGTH,
 } from '@/lib/passwordPolicy'
 import { useAuth } from '@/hooks/useAuth'
+import { requestEmailChange } from '@/services/authService'
 import {
   deleteStoredAIKey,
   getStoredAIKeyStatus,
   saveStoredAIKey,
   type StoredAIKeyProvider,
 } from '@/services/aiKeyService'
+
+
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 function AccountPage() {
   const navigate = useNavigate()
@@ -21,6 +26,7 @@ function AccountPage() {
     user,
     changePassword,
     deleteAccount,
+    updateEmail,
   } = useAuth()
 
   const [currentPassword, setCurrentPassword] = useState('')
@@ -29,6 +35,14 @@ function AccountPage() {
   const [changeSubmitting, setChangeSubmitting] = useState(false)
   const [changeMessage, setChangeMessage] = useState<string | null>(null)
   const [changeError, setChangeError] = useState<string | null>(null)
+
+  const [newEmail, setNewEmail] = useState('')
+  const [emailCode, setEmailCode] = useState('')
+  const [emailSubmitting, setEmailSubmitting] = useState(false)
+  const [emailVerifying, setEmailVerifying] = useState(false)
+  const [emailMessage, setEmailMessage] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [emailVerificationRequested, setEmailVerificationRequested] = useState(false)
 
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
@@ -161,6 +175,79 @@ function AccountPage() {
       )
     } finally {
       setChangeSubmitting(false)
+    }
+  }
+
+
+async function handleRequestEmailChange() {
+  if (emailSubmitting || !user) {
+    return
+  }
+
+  setEmailMessage(null)
+  setEmailError(null)
+
+  const normalizedEmail = newEmail.trim().toLowerCase()
+
+  if (!normalizedEmail) {
+    setEmailError('Introduce el nuevo email.')
+    return
+  }
+
+  if (normalizedEmail === user.email.toLowerCase()) {
+    setEmailError(
+      'El nuevo email debe ser diferente al actual.',
+    )
+    return
+  }
+
+  setEmailSubmitting(true)
+
+  try {
+    const message = await requestEmailChange(normalizedEmail)
+
+    setEmailMessage(message)
+    setEmailCode('')
+  } catch (error) {
+    setEmailError(
+      error instanceof Error
+        ? error.message
+        : 'No se ha podido solicitar el cambio de email.',
+    )
+  } finally {
+    setEmailSubmitting(false)
+  }
+}
+
+  async function handleVerifyEmailChange() {
+    if (emailSubmitting || emailVerifying) {
+      return
+    }
+
+    setEmailError(null)
+    setEmailMessage(null)
+
+    if (!/^\d{6}$/.test(emailCode.trim())) {
+      setEmailError('Introduce el código de 6 dígitos recibido por email.')
+      return
+    }
+
+    setEmailVerifying(true)
+
+    try {
+      const updatedUser = await updateEmail(emailCode.trim())
+      setEmailMessage(`Email actualizado correctamente a ${updatedUser.email}.`)
+      setEmailCode('')
+      setNewEmail('')
+      setEmailVerificationRequested(false)
+    } catch (error) {
+      setEmailError(
+        error instanceof Error
+          ? error.message
+          : 'No se ha podido verificar el cambio de email.',
+      )
+    } finally {
+      setEmailVerifying(false)
     }
   }
 
@@ -342,6 +429,58 @@ function AccountPage() {
         </div>
       </section>
 
+
+
+      {/* =========================================================
+          CAMBIO DE EMAIL
+          ========================================================= */}
+
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="border-b px-5 py-5 sm:px-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5 12 13l9-5.5M4.5 5h15A1.5 1.5 0 0 1 21 6.5v11A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-11A1.5 1.5 0 0 1 4.5 5Z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Cambiar email</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Introduce un nuevo correo y confirma el código que enviaremos a esa dirección.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-6">
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="new-account-email" className="text-sm font-medium">Nuevo email</label>
+              <input id="new-account-email" type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} disabled={emailSubmitting || emailVerifying} autoComplete="email" inputMode="email" className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50" placeholder="nuevo@email.com" />
+            </div>
+
+            <div className="flex justify-end border-t pt-5">
+              <button type="button" onClick={() => void handleRequestEmailChange()} disabled={emailSubmitting || emailVerifying} className="h-11 rounded-xl border bg-background px-5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                {emailSubmitting ? 'Enviando...' : 'Enviar código'}
+              </button>
+            </div>
+
+            {emailVerificationRequested && (
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <label htmlFor="email-change-code" className="text-sm font-medium">Código de verificación</label>
+                <input id="email-change-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={emailCode} onChange={(event) => setEmailCode(event.target.value.replace(/\D/g, '').slice(0, 6))} disabled={emailSubmitting || emailVerifying} className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-center text-lg font-semibold tracking-[0.35em] outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50" placeholder="000000" />
+                <button type="button" onClick={() => void handleVerifyEmailChange()} disabled={emailSubmitting || emailVerifying} className="mt-4 h-11 w-full rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  {emailVerifying ? 'Verificando...' : 'Confirmar nuevo email'}
+                </button>
+              </div>
+            )}
+
+            {emailMessage && <div role="status" className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground">{emailMessage}</div>}
+            {emailError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{emailError}</div>}
+          </div>
+        </div>
+      </section>
+
       {/* =========================================================
           CAMBIO DE CONTRASEÑA
           ========================================================= */}
@@ -403,9 +542,9 @@ function AccountPage() {
                   Contraseña actual
                 </label>
 
-                <input
+                <PasswordInput
                   id="current-password"
-                  type="password"
+                  
                   value={currentPassword}
                   onChange={(event) =>
                     setCurrentPassword(event.target.value)
@@ -414,9 +553,9 @@ function AccountPage() {
                   required
                   maxLength={MAX_PASSWORD_LENGTH}
                   autoComplete="current-password"
-                  className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="Introduce tu contraseña actual"
-                />
+                 wrapperClassName="mt-2"  visibilityLabel="contraseña" />
               </div>
 
               <div>
@@ -427,9 +566,9 @@ function AccountPage() {
                   Nueva contraseña
                 </label>
 
-                <input
+                <PasswordInput
                   id="new-password"
-                  type="password"
+                  
                   value={newPassword}
                   onChange={(event) =>
                     setNewPassword(event.target.value)
@@ -439,9 +578,9 @@ function AccountPage() {
                   minLength={MIN_PASSWORD_LENGTH}
                   maxLength={MAX_PASSWORD_LENGTH}
                   autoComplete="new-password"
-                  className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="Introduce una nueva contraseña"
-                />
+                 wrapperClassName="mt-2"  visibilityLabel="contraseña" />
               </div>
 
               <div>
@@ -452,9 +591,9 @@ function AccountPage() {
                   Repetir nueva contraseña
                 </label>
 
-                <input
+                <PasswordInput
                   id="confirm-new-password"
-                  type="password"
+                  
                   value={confirmPassword}
                   onChange={(event) =>
                     setConfirmPassword(event.target.value)
@@ -462,9 +601,9 @@ function AccountPage() {
                   disabled={changeSubmitting}
                   required
                   autoComplete="new-password"
-                  className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="Repite la nueva contraseña"
-                />
+                 wrapperClassName="mt-2"  visibilityLabel="contraseña" />
               </div>
             </div>
 
@@ -575,20 +714,16 @@ function AccountPage() {
 
               <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
                 Puedes guardar una API key propia para utilizarla como
-                respaldo cuando se agote la cuota de la API configurada
+                respaldo cuando se agote la cuota de la API key proporcionada
                 por EstateForge.
               </p>
             </div>
           </div>
-
-          <div className="mt-4 rounded-xl border bg-muted/30 px-4 py-3">
-            <p className="text-xs leading-5 text-muted-foreground">
+            <p className="text-xs mt-4 leading-5 text-muted-foreground">
               Las claves se almacenan cifradas y nunca se muestran de
               nuevo después de guardarlas.
             </p>
-          </div>
         </div>
-
         <div className="p-5 sm:p-6">
           <div className="grid gap-4 lg:grid-cols-2">
             {(['gemini', 'openai'] as const).map(
@@ -664,9 +799,9 @@ function AccountPage() {
                       </label>
 
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                        <input
+                        <PasswordInput
                           id={`ai-key-${provider}`}
-                          type="password"
+                          
                           value={aiKeyInputs[provider]}
                           onChange={(event) =>
                             setAiKeyInputs(
@@ -684,8 +819,8 @@ function AccountPage() {
                               : 'Pega aquí tu API key'
                           }
                           autoComplete="off"
-                          className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                          className="h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                         wrapperClassName="min-w-0 flex-1"  visibilityLabel="clave API" />
 
                         <button
                           type="button"
@@ -876,9 +1011,9 @@ function AccountPage() {
                 Contraseña actual
               </label>
 
-              <input
+              <PasswordInput
                 id="delete-account-password"
-                type="password"
+                
                 value={deletePassword}
                 onChange={(event) =>
                   setDeletePassword(event.target.value)
@@ -887,9 +1022,9 @@ function AccountPage() {
                 required
                 autoComplete="current-password"
                 autoFocus
-                className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition focus:border-destructive focus:ring-2 focus:ring-destructive/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition focus:border-destructive focus:ring-2 focus:ring-destructive/20 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Introduce tu contraseña"
-              />
+               wrapperClassName="mt-2"  visibilityLabel="contraseña" />
             </div>
 
             {deleteError && (

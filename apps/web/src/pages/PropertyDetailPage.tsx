@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
@@ -24,6 +25,9 @@ import {
 // ============================================================
 // DICCIONARIOS
 // ============================================================
+
+
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
@@ -2369,9 +2373,9 @@ function PropertyDetailPage() {
                 API key de {provider === 'gemini' ? 'Gemini' : 'OpenAI'}
               </label>
 
-              <input
+              <PasswordInput
                 id="generation-api-key"
-                type="password"
+                
                 value={apiKey}
                 onChange={(event) =>
                   setApiKey(event.target.value)
@@ -2379,8 +2383,8 @@ function PropertyDetailPage() {
                 disabled={generating}
                 autoComplete="off"
                 placeholder="Introduce tu API key"
-                className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-              />
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+               wrapperClassName="mt-2"  visibilityLabel="clave API" />
 
               <p className="mt-2 text-xs text-muted-foreground">
                 No guardamos ni mostramos esta clave después de la generación.

@@ -194,3 +194,49 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   const data = (await response.json()) as { user: AuthUser }
   return data.user
 }
+export async function requestEmailChange(
+  newEmail: string,
+): Promise<string> {
+  const response = await fetch(`${API_URL}/api/auth/change-email/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ newEmail }),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      await extractErrorMessage(
+        response,
+        `Email change request failed: ${response.status}`,
+      ),
+    )
+  }
+
+  const data = (await response.json()) as { message: string }
+  return data.message
+}
+
+export async function verifyEmailChange(
+  code: string,
+): Promise<AuthUser> {
+  const response = await fetch(`${API_URL}/api/auth/change-email/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ code }),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      await extractErrorMessage(
+        response,
+        `Email change verification failed: ${response.status}`,
+      ),
+    )
+  }
+
+  const data = (await response.json()) as { user: AuthUser }
+  return data.user
+}
+

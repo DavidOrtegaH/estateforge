@@ -1,3 +1,4 @@
+
 import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -17,6 +18,9 @@ import {
   generateListing,
   GenerationApiError,
 } from '@/services/generationService'
+
+
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 const initialProperty: Property = {
   title: '',
@@ -977,9 +981,9 @@ ${listingToCopy.callToAction}
                     : 'OpenAI'}
                 </label>
 
-                <input
+                <PasswordInput
                   id="generation-api-key"
-                  type="password"
+                  
                   value={apiKey}
                   onChange={(event) =>
                     setApiKey(
@@ -989,8 +993,8 @@ ${listingToCopy.callToAction}
                   disabled={isGenerating}
                   autoComplete="off"
                   placeholder="Introduce tu API key"
-                  className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                />
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                 wrapperClassName="mt-2"  visibilityLabel="clave API" />
 
                 <p className="mt-2 text-xs text-muted-foreground">
                   No guardamos ni mostramos esta clave

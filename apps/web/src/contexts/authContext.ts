@@ -21,6 +21,7 @@ export interface AuthContextValue {
     newPassword: string,
   ) => Promise<string>
   deleteAccount: (currentPassword: string) => Promise<string>
+  updateEmail: (code: string) => Promise<AuthUser>
 }
 
 export const AuthContext =
