@@ -1,3 +1,4 @@
+
 import { createHash } from 'node:crypto'
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
@@ -14,6 +15,7 @@ import {
   consumePasswordResetToken,
 } from '../services/password-reset.service.js'
 import { emailService } from '../services/email.service.js'
+import { issueSecurityIncidentToken, reportSecurityIncident } from '../services/security-incident.service.js'
 import {
   consumeEmailChangeCode,
   issueEmailChangeCode,
@@ -73,6 +75,8 @@ const ResetPasswordSchema = z.object({
 const SESSION_COOKIE = 'estateforge_session'
 const RESET_PASSWORD_URL =
   process.env.WEB_APP_URL ?? 'http://localhost:5173'
+const API_PUBLIC_URL =
+  process.env.API_PUBLIC_URL ?? 'http://localhost:3000'
 
 function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -192,6 +196,7 @@ async function getAuthenticatedUser(
           id: true,
           email: true,
           password: true,
+          securityHoldAt: true,
         },
       },
       expiresAt: true,
@@ -215,6 +220,13 @@ async function getAuthenticatedUser(
     reply.code(401).send({
       message: 'La sesión no es válida o ha expirado.',
     })
+    return null
+  }
+
+  if (session.user.securityHoldAt) {
+    await prisma.session.deleteMany({ where: { userId: session.user.id } })
+    clearSessionCookie(reply)
+    reply.code(423).send({ message: 'La cuenta está protegida temporalmente. Contacta con soporte para verificar su titularidad.' })
     return null
   }
 
@@ -332,6 +344,12 @@ export async function authRoutes(app: FastifyInstance) {
         })
       }
 
+      if (user.securityHoldAt) {
+        return reply.code(423).send({
+          message: 'La cuenta está protegida temporalmente. Contacta con soporte para verificar su titularidad.',
+        })
+      }
+
       const session = await createSession(user.id)
       setSessionCookie(reply, session.token, session.expiresAt)
 
@@ -368,10 +386,10 @@ export async function authRoutes(app: FastifyInstance) {
       const normalizedEmail = normalizeEmail(result.data.email)
       const user = await prisma.user.findUnique({
         where: { email: normalizedEmail },
-        select: { id: true, email: true },
+        select: { id: true, email: true, securityHoldAt: true },
       })
 
-      if (user) {
+      if (user && !user.securityHoldAt) {
         const reset = await issuePasswordResetToken(user.id)
         const resetUrl = new URL(
           '/restablecer-contrasena',
@@ -457,13 +475,24 @@ export async function authRoutes(app: FastifyInstance) {
       const result = ChangeEmailRequestSchema.safeParse(request.body)
 
       if (!result.success) {
-        return sendValidationError(reply, 'Introduce un email válido.')
+        return sendValidationError(reply, 'Introduce un email válido y tu contraseña actual.')
       }
 
       const user = await getAuthenticatedUser(request, reply)
 
       if (!user) {
         return
+      }
+
+      const validCurrentPassword = await verifyPassword(
+        result.data.currentPassword,
+        user.password,
+      )
+
+      if (!validCurrentPassword) {
+        return reply.code(401).send({
+          message: 'La contraseña actual no es correcta.',
+        })
       }
 
       const newEmail = normalizeEmail(result.data.newEmail)
@@ -487,14 +516,30 @@ export async function authRoutes(app: FastifyInstance) {
 
       const verification = await issueEmailChangeCode(user.id, newEmail)
 
-      await emailService.sendEmailChangeCodeEmail({
-        to: newEmail,
-        code: verification.code,
-        expiresAt: verification.expiresAt,
-      })
+      try {
+        await emailService.sendEmailChangeCodeEmail({
+          to: newEmail,
+          code: verification.code,
+          expiresAt: verification.expiresAt,
+        })
+
+        await emailService.sendEmailChangeNoticeEmail({
+          to: user.email,
+          newEmail,
+          stage: 'requested',
+        })
+      } catch (error) {
+        await prisma.emailChangeVerification.deleteMany({
+          where: { userId: user.id, usedAt: null },
+        })
+        request.log.error({ err: error }, 'No se pudieron enviar los correos de cambio de email')
+        return reply.code(503).send({
+          message: 'No se han podido enviar todos los correos de seguridad. No se ha iniciado el cambio; inténtalo de nuevo más tarde.',
+        })
+      }
 
       return {
-        message: 'Hemos enviado un código de verificación al nuevo email.',
+        message: 'Hemos enviado un código al nuevo email y un aviso de seguridad a tu dirección actual.',
         expiresAt: verification.expiresAt.toISOString(),
       }
     },
@@ -537,6 +582,19 @@ export async function authRoutes(app: FastifyInstance) {
         })
       }
 
+      try {
+        const incident = await issueSecurityIncidentToken(user.id)
+        const incidentUrl = new URL(`/api/auth/security-incident/${incident.token}`, API_PUBLIC_URL)
+        await emailService.sendEmailChangeNoticeEmail({
+          to: verification.oldEmail,
+          newEmail: verification.email,
+          stage: 'completed',
+          incidentReportUrl: incidentUrl.toString(),
+        })
+      } catch (error) {
+        request.log.error({ err: error }, 'No se pudo enviar el aviso de cambio de email completado')
+      }
+
       return {
         user: {
           id: user.id,
@@ -546,6 +604,22 @@ export async function authRoutes(app: FastifyInstance) {
       }
     },
   )
+
+  // El GET solo muestra una confirmación: los escáneres de enlaces no bloquean cuentas.
+  app.get('/api/auth/security-incident/:token', async (request, reply) => {
+    const params = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).safeParse(request.params)
+    if (!params.success) return reply.code(404).type('text/plain').send('Enlace no válido o caducado.')
+    const token = params.data.token
+    return reply.type('text/html; charset=utf-8').send(`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Proteger cuenta — EstateForge</title><body style="font-family:Arial,sans-serif;max-width:620px;margin:48px auto;padding:0 20px;line-height:1.6;color:#1f2937"><h1>Proteger cuenta de EstateForge</h1><p>Si no reconoces el cambio de email, confirma la denuncia. Se cerrarán todas las sesiones, se invalidarán los enlaces de recuperación y se bloqueará temporalmente el acceso hasta que soporte verifique la titularidad.</p><p>Esta acción no restaura automáticamente el email anterior.</p><form method="post" action="/api/auth/security-incident/${token}"><button type="submit" style="padding:12px 18px;background:#991b1b;color:white;border:0;border-radius:8px;font-size:16px">No reconozco este cambio: proteger mi cuenta</button></form><p>Si reconoces el cambio, simplemente cierra esta página.</p></body></html>`)
+  })
+
+  app.post('/api/auth/security-incident/:token', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
+    const params = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).safeParse(request.params)
+    if (!params.success) return reply.code(400).type('text/html; charset=utf-8').send('<p>El enlace no es válido o ha caducado.</p>')
+    const result = await reportSecurityIncident(params.data.token)
+    if (result !== 'reported') return reply.code(400).type('text/html; charset=utf-8').send('<p>El enlace no es válido, ya se ha utilizado o ha caducado.</p>')
+    return reply.type('text/html; charset=utf-8').send('<!doctype html><html lang="es"><meta charset="utf-8"><title>Cuenta protegida — EstateForge</title><body style="font-family:Arial,sans-serif;max-width:620px;margin:48px auto;padding:0 20px;line-height:1.6;color:#1f2937"><h1>Hemos protegido temporalmente tu cuenta</h1><p>Se han cerrado todas las sesiones y se han invalidado los enlaces de recuperación pendientes. No se permitirá iniciar sesión ni restablecer la contraseña mientras la cuenta esté protegida.</p><p>Contacta con el soporte oficial de EstateForge para verificar tu identidad y recuperar el acceso. El email anterior no se restaura automáticamente.</p></body></html>')
+  })
 
   app.post(
     '/api/auth/change-password',
@@ -687,6 +761,7 @@ export async function authRoutes(app: FastifyInstance) {
           select: {
             id: true,
             email: true,
+            securityHoldAt: true,
           },
         },
         expiresAt: true,
@@ -713,7 +788,13 @@ export async function authRoutes(app: FastifyInstance) {
       })
     }
 
-    return { user: session.user }
+    if (session.user.securityHoldAt) {
+      await prisma.session.deleteMany({ where: { userId: session.user.id } })
+      clearSessionCookie(reply)
+      return reply.code(423).send({ message: 'La cuenta está protegida temporalmente. Contacta con soporte para verificar su titularidad.' })
+    }
+
+    return { user: { id: session.user.id, email: session.user.email } }
   })
 
   app.post('/api/auth/logout', async (request, reply) => {
@@ -728,3 +809,6 @@ export async function authRoutes(app: FastifyInstance) {
     return { success: true }
   })
 }
+
+
+

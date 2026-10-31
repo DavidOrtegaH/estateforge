@@ -1,3 +1,4 @@
+
 import { createHash, randomInt } from 'node:crypto'
 
 import { prisma } from '../db/prisma.js'
@@ -52,7 +53,7 @@ export async function issueEmailChangeCode(
 export async function consumeEmailChangeCode(
   userId: string,
   code: string,
-): Promise<{ success: true; email: string } | { success: false; reason: 'invalid' | 'email_taken' }> {
+): Promise<{ success: true; email: string; oldEmail: string } | { success: false; reason: 'invalid' | 'email_taken' }> {
   const codeHash = hashEmailChangeCode(code)
   const now = new Date()
 
@@ -74,6 +75,15 @@ export async function consumeEmailChangeCode(
       verification.usedAt ||
       verification.expiresAt.getTime() <= now.getTime()
     ) {
+      return { success: false, reason: 'invalid' }
+    }
+
+    const currentUser = await tx.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    })
+
+    if (!currentUser) {
       return { success: false, reason: 'invalid' }
     }
 
@@ -116,6 +126,12 @@ export async function consumeEmailChangeCode(
       where: { userId },
     })
 
-    return { success: true, email: verification.newEmail }
+    return {
+      success: true,
+      email: verification.newEmail,
+      oldEmail: currentUser.email,
+    }
   })
 }
+
+

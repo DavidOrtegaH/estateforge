@@ -1,3 +1,4 @@
+
 import nodemailer from 'nodemailer'
 
 export interface PasswordResetEmail {
@@ -12,6 +13,13 @@ export interface EmailChangeCodeEmail {
   expiresAt: Date
 }
 
+export interface EmailChangeNoticeEmail {
+  to: string
+  newEmail: string
+  stage: 'requested' | 'completed'
+  incidentReportUrl?: string
+}
+
 export interface EmailService {
   sendPasswordResetEmail(
     email: PasswordResetEmail,
@@ -19,6 +27,10 @@ export interface EmailService {
 
   sendEmailChangeCodeEmail(
     email: EmailChangeCodeEmail,
+  ): Promise<void>
+
+  sendEmailChangeNoticeEmail(
+    email: EmailChangeNoticeEmail,
   ): Promise<void>
 }
 
@@ -85,6 +97,15 @@ function createTransporter() {
 
 function getFromAddress(): string {
   return getRequiredEnv('SMTP_FROM')
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function formatExpiration(date: Date): string {
@@ -209,7 +230,68 @@ export class SMTPEmailService implements EmailService {
       `,
     })
   }
+
+  async sendEmailChangeNoticeEmail(
+    email: EmailChangeNoticeEmail,
+  ): Promise<void> {
+    const transporter = createTransporter()
+    const fromAddress = getFromAddress()
+    const completed = email.stage === 'completed'
+    const safeNewEmail = escapeHtml(email.newEmail)
+    const subject = completed
+      ? 'EstateForge — Cambio de email completado'
+      : 'EstateForge — Solicitud de cambio de email'
+    const supportEmail = process.env.SUPPORT_EMAIL?.trim()
+    const supportHtml = supportEmail ? `<p>Soporte: <a href="mailto:${escapeHtml(supportEmail)}">${escapeHtml(supportEmail)}</a></p>` : ''
+    const supportText = supportEmail ? `\n\nContacto de soporte: ${supportEmail}` : ''
+    const incidentText = email.incidentReportUrl
+      ? `\n\nSi no reconoces este cambio, protege tu cuenta aquí: ${email.incidentReportUrl}\nAl confirmar el aviso se cerrarán todas las sesiones y se bloqueará temporalmente el acceso hasta que soporte verifique la titularidad.`
+      : ''
+    const text = completed
+      ? [
+          'El email de tu cuenta de EstateForge se ha cambiado correctamente.',
+          '',
+          `La nueva dirección es: ${email.newEmail}`,
+          '',
+          'Si no reconoces este cambio, no basta con cambiar la contraseña. Utiliza el enlace seguro de denuncia incluido en este mensaje para proteger la cuenta. Si el enlace no está disponible, contacta con el soporte de EstateForge.',
+          incidentText,
+          supportText,
+        ].join('\n')
+      : [
+          'Se ha solicitado cambiar el email de tu cuenta de EstateForge.',
+          '',
+          `Nueva dirección solicitada: ${email.newEmail}`,
+          '',
+          'Tu email actual no cambiará hasta que se verifique el código enviado a la nueva dirección.',
+          'Si no has solicitado este cambio, no compartas ningún código y contacta con soporte si sospechas que tu cuenta está comprometida.',
+        ].join('\n')
+    const incidentHtml = email.incidentReportUrl
+      ? `<p><a href="${escapeHtml(email.incidentReportUrl)}">No reconozco este cambio</a></p><p>Al confirmar la denuncia se cerrarán todas las sesiones y se bloqueará temporalmente el acceso hasta que soporte verifique la titularidad.</p>`
+      : ''
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: email.to,
+      subject,
+      text,
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
+          <h2>EstateForge</h2>
+          <p>${completed
+            ? 'El email de tu cuenta se ha cambiado correctamente.'
+            : 'Se ha solicitado cambiar el email de tu cuenta.'}</p>
+          <p><strong>Nueva dirección: ${safeNewEmail}</strong></p>
+          ${completed
+            ? `<p>Si no reconoces este cambio, no basta con cambiar la contraseña. Utiliza el enlace seguro para denunciarlo y proteger la cuenta.</p>${incidentHtml}${supportHtml}`
+            : '<p>Tu email actual no cambiará hasta que se verifique el código enviado a la nueva dirección.</p><p>Si no has solicitado este cambio, no compartas ningún código y contacta con soporte si sospechas que tu cuenta está comprometida.</p>'}
+        </div>
+      `,
+    })
+  }
+
 }
 
 export const emailService: EmailService =
   new SMTPEmailService()
+
+

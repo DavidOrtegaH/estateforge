@@ -1,3 +1,4 @@
+
 const API_URL =
   import.meta.env.VITE_API_URL ??
   'http://localhost:3000'
@@ -196,12 +197,13 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 }
 export async function requestEmailChange(
   newEmail: string,
+  currentPassword: string,
 ): Promise<string> {
   const response = await fetch(`${API_URL}/api/auth/change-email/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ newEmail }),
+    body: JSON.stringify({ newEmail, currentPassword }),
   })
 
   if (!response.ok) {
@@ -239,4 +241,6 @@ export async function verifyEmailChange(
   const data = (await response.json()) as { user: AuthUser }
   return data.user
 }
+
+
 

@@ -55,10 +55,16 @@ export async function getUserIdFromSession(
       select: {
         userId: true,
         expiresAt: true,
+        user: { select: { securityHoldAt: true } },
       },
     })
 
   if (!session) {
+    return null
+  }
+
+  if (session.user.securityHoldAt) {
+    await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } })
     return null
   }
 

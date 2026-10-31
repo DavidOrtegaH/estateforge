@@ -13,10 +13,12 @@ model User {
   password            String
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+  securityHoldAt      DateTime?
   properties          Property[]
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
   emailChangeVerifications EmailChangeVerification[]
+  securityIncidentTokens SecurityIncidentToken[]
   aiKeys              UserAIKey[]
 }
 
@@ -62,6 +64,21 @@ model EmailChangeVerification {
 
   @@index([userId])
   @@index([newEmail])
+  @@index([expiresAt])
+}
+
+
+model SecurityIncidentToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([expiresAt])
 }
 
@@ -127,3 +144,4 @@ model Generation {
 
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
+

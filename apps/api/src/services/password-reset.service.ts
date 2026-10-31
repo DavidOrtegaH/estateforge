@@ -82,6 +82,9 @@ export async function consumePasswordResetToken(
       return false
     }
 
+    const owner = await tx.user.findUnique({ where: { id: resetToken.userId }, select: { securityHoldAt: true } })
+    if (!owner || owner.securityHoldAt) return false
+
     const claimed =
       await tx.passwordResetToken.updateMany({
         where: {
@@ -118,3 +121,4 @@ export async function consumePasswordResetToken(
     return true
   })
 }
+

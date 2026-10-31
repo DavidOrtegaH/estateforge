@@ -1,3 +1,4 @@
+
 import {
   beforeEach,
   describe,
@@ -356,4 +357,42 @@ describe('SMTPEmailService', () => {
       ).not.toHaveBeenCalled()
     },
   )
+
+  it('avisa al correo anterior cuando se solicita un cambio', async () => {
+    const service = new SMTPEmailService()
+
+    await service.sendEmailChangeNoticeEmail({
+      to: 'anterior@example.com',
+      newEmail: 'nuevo@example.com',
+      stage: 'requested',
+    })
+
+    const message = mocks.sendMail.mock.calls[0][0]
+    expect(message).toMatchObject({
+      to: 'anterior@example.com',
+      subject: 'EstateForge — Solicitud de cambio de email',
+    })
+    expect(message.text).toContain('no compartas ningún código')
+    expect(message.text).toContain('contacta con soporte')
+    expect(message.text).toContain('nuevo@example.com')
+  })
+
+  it('avisa al correo anterior cuando el cambio se completa', async () => {
+    const service = new SMTPEmailService()
+
+    await service.sendEmailChangeNoticeEmail({
+      to: 'anterior@example.com',
+      newEmail: 'nuevo@example.com',
+      stage: 'completed',
+    })
+
+    const message = mocks.sendMail.mock.calls[0][0]
+    expect(message).toMatchObject({
+      to: 'anterior@example.com',
+      subject: 'EstateForge — Cambio de email completado',
+    })
+    expect(message.text).toContain('se ha cambiado correctamente')
+  })
+
 })
+

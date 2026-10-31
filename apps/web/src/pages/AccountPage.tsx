@@ -1,4 +1,5 @@
 
+
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 
@@ -37,6 +38,7 @@ function AccountPage() {
   const [changeError, setChangeError] = useState<string | null>(null)
 
   const [newEmail, setNewEmail] = useState('')
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState('')
   const [emailCode, setEmailCode] = useState('')
   const [emailSubmitting, setEmailSubmitting] = useState(false)
   const [emailVerifying, setEmailVerifying] = useState(false)
@@ -189,6 +191,11 @@ async function handleRequestEmailChange() {
 
   const normalizedEmail = newEmail.trim().toLowerCase()
 
+  if (!emailCurrentPassword) {
+    setEmailError('Introduce tu contraseña actual para confirmar el cambio.')
+    return
+  }
+
   if (!normalizedEmail) {
     setEmailError('Introduce el nuevo email.')
     return
@@ -204,10 +211,15 @@ async function handleRequestEmailChange() {
   setEmailSubmitting(true)
 
   try {
-    const message = await requestEmailChange(normalizedEmail)
+    const message = await requestEmailChange(
+      normalizedEmail,
+      emailCurrentPassword,
+    )
 
     setEmailMessage(message)
     setEmailCode('')
+    setEmailVerificationRequested(true)
+    setEmailCurrentPassword('')
   } catch (error) {
     setEmailError(
       error instanceof Error
@@ -239,6 +251,7 @@ async function handleRequestEmailChange() {
       setEmailMessage(`Email actualizado correctamente a ${updatedUser.email}.`)
       setEmailCode('')
       setNewEmail('')
+      setEmailCurrentPassword('')
       setEmailVerificationRequested(false)
     } catch (error) {
       setEmailError(
@@ -446,7 +459,7 @@ async function handleRequestEmailChange() {
             <div>
               <h2 className="text-lg font-semibold">Cambiar email</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Introduce un nuevo correo y confirma el código que enviaremos a esa dirección.
+                Confirma tu contraseña, introduce el nuevo correo y verifica el código que enviaremos a esa dirección. También avisaremos a tu correo actual por seguridad; no tendrás que autorizar el cambio desde allí.
               </p>
             </div>
           </div>
@@ -454,6 +467,23 @@ async function handleRequestEmailChange() {
 
         <div className="p-5 sm:p-6">
           <div className="space-y-5">
+            <div>
+              <label htmlFor="email-change-current-password" className="text-sm font-medium">Confirma tu contraseña actual</label>
+              <PasswordInput
+                id="email-change-current-password"
+                value={emailCurrentPassword}
+                onChange={(event) => setEmailCurrentPassword(event.target.value)}
+                disabled={emailSubmitting || emailVerifying}
+                required
+                maxLength={MAX_PASSWORD_LENGTH}
+                autoComplete="current-password"
+                className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Introduce tu contraseña actual"
+                wrapperClassName="mt-2"
+                visibilityLabel="contraseña"
+              />
+            </div>
+
             <div>
               <label htmlFor="new-account-email" className="text-sm font-medium">Nuevo email</label>
               <input id="new-account-email" type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} disabled={emailSubmitting || emailVerifying} autoComplete="email" inputMode="email" className="mt-2 h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50" placeholder="nuevo@email.com" />
@@ -1072,3 +1102,5 @@ async function handleRequestEmailChange() {
 }
 
 export default AccountPage
+
+

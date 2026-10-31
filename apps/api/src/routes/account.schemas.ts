@@ -1,3 +1,4 @@
+
 import { z } from 'zod'
 
 import {
@@ -21,8 +22,11 @@ export const DeleteAccountSchema = z.object({
 
 export const ChangeEmailRequestSchema = z.object({
   newEmail: z.string().trim().email().max(254),
+  currentPassword: z.string().min(1).max(MAX_PASSWORD_LENGTH),
 })
 
 export const VerifyEmailChangeSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/),
 })
+
+
