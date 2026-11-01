@@ -6,6 +6,19 @@ import { requireOwner } from '../middleware/owner.middleware.js'
 const UserIdParams = z.object({ id: z.string().trim().min(1).max(128) })
 const ActionReasonBody = z.object({ reason: z.string().trim().min(3).max(500) })
 
+// Los parámetros de consulta inválidos vuelven al valor por defecto en lugar de dar 400.
+function pageQuery(max: number) {
+  return z.string().catch('1').transform(value => Math.max(1, Math.min(max, Number.parseInt(value, 10) || 1)))
+}
+const UsersQuery = z.object({
+  search: z.string().catch('').transform(value => value.trim().slice(0, 120)),
+  page: pageQuery(10000),
+})
+const AuditQuery = z.object({ page: pageQuery(100000) })
+
+// Límite para las acciones que modifican cuentas; las consultas no lo tienen.
+const ACCOUNT_ACTION_RATE_LIMIT = { max: 20, timeWindow: '1 minute' }
+
 function validParams(value: unknown) {
   return UserIdParams.safeParse(value)
 }
@@ -23,9 +36,7 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   app.get('/api/admin/users', { preHandler: requireOwner }, async (request) => {
-    const query = request.query as { search?: string; page?: string }
-    const search = typeof query.search === 'string' ? query.search.trim().slice(0, 120) : ''
-    const page = Math.max(1, Math.min(10000, Number.parseInt(query.page ?? '1', 10) || 1))
+    const { search, page } = UsersQuery.parse(request.query)
     const pageSize = 20
     const where = search ? { email: { contains: search } } : {}
     const [total, users] = await Promise.all([
@@ -71,9 +82,8 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   app.get('/api/admin/audit', { preHandler: requireOwner }, async (request) => {
-    const query = request.query as { page?: string }
+    const { page } = AuditQuery.parse(request.query)
     const pageSize = 10
-    const page = Math.max(1, Math.min(100000, Number.parseInt(query.page ?? '1', 10) || 1))
     const [total, logs] = await Promise.all([
       prisma.adminAuditLog.count(),
       prisma.adminAuditLog.findMany({
@@ -86,7 +96,7 @@ export async function adminRoutes(app: FastifyInstance) {
     return { logs, pagination: { page, pageSize, total, pages: Math.ceil(total / pageSize) } }
   })
 
-  app.post('/api/admin/users/:id/suspend', { preHandler: requireOwner }, async (request, reply) => {
+  app.post('/api/admin/users/:id/suspend', { preHandler: requireOwner, config: { rateLimit: ACCOUNT_ACTION_RATE_LIMIT } }, async (request, reply) => {
     const params = validParams(request.params)
     const body = ActionReasonBody.safeParse(request.body)
     if (!params.success) return reply.code(400).send({ message: 'Identificador de cuenta no válido.' })
@@ -98,17 +108,25 @@ export async function adminRoutes(app: FastifyInstance) {
     if (target.role === 'OWNER') return reply.code(403).send({ message: 'No se pueden suspender cuentas propietarias.' })
     if (target.adminSuspendedAt) return reply.code(409).send({ message: 'La cuenta ya está suspendida administrativamente.' })
     const now = new Date()
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: target.id }, data: { adminSuspendedAt: now, adminSuspensionReason: body.data.reason } }),
-      prisma.session.deleteMany({ where: { userId: target.id } }),
-      prisma.passwordResetToken.deleteMany({ where: { userId: target.id } }),
-      prisma.emailChangeVerification.deleteMany({ where: { userId: target.id, usedAt: null } }),
-      prisma.adminAuditLog.create({ data: { actorUserId, targetUserId: target.id, action: 'ACCOUNT_SUSPENDED', reason: body.data.reason } }),
-    ])
+    // La condición forma parte de la escritura: si otra petición suspendió la cuenta
+    // después de la comprobación anterior, no se escribe nada y se responde 409.
+    const suspended = await prisma.$transaction(async tx => {
+      const updated = await tx.user.updateMany({
+        where: { id: target.id, adminSuspendedAt: null },
+        data: { adminSuspendedAt: now, adminSuspensionReason: body.data.reason },
+      })
+      if (updated.count !== 1) return false
+      await tx.session.deleteMany({ where: { userId: target.id } })
+      await tx.passwordResetToken.deleteMany({ where: { userId: target.id } })
+      await tx.emailChangeVerification.deleteMany({ where: { userId: target.id, usedAt: null } })
+      await tx.adminAuditLog.create({ data: { actorUserId, targetUserId: target.id, action: 'ACCOUNT_SUSPENDED', reason: body.data.reason } })
+      return true
+    })
+    if (!suspended) return reply.code(409).send({ message: 'La cuenta ya está suspendida administrativamente.' })
     return { success: true, message: 'Cuenta suspendida y sesiones cerradas.' }
   })
 
-  app.post('/api/admin/users/:id/unsuspend', { preHandler: requireOwner }, async (request, reply) => {
+  app.post('/api/admin/users/:id/unsuspend', { preHandler: requireOwner, config: { rateLimit: ACCOUNT_ACTION_RATE_LIMIT } }, async (request, reply) => {
     const params = validParams(request.params)
     const body = ActionReasonBody.safeParse(request.body)
     if (!params.success) return reply.code(400).send({ message: 'Identificador de cuenta no válido.' })
@@ -119,14 +137,20 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!target) return reply.code(404).send({ message: 'No se ha encontrado la cuenta.' })
     if (target.role === 'OWNER') return reply.code(403).send({ message: 'No se pueden modificar cuentas propietarias.' })
     if (!target.adminSuspendedAt) return reply.code(409).send({ message: 'La cuenta no tiene una suspensión administrativa activa.' })
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: target.id }, data: { adminSuspendedAt: null, adminSuspensionReason: null } }),
-      prisma.adminAuditLog.create({ data: { actorUserId, targetUserId: target.id, action: 'ACCOUNT_UNSUSPENDED', reason: body.data.reason } }),
-    ])
+    const unsuspended = await prisma.$transaction(async tx => {
+      const updated = await tx.user.updateMany({
+        where: { id: target.id, adminSuspendedAt: { not: null } },
+        data: { adminSuspendedAt: null, adminSuspensionReason: null },
+      })
+      if (updated.count !== 1) return false
+      await tx.adminAuditLog.create({ data: { actorUserId, targetUserId: target.id, action: 'ACCOUNT_UNSUSPENDED', reason: body.data.reason } })
+      return true
+    })
+    if (!unsuspended) return reply.code(409).send({ message: 'La cuenta no tiene una suspensión administrativa activa.' })
     return { success: true, message: 'Suspensión administrativa retirada. Si existe una protección por incidente, seguirá activa.' }
   })
 
-  app.post('/api/admin/users/:id/revoke-sessions', { preHandler: requireOwner }, async (request, reply) => {
+  app.post('/api/admin/users/:id/revoke-sessions', { preHandler: requireOwner, config: { rateLimit: ACCOUNT_ACTION_RATE_LIMIT } }, async (request, reply) => {
     const params = validParams(request.params)
     const body = ActionReasonBody.safeParse(request.body)
     if (!params.success) return reply.code(400).send({ message: 'Identificador de cuenta no válido.' })
