@@ -1,3 +1,4 @@
+
 import { createHash, randomBytes } from 'node:crypto'
 
 import { prisma } from '../db/prisma.js'
@@ -82,8 +83,8 @@ export async function consumePasswordResetToken(
       return false
     }
 
-    const owner = await tx.user.findUnique({ where: { id: resetToken.userId }, select: { securityHoldAt: true } })
-    if (!owner || owner.securityHoldAt) return false
+    const owner = await tx.user.findUnique({ where: { id: resetToken.userId }, select: { securityHoldAt: true, adminSuspendedAt: true } })
+    if (!owner || owner.securityHoldAt || owner.adminSuspendedAt) return false
 
     const claimed =
       await tx.passwordResetToken.updateMany({
@@ -121,4 +122,5 @@ export async function consumePasswordResetToken(
     return true
   })
 }
+
 

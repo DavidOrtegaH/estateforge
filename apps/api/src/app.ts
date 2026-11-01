@@ -1,4 +1,5 @@
 
+
 import { env } from './env.js'
 
 import Fastify, {
@@ -16,6 +17,7 @@ import { generationRoutes } from './routes/generation.routes.js'
 import { propertyRoutes } from './routes/property.routes.js'
 import { dashboardRoutes } from './routes/dashboard.routes.js'
 import { aiKeyRoutes } from './routes/ai-key.routes.js'
+import { adminRoutes } from './routes/admin.routes.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -225,6 +227,7 @@ export async function buildApp() {
   // ==========================================================
 
   await app.register(authRoutes)
+  await app.register(adminRoutes)
   await app.register(aiKeyRoutes)
   await app.register(generationRoutes)
   await app.register(dashboardRoutes)

@@ -1,4 +1,6 @@
 
+
+
 import { createHash } from 'node:crypto'
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
@@ -295,6 +297,7 @@ export async function authRoutes(app: FastifyInstance) {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
         },
       })
     },
@@ -350,6 +353,12 @@ export async function authRoutes(app: FastifyInstance) {
         })
       }
 
+      if (user.adminSuspendedAt) {
+        return reply.code(423).send({
+          message: 'La cuenta está suspendida por el equipo de EstateForge. Contacta con soporte.',
+        })
+      }
+
       const session = await createSession(user.id)
       setSessionCookie(reply, session.token, session.expiresAt)
 
@@ -357,6 +366,7 @@ export async function authRoutes(app: FastifyInstance) {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
         },
       }
     },
@@ -386,10 +396,10 @@ export async function authRoutes(app: FastifyInstance) {
       const normalizedEmail = normalizeEmail(result.data.email)
       const user = await prisma.user.findUnique({
         where: { email: normalizedEmail },
-        select: { id: true, email: true, securityHoldAt: true },
+        select: { id: true, email: true, securityHoldAt: true, adminSuspendedAt: true },
       })
 
-      if (user && !user.securityHoldAt) {
+      if (user && !user.securityHoldAt && !user.adminSuspendedAt) {
         const reset = await issuePasswordResetToken(user.id)
         const resetUrl = new URL(
           '/restablecer-contrasena',
@@ -610,7 +620,15 @@ export async function authRoutes(app: FastifyInstance) {
     const params = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).safeParse(request.params)
     if (!params.success) return reply.code(404).type('text/plain').send('Enlace no válido o caducado.')
     const token = params.data.token
-    return reply.type('text/html; charset=utf-8').send(`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Proteger cuenta — EstateForge</title><body style="font-family:Arial,sans-serif;max-width:620px;margin:48px auto;padding:0 20px;line-height:1.6;color:#1f2937"><h1>Proteger cuenta de EstateForge</h1><p>Si no reconoces el cambio de email, confirma la denuncia. Se cerrarán todas las sesiones, se invalidarán los enlaces de recuperación y se bloqueará temporalmente el acceso hasta que soporte verifique la titularidad.</p><p>Esta acción no restaura automáticamente el email anterior.</p><form method="post" action="/api/auth/security-incident/${token}"><button type="submit" style="padding:12px 18px;background:#991b1b;color:white;border:0;border-radius:8px;font-size:16px">No reconozco este cambio: proteger mi cuenta</button></form><p>Si reconoces el cambio, simplemente cierra esta página.</p></body></html>`)
+    return reply.type('text/html; charset=utf-8').send(`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Proteger cuenta — EstateForge</title><body style="font-family:Arial,sans-serif;max-width:620px;margin:48px auto;padding:0 20px;line-height:1.6;color:#1f2937"><h1>Proteger cuenta de EstateForge</h1><p>Si no reconoces el cambio de email, confirma la denuncia. Se cerrarán todas las sesiones, se invalidarán los enlaces de recuperación y se bloqueará temporalmente el acceso hasta que soporte verifique la titularidad.</p><p>Esta acción no restaura automáticamente el email anterior.</p><form
+  method="post"
+  action="/api/auth/security-incident/${token}"
+  onsubmit="event.preventDefault();var f=this;fetch(f.action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(async function(r){var t=await r.text();document.open();document.write(t);document.close();}).catch(function(){alert('No se pudo enviar la denuncia. Inténtalo de nuevo.');});"
+>
+  <button type="submit">
+    No reconozco este cambio: proteger mi cuenta
+  </button>
+</form><p>Si reconoces el cambio, simplemente cierra esta página.</p></body></html>`)
   })
 
   app.post('/api/auth/security-incident/:token', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
@@ -761,7 +779,9 @@ export async function authRoutes(app: FastifyInstance) {
           select: {
             id: true,
             email: true,
+            role: true,
             securityHoldAt: true,
+            adminSuspendedAt: true,
           },
         },
         expiresAt: true,
@@ -794,7 +814,13 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(423).send({ message: 'La cuenta está protegida temporalmente. Contacta con soporte para verificar su titularidad.' })
     }
 
-    return { user: { id: session.user.id, email: session.user.email } }
+    if (session.user.adminSuspendedAt) {
+      await prisma.session.deleteMany({ where: { userId: session.user.id } })
+      clearSessionCookie(reply)
+      return reply.code(423).send({ message: 'La cuenta está suspendida por el equipo de EstateForge. Contacta con soporte.' })
+    }
+
+    return { user: { id: session.user.id, email: session.user.email, role: session.user.role } }
   })
 
   app.post('/api/auth/logout', async (request, reply) => {
@@ -809,6 +835,4 @@ export async function authRoutes(app: FastifyInstance) {
     return { success: true }
   })
 }
-
-
 

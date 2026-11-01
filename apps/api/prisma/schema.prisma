@@ -1,3 +1,5 @@
+
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -14,6 +16,9 @@ model User {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   securityHoldAt      DateTime?
+  adminSuspendedAt    DateTime?
+  adminSuspensionReason String?
+  role                String              @default("USER")
   properties          Property[]
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
@@ -145,3 +150,17 @@ model Generation {
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
 
+
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String
+  targetUserId String?
+  action      String
+  reason      String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
+}

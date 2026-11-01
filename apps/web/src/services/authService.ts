@@ -1,4 +1,5 @@
 
+
 const API_URL =
   import.meta.env.VITE_API_URL ??
   'http://localhost:3000'
@@ -6,6 +7,7 @@ const API_URL =
 export interface AuthUser {
   id: string
   email: string
+  role: 'USER' | 'OWNER'
 }
 
 async function extractErrorMessage(
@@ -241,6 +243,3 @@ export async function verifyEmailChange(
   const data = (await response.json()) as { user: AuthUser }
   return data.user
 }
-
-
-

@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Route,
@@ -18,6 +19,8 @@ import RegisterPage from '@/pages/RegisterPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import AccountPage from '@/pages/AccountPage'
+import AdminPage from '@/pages/AdminPage'
+import { OwnerRoute } from '@/components/auth/OwnerRoute'
 
 function App() {
   return (
@@ -37,6 +40,9 @@ function App() {
             <Route path="/historial" element={<HistoryPage />} />
             <Route path="/historial/:id" element={<GenerationDetailPage />} />
             <Route path="/cuenta" element={<AccountPage />} />
+            <Route element={<OwnerRoute />}>
+              <Route path="/admin" element={<AdminPage />} />
+            </Route>
           </Route>
         </Route>
       </Routes>

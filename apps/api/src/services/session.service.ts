@@ -1,3 +1,4 @@
+
 import {
   createHash,
   randomBytes,
@@ -55,7 +56,7 @@ export async function getUserIdFromSession(
       select: {
         userId: true,
         expiresAt: true,
-        user: { select: { securityHoldAt: true } },
+        user: { select: { securityHoldAt: true, adminSuspendedAt: true } },
       },
     })
 
@@ -63,7 +64,7 @@ export async function getUserIdFromSession(
     return null
   }
 
-  if (session.user.securityHoldAt) {
+  if (session.user.securityHoldAt || session.user.adminSuspendedAt) {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } })
     return null
   }
@@ -93,3 +94,4 @@ export async function deleteSession(
     },
   })
 }
+

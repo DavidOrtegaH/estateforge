@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
@@ -16,6 +17,7 @@ type NavigationItem = {
     | 'properties'
     | 'create'
     | 'announcements'
+    | 'admin'
 }
 
 type BreadcrumbItem = {
@@ -65,6 +67,15 @@ function NavigationIcon({
         <path d="M3.5 10.5 12 3l8.5 7.5" />
         <path d="M5.5 9.5V21h13V9.5" />
         <path d="M9 21v-6h6v6" />
+      </svg>
+    )
+  }
+
+  if (type === 'admin') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+        <path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z" />
+        <path d="m9 12 2 2 4-4" />
       </svg>
     )
   }
@@ -288,6 +299,11 @@ const navigationItems: NavigationItem[] = [
     to: '/historial',
     icon: 'announcements',
   },
+  {
+    label: 'Administración',
+    to: '/admin',
+    icon: 'admin',
+  },
 ]
 
 function getBreadcrumbs(
@@ -357,6 +373,10 @@ function getBreadcrumbs(
     ]
   }
 
+  if (pathname === '/admin') {
+    return [{ label: 'Dashboard', to: '/' }, { label: 'Administración' }]
+  }
+
   if (pathname === '/cuenta') {
     return [
       {
@@ -420,6 +440,10 @@ function getPageTitle(pathname: string) {
 
   if (pathname === '/cuenta') {
     return 'Cuenta - EstateForge'
+  }
+
+  if (pathname === '/admin') {
+    return 'Administración - EstateForge'
   }
 
   return 'EstateForge'
@@ -795,7 +819,7 @@ function AppLayout() {
             'p-3',
           ].join(' ')}
         >
-          {navigationItems.map((item) => (
+          {navigationItems.filter((item) => item.to !== '/admin' || user?.role === 'OWNER').map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
