@@ -1,13 +1,62 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import {
   getAdminAudit, getAdminOverview, getAdminUsers, runAdminUserAction,
   type AdminAuditResponse, type AdminOverview, type AdminUser, type AdminUserAction, type AdminUsersResponse,
 } from '@/services/adminService'
+import { describeAuditAccount, type AuditAccountView } from '@/lib/adminAudit'
 
 const REASON_MIN = 3
 const REASON_MAX = 500
 
 type PendingAction = { user: AdminUser; action: AdminUserAction }
+
+function AuditAccount({ view }: { view: AuditAccountView | null }) {
+  if (!view) return <>—</>
+  return <>
+    <span className="block break-all font-medium">{view.primary}</span>
+    <span className="block break-all font-mono text-xs text-muted-foreground">{view.id}</span>
+    {view.note !== null && <span className="mt-1 block text-xs text-muted-foreground">{view.note}</span>}
+  </>
+}
+
+// Muestra el motivo una sola vez. El control de expandir solo aparece si el texto
+// ocupa más de 3 líneas con el ancho y la fuente reales, medidos tras renderizar.
+function AuditReason({ reason }: { reason: string }) {
+  const textRef = useRef<HTMLSpanElement>(null)
+  const [expandable, setExpandable] = useState(false)
+  const [open, setOpen] = useState(false)
+  const clamped = !(expandable && open)
+
+  useLayoutEffect(() => {
+    const element = textRef.current
+    if (!element) return
+    function measure() {
+      if (!element) return
+      if (clamped) {
+        // Con line-clamp, el texto recortado tiene más altura de la visible.
+        const overflows = element.scrollHeight > element.clientHeight + 1
+        setExpandable(overflows)
+        if (!overflows) setOpen(false)
+        return
+      }
+      // Desplegado no hay recorte: se compara la altura con 3 líneas.
+      const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight)
+      if (!Number.isFinite(lineHeight) || lineHeight <= 0) return
+      if (element.scrollHeight <= lineHeight * 3 + 1) { setExpandable(false); setOpen(false) }
+    }
+    measure()
+    // Cambios de ancho (ventana, columna) y la carga tardía de fuentes cambian el número de líneas.
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    let active = true
+    void document.fonts?.ready.then(() => { if (active) measure() })
+    return () => { active = false; observer.disconnect() }
+  }, [reason, clamped, expandable])
+
+  const text = <span ref={textRef} className={`whitespace-pre-wrap wrap-break-word ${clamped ? 'line-clamp-3' : 'block'}`}>{reason}</span>
+  if (!expandable) return <div className="max-w-xl text-sm">{text}</div>
+  return <details className="max-w-xl" open={open} onToggle={event => setOpen(event.currentTarget.open)}><summary className="cursor-pointer text-sm">{text}</summary></details>
+}
 
 function actionLabel(action: string) {
   const labels: Record<string, string> = {
@@ -198,7 +247,7 @@ export default function AdminPage() {
       <section className="space-y-4 rounded-xl border bg-card p-5">
         <div><h2 className="text-xl font-semibold">Auditoría administrativa</h2><p className="mt-1 text-sm text-muted-foreground">Acciones administrativas ordenadas de más recientes a más antiguas. Se muestran 10 registros por página.</p></div>
         {!audit || audit.logs.length === 0 ? <p className="text-sm text-muted-foreground">Todavía no hay acciones administrativas registradas.</p> : <>
-          <div className="overflow-x-auto"><table className="w-full table-fixed text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="w-36 p-3">Acción</th><th className="w-40 p-3">Cuenta afectada</th><th className="w-40 p-3">Operador</th><th className="w-44 p-3">Fecha</th><th className="p-3">Motivo</th></tr></thead><tbody>{audit.logs.map(log => <tr key={log.id} className="border-b align-top last:border-0"><td className="p-3">{actionLabel(log.action)}</td><td className="p-3"><span className="block break-all font-mono text-xs">{log.targetUserId ?? '—'}</span></td><td className="p-3"><span className="block break-all font-mono text-xs">{log.actorUserId}</span></td><td className="p-3">{new Date(log.createdAt).toLocaleString('es-ES')}</td><td className="p-3">{log.reason ? <details className="max-w-xl"><summary className="cursor-pointer text-sm"><span className="line-clamp-3 whitespace-pre-wrap wrap-break-word">{log.reason}</span></summary><p className="mt-2 whitespace-pre-wrap wrap-break-word text-sm">{log.reason}</p></details> : '—'}</td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full table-fixed text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="w-36 p-3">Acción</th><th className="w-40 p-3">Cuenta afectada</th><th className="w-40 p-3">Operador</th><th className="w-44 p-3">Fecha</th><th className="p-3">Motivo</th></tr></thead><tbody>{audit.logs.map(log => <tr key={log.id} className="border-b align-top last:border-0"><td className="p-3">{actionLabel(log.action)}{log.revokedCount !== null && ` (${log.revokedCount})`}</td><td className="p-3"><AuditAccount view={describeAuditAccount({ id: log.targetUserId, email: log.targetEmail, emailAtAction: log.targetEmailAtAction, found: log.targetFound })} /></td><td className="p-3"><AuditAccount view={describeAuditAccount({ id: log.actorUserId, email: log.actorEmail, emailAtAction: log.actorEmailAtAction, found: log.actorFound })} /></td><td className="p-3">{new Date(log.createdAt).toLocaleString('es-ES')}</td><td className="p-3">{log.reason ? <AuditReason reason={log.reason} /> : '—'}</td></tr>)}</tbody></table></div>
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">{audit.pagination.total} acciones · Página {audit.pagination.page} de {Math.max(1, audit.pagination.pages)}</p>
             <div className="flex items-center gap-2"><button type="button" onClick={() => void changeAuditPage(auditPage - 1)} disabled={auditPage <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" onClick={() => void changeAuditPage(auditPage + 1)} disabled={auditPage >= audit.pagination.pages} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>

@@ -8,7 +8,13 @@ export type AdminUser = {
 }
 export type AdminPagination = { page: number; pageSize: number; total: number; pages: number }
 export type AdminUsersResponse = { users: AdminUser[]; pagination: AdminPagination }
-export type AdminAuditLog = { id: string; actorUserId: string; targetUserId: string | null; action: string; reason: string | null; createdAt: string }
+export type AdminAuditLog = {
+  id: string; actorUserId: string; targetUserId: string | null; action: string; reason: string | null; createdAt: string
+  // Email actual (null si la cuenta ya no existe) y el registrado al hacer la acción (null en registros antiguos).
+  actorEmail: string | null; actorEmailAtAction: string | null; actorFound: boolean
+  targetEmail: string | null; targetEmailAtAction: string | null; targetFound: boolean | null
+  revokedCount: number | null
+}
 export type AdminAuditResponse = { logs: AdminAuditLog[]; pagination: AdminPagination }
 export type AdminUserAction = 'suspend' | 'unsuspend' | 'revoke-sessions'
 

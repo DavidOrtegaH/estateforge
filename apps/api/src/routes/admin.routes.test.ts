@@ -60,8 +60,8 @@ type Where = Record<string, unknown>
 
 interface FindManyArgs {
   where?: Where
-  skip: number
-  take: number
+  skip?: number
+  take?: number
 }
 
 interface Deferred<T> extends PromiseLike<T> {
@@ -87,13 +87,17 @@ const fake = vi.hoisted(() => {
     // Últimos argumentos de paginación recibidos por los findMany.
     lastUserFindMany: null as FindManyArgs | null,
     lastAuditFindMany: null as FindManyArgs | null,
+    userFindManyCalls: 0,
+    // Se ejecuta antes de cada user.findUnique con el id buscado.
+    beforeUserFindUnique: null as ((id: string) => void) | null,
   }
 
   // Ordena por createdAt desc y aplica skip/take, como hacen las rutas.
+  // Sin skip/take (búsqueda de emails de la auditoría) no pagina.
   function page<T extends { createdAt: Date }>(rows: T[], args: FindManyArgs): T[] {
-    return [...rows]
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(args.skip, args.skip + args.take)
+    const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    if (args.skip === undefined || args.take === undefined) return sorted
+    return sorted.slice(args.skip, args.skip + args.take)
   }
 
   function deferred<T>(fn: () => T): Deferred<T> {
@@ -124,6 +128,10 @@ const fake = vi.hoisted(() => {
 
         if ('contains' in expected && typeof expected.contains === 'string' && Object.keys(expected).length === 1) {
           return typeof value === 'string' && value.includes(expected.contains)
+        }
+
+        if ('in' in expected && Array.isArray(expected.in) && Object.keys(expected).length === 1) {
+          return expected.in.includes(value)
         }
 
         throw new Error(`Filtro no soportado por el falso: ${key}`)
@@ -187,6 +195,7 @@ const fake = vi.hoisted(() => {
         }
 
         return deferred(() => {
+          state.beforeUserFindUnique?.(args.where.id)
           const user = state.store.users.find(item => item.id === args.where.id)
           return user ? { ...user } : null
         })
@@ -201,6 +210,7 @@ const fake = vi.hoisted(() => {
       // El recuento de inmuebles por usuario no se modela: se devuelve 0.
       findMany(args: FindManyArgs) {
         return deferred(() => {
+          state.userFindManyCalls += 1
           state.lastUserFindMany = { where: args.where, skip: args.skip, take: args.take }
           const users = state.store.users.filter(user => matches(user, args.where))
           return page(users, args).map(user => ({ ...user, _count: { properties: 0 } }))
@@ -320,10 +330,14 @@ const HOLD_DATE = new Date('2026-10-01T10:00:00.000Z')
 const SUSPENSION_DATE = new Date('2026-10-02T10:00:00.000Z')
 const USED_DATE = new Date('2026-09-01T10:00:00.000Z')
 
+function emailOf(id: string) {
+  return `${id}@estateforge.test`
+}
+
 function user(id: string, role: Role, extra: Partial<UserRecord> = {}): UserRecord {
   return {
     id,
-    email: `${id}@estateforge.test`,
+    email: emailOf(id),
     role,
     createdAt: new Date('2026-09-01T00:00:00.000Z'),
     securityHoldAt: null,
@@ -415,6 +429,8 @@ describe('Admin routes', () => {
     fake.state.beforeUserUpdateMany = null
     fake.state.userUpdateManyCalls = 0
     fake.state.lastUserFindMany = null
+    fake.state.userFindManyCalls = 0
+    fake.state.beforeUserFindUnique = null
     fake.state.lastAuditFindMany = null
     fake.state.sessionTokens = new Map([
       ['owner-token', OWNER],
@@ -609,7 +625,30 @@ describe('Admin routes', () => {
           targetUserId: TARGET,
           action: 'ACCOUNT_SUSPENDED',
           reason: 'Spam reiterado',
-          metadata: null,
+          metadata: JSON.stringify({ actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET) }),
+        }),
+      ])
+    })
+
+    it('omite el email del operador en metadata si ya no se encuentra, sin cambiar la acción', async () => {
+      // Primera búsqueda: requireOwner. Segunda: la instantánea del operador.
+      let ownerLookups = 0
+      fake.state.beforeUserFindUnique = id => {
+        if (id === OWNER && ++ownerLookups === 2) {
+          store().users = store().users.filter(item => item.id !== OWNER)
+        }
+      }
+
+      const response = await action('suspend', TARGET, { reason: 'Motivo válido' })
+
+      expect(response.statusCode).toBe(200)
+      expect(findUser(TARGET).adminSuspendedAt).toBeInstanceOf(Date)
+      expect(idsOf(store().sessions, TARGET)).toEqual([])
+      expect(store().adminAuditLogs).toEqual([
+        expect.objectContaining({
+          actorUserId: OWNER,
+          action: 'ACCOUNT_SUSPENDED',
+          metadata: JSON.stringify({ targetEmail: emailOf(TARGET) }),
         }),
       ])
     })
@@ -702,6 +741,9 @@ describe('Admin routes', () => {
           reason: 'Revisión completada',
         }),
       ])
+      expect(store().adminAuditLogs[0].metadata).toBe(
+        JSON.stringify({ actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET) }),
+      )
     })
 
     it('no elimina sesiones ni tokens', async () => {
@@ -801,7 +843,7 @@ describe('Admin routes', () => {
           targetUserId: TARGET,
           action: 'SESSIONS_REVOKED',
           reason: 'Acceso sospechoso',
-          metadata: JSON.stringify({ revokedCount: 3 }),
+          metadata: JSON.stringify({ revokedCount: 3, actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET) }),
         }),
       ])
       // No altera el estado de la cuenta.
@@ -819,7 +861,7 @@ describe('Admin routes', () => {
       expect(store().adminAuditLogs).toEqual([
         expect.objectContaining({
           action: 'SESSIONS_REVOKED',
-          metadata: JSON.stringify({ revokedCount: 0 }),
+          metadata: JSON.stringify({ revokedCount: 0, actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET) }),
         }),
       ])
     })
@@ -932,6 +974,164 @@ describe('Admin routes', () => {
 
       expect(response.json().logs.map((log: { id: string }) => log.id)).toEqual(['a-new', 'a-old'])
       expect(response.json().pagination).toEqual({ page: 1, pageSize: 10, total: 2, pages: 1 })
+    })
+  })
+
+  // ----------------------------------------------------------
+  // IDENTIFICACIÓN EN LA AUDITORÍA
+  // ----------------------------------------------------------
+
+  describe('identificación en la auditoría', () => {
+    const GONE = 'gone-1'
+
+    function auditLog(id: string, extra: Partial<AuditRecord> = {}): AuditRecord {
+      return {
+        id,
+        actorUserId: OWNER,
+        targetUserId: TARGET,
+        action: 'ACCOUNT_SUSPENDED',
+        reason: 'r',
+        metadata: null,
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+        ...extra,
+      }
+    }
+
+    async function getLogs() {
+      const response = await app.inject({ method: 'GET', url: '/api/admin/audit', headers: asOwner })
+      expect(response.statusCode).toBe(200)
+      return response.json().logs as Record<string, unknown>[]
+    }
+
+    it('un registro antiguo sin metadata usa el email actual y no expone metadata', async () => {
+      store().adminAuditLogs.push(auditLog('a-1'))
+
+      const [log] = await getLogs()
+
+      expect(log).toEqual({
+        id: 'a-1',
+        actorUserId: OWNER,
+        targetUserId: TARGET,
+        action: 'ACCOUNT_SUSPENDED',
+        reason: 'r',
+        createdAt: '2026-10-01T00:00:00.000Z',
+        actorEmail: emailOf(OWNER),
+        actorEmailAtAction: null,
+        actorFound: true,
+        targetEmail: emailOf(TARGET),
+        targetEmailAtAction: null,
+        targetFound: true,
+        revokedCount: null,
+      })
+    })
+
+    it('un registro antiguo con solo revokedCount lo conserva, incluido 0', async () => {
+      store().adminAuditLogs.push(
+        auditLog('a-0', { action: 'SESSIONS_REVOKED', metadata: JSON.stringify({ revokedCount: 0 }) }),
+        auditLog('a-3', { action: 'SESSIONS_REVOKED', metadata: JSON.stringify({ revokedCount: 3 }), createdAt: new Date('2026-10-02T00:00:00.000Z') }),
+      )
+
+      const logs = await getLogs()
+
+      expect(logs.map(log => [log.id, log.revokedCount])).toEqual([['a-3', 3], ['a-0', 0]])
+    })
+
+    it('una cuenta que ya no existe devuelve la instantánea sin email actual', async () => {
+      store().adminAuditLogs.push(auditLog('a-1', {
+        targetUserId: GONE,
+        metadata: JSON.stringify({ actorEmail: emailOf(OWNER), targetEmail: 'borrada@estateforge.test' }),
+      }))
+
+      const [log] = await getLogs()
+
+      expect(log).toMatchObject({
+        targetUserId: GONE,
+        targetEmail: null,
+        targetEmailAtAction: 'borrada@estateforge.test',
+        targetFound: false,
+        actorEmail: emailOf(OWNER),
+        actorFound: true,
+      })
+    })
+
+    it('una cuenta que ya no existe y sin instantánea no inventa datos', async () => {
+      store().adminAuditLogs.push(auditLog('a-1', { actorUserId: 'gone-owner', targetUserId: GONE }))
+
+      const [log] = await getLogs()
+
+      expect(log).toMatchObject({
+        actorEmail: null, actorEmailAtAction: null, actorFound: false,
+        targetEmail: null, targetEmailAtAction: null, targetFound: false,
+      })
+    })
+
+    it('un email cambiado devuelve por separado el actual y el de la acción', async () => {
+      store().adminAuditLogs.push(auditLog('a-1', {
+        metadata: JSON.stringify({ actorEmail: emailOf(OWNER), targetEmail: 'anterior@estateforge.test' }),
+      }))
+
+      const [log] = await getLogs()
+
+      expect(log).toMatchObject({ targetEmail: emailOf(TARGET), targetEmailAtAction: 'anterior@estateforge.test' })
+    })
+
+    it('una metadata malformada no rompe la auditoría y conserva los campos válidos', async () => {
+      store().adminAuditLogs.push(
+        auditLog('a-bad', { metadata: '{no es json' }),
+        auditLog('a-mixed', {
+          metadata: JSON.stringify({ revokedCount: '3', actorEmail: 5, targetEmail: 'valido@estateforge.test' }),
+          createdAt: new Date('2026-10-02T00:00:00.000Z'),
+        }),
+      )
+
+      const [mixed, bad] = await getLogs()
+
+      expect(bad).toMatchObject({ actorEmailAtAction: null, targetEmailAtAction: null, revokedCount: null, actorEmail: emailOf(OWNER) })
+      expect(mixed).toMatchObject({ actorEmailAtAction: null, targetEmailAtAction: 'valido@estateforge.test', revokedCount: null })
+    })
+
+    it('sin cuenta afectada devuelve targetFound null', async () => {
+      store().adminAuditLogs.push(auditLog('a-1', { targetUserId: null }))
+
+      const [log] = await getLogs()
+
+      expect(log).toMatchObject({ targetUserId: null, targetEmail: null, targetEmailAtAction: null, targetFound: null })
+    })
+
+    it('busca los emails en una sola consulta con los ids únicos de la página', async () => {
+      store().adminAuditLogs.push(
+        auditLog('a-1'),
+        auditLog('a-2', { targetUserId: USER }),
+        auditLog('a-3', { targetUserId: null }),
+      )
+
+      await getLogs()
+
+      expect(fake.state.userFindManyCalls).toBe(1)
+      const where = fake.state.lastUserFindMany?.where as { id: { in: string[] } }
+      expect([...where.id.in].sort()).toEqual([OWNER, TARGET, USER].sort())
+    })
+
+    it('no consulta usuarios si la página está vacía', async () => {
+      const logs = await getLogs()
+
+      expect(logs).toEqual([])
+      expect(fake.state.userFindManyCalls).toBe(0)
+    })
+
+    it('las acciones nuevas quedan identificadas en la auditoría', async () => {
+      await action('revoke-sessions', TARGET, { reason: 'Acceso sospechoso' })
+
+      const [log] = await getLogs()
+
+      expect(log).toMatchObject({
+        action: 'SESSIONS_REVOKED',
+        actorEmail: emailOf(OWNER),
+        actorEmailAtAction: emailOf(OWNER),
+        targetEmail: emailOf(TARGET),
+        targetEmailAtAction: emailOf(TARGET),
+        revokedCount: 2,
+      })
     })
   })
 
