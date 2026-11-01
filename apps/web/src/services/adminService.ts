@@ -6,6 +6,7 @@ export type AdminUser = {
   securityHoldAt: string | null; adminSuspendedAt: string | null
   adminSuspensionReason: string | null; properties: number
 }
+export type AdminUserDetail = AdminUser & { activeSessions: number }
 export type AdminPagination = { page: number; pageSize: number; total: number; pages: number }
 export type AdminUsersResponse = { users: AdminUser[]; pagination: AdminPagination }
 export type AdminAuditLog = {
@@ -15,6 +16,10 @@ export type AdminAuditLog = {
   targetEmail: string | null; targetEmailAtAction: string | null; targetFound: boolean | null
   revokedCount: number | null
 }
+export type AdminAuditAction =
+  | 'ACCOUNT_SUSPENDED'
+  | 'ACCOUNT_UNSUSPENDED'
+  | 'SESSIONS_REVOKED'
 export type AdminAuditResponse = { logs: AdminAuditLog[]; pagination: AdminPagination }
 export type AdminUserAction = 'suspend' | 'unsuspend' | 'revoke-sessions'
 
@@ -40,8 +45,21 @@ export function getAdminUsers(query?: { search: string; page: number }): Promise
   return requestJson<AdminUsersResponse>(path)
 }
 
-export function getAdminAudit(page: number): Promise<AdminAuditResponse> {
-  return requestJson<AdminAuditResponse>(`/api/admin/audit?page=${page}`)
+export function getAdminUserDetail(id: string): Promise<AdminUserDetail> {
+  return requestJson<AdminUserDetail>(`/api/admin/users/${encodeURIComponent(id)}`)
+}
+
+// Los filtros vacíos no se envían: sin filtros la URL es la misma de siempre.
+export function getAdminAudit(
+  page: number,
+  filters: { action?: AdminAuditAction; targetUserId?: string } = {},
+): Promise<AdminAuditResponse> {
+  let path = `/api/admin/audit?page=${page}`
+  if (filters.action !== undefined) path += `&action=${filters.action}`
+  if (filters.targetUserId !== undefined && filters.targetUserId.trim() !== '') {
+    path += `&targetUserId=${encodeURIComponent(filters.targetUserId)}`
+  }
+  return requestJson<AdminAuditResponse>(path)
 }
 
 export function runAdminUserAction(userId: string, action: AdminUserAction, reason: string): Promise<{ message: string }> {

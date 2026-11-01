@@ -15,7 +15,13 @@ const UsersQuery = z.object({
   search: z.string().catch('').transform(value => value.trim().slice(0, 120)),
   page: pageQuery(10000),
 })
-const AuditQuery = z.object({ page: pageQuery(100000) })
+const AUDIT_ACTIONS = ['ACCOUNT_SUSPENDED', 'ACCOUNT_UNSUSPENDED', 'SESSIONS_REVOKED'] as const
+// Un filtro inválido o repetido no filtra, igual que page y search.
+const AuditQuery = z.object({
+  page: pageQuery(100000),
+  action: z.enum(AUDIT_ACTIONS).optional().catch(undefined),
+  targetUserId: z.string().trim().min(1).max(128).optional().catch(undefined),
+})
 
 // Límite para las acciones que modifican cuentas; las consultas no lo tienen.
 const ACCOUNT_ACTION_RATE_LIMIT = { max: 20, timeWindow: '1 minute' }
@@ -71,12 +77,14 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/users/:id', { preHandler: requireOwner }, async (request, reply) => {
     const params = validParams(request.params)
     if (!params.success) return reply.code(400).send({ message: 'Identificador de cuenta no válido.' })
+    // Las sesiones caducadas solo se borran al volver a usarse; no cuentan como activas.
+    const now = new Date()
     const user = await prisma.user.findUnique({
       where: { id: params.data.id },
       select: {
         id: true, email: true, role: true, createdAt: true,
         securityHoldAt: true, adminSuspendedAt: true, adminSuspensionReason: true,
-        _count: { select: { properties: true, sessions: true } },
+        _count: { select: { properties: true, sessions: { where: { expiresAt: { gt: now } } } } },
       },
     })
     if (!user) return reply.code(404).send({ message: 'No se ha encontrado la cuenta.' })
@@ -89,11 +97,17 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   app.get('/api/admin/audit', { preHandler: requireOwner }, async (request) => {
-    const { page } = AuditQuery.parse(request.query)
+    const { page, action, targetUserId } = AuditQuery.parse(request.query)
     const pageSize = 10
+    // El mismo filtro para el total y para la página, para que la paginación sea coherente.
+    const where = {
+      ...(action !== undefined && { action }),
+      ...(targetUserId !== undefined && { targetUserId }),
+    }
     const [total, logs] = await Promise.all([
-      prisma.adminAuditLog.count(),
+      prisma.adminAuditLog.count({ where }),
       prisma.adminAuditLog.findMany({
+        where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,

@@ -33,6 +33,7 @@ interface TokenRecord {
 interface SessionRecord {
   id: string
   userId: string
+  expiresAt: Date
 }
 
 interface AuditRecord {
@@ -53,6 +54,8 @@ interface Store {
   securityIncidentTokens: TokenRecord[]
   adminAuditLogs: AuditRecord[]
   propertyCount: number
+  // Inmuebles por usuario para _count.properties.
+  propertiesByUser: Record<string, number>
   generationCount: number
 }
 
@@ -63,6 +66,8 @@ interface FindManyArgs {
   skip?: number
   take?: number
 }
+
+type OrderBy = Record<string, 'asc' | 'desc'>[]
 
 interface Deferred<T> extends PromiseLike<T> {
   run: () => T
@@ -87,6 +92,7 @@ const fake = vi.hoisted(() => {
     // Últimos argumentos de paginación recibidos por los findMany.
     lastUserFindMany: null as FindManyArgs | null,
     lastAuditFindMany: null as FindManyArgs | null,
+    lastAuditCount: null as { where?: Where } | null,
     userFindManyCalls: 0,
     // Se ejecuta antes de cada user.findUnique con el id buscado.
     beforeUserFindUnique: null as ((id: string) => void) | null,
@@ -98,6 +104,23 @@ const fake = vi.hoisted(() => {
     const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     if (args.skip === undefined || args.take === undefined) return sorted
     return sorted.slice(args.skip, args.skip + args.take)
+  }
+
+  // Aplica un orderBy de Prisma en forma de array, con desempate por cada clave
+  // en orden. Compara texto por código, como la colación binaria de SQLite.
+  function sortBy<T>(rows: T[], orderBy: OrderBy): T[] {
+    return [...rows].sort((a, b) => {
+      for (const clause of orderBy) {
+        const [key, direction] = Object.entries(clause)[0]
+        const left = (a as Record<string, unknown>)[key]
+        const right = (b as Record<string, unknown>)[key]
+        const diff = left instanceof Date && right instanceof Date
+          ? left.getTime() - right.getTime()
+          : String(left) < String(right) ? -1 : String(left) > String(right) ? 1 : 0
+        if (diff !== 0) return direction === 'desc' ? -diff : diff
+      }
+      return 0
+    })
   }
 
   function deferred<T>(fn: () => T): Deferred<T> {
@@ -132,6 +155,10 @@ const fake = vi.hoisted(() => {
 
         if ('in' in expected && Array.isArray(expected.in) && Object.keys(expected).length === 1) {
           return expected.in.includes(value)
+        }
+
+        if ('gt' in expected && expected.gt instanceof Date && Object.keys(expected).length === 1) {
+          return value instanceof Date && value.getTime() > expected.gt.getTime()
         }
 
         throw new Error(`Filtro no soportado por el falso: ${key}`)
@@ -189,15 +216,31 @@ const fake = vi.hoisted(() => {
 
   const prisma = {
     user: {
+      // _count solo admite properties y sessions (con where opcional), como el detalle de cuenta.
       findUnique(args: { where: { id: string }; select?: Record<string, unknown> }) {
-        if (args.select && '_count' in args.select) {
-          throw new Error('select con _count no soportado por el falso')
+        const countSelect = args.select?._count as { select: Record<string, unknown> } | undefined
+        if (countSelect) {
+          const unsupported = Object.keys(countSelect.select).filter(key => key !== 'properties' && key !== 'sessions')
+          if (unsupported.length > 0) throw new Error(`_count no soportado por el falso: ${unsupported.join(', ')}`)
         }
 
         return deferred(() => {
           state.beforeUserFindUnique?.(args.where.id)
           const user = state.store.users.find(item => item.id === args.where.id)
-          return user ? { ...user } : null
+          if (!user) return null
+          if (!countSelect) return { ...user }
+
+          const sessionsArg = countSelect.select.sessions
+          const sessionWhere = typeof sessionsArg === 'object' && sessionsArg !== null
+            ? (sessionsArg as { where?: Where }).where
+            : undefined
+          return {
+            ...user,
+            _count: {
+              properties: state.store.propertiesByUser[user.id] ?? 0,
+              sessions: state.store.sessions.filter(session => session.userId === user.id && matches(session, sessionWhere)).length,
+            },
+          }
         })
       },
 
@@ -250,12 +293,20 @@ const fake = vi.hoisted(() => {
     },
 
     adminAuditLog: {
-      count: () => deferred(() => state.store.adminAuditLogs.length),
+      count: (args?: { where?: Where }) =>
+        deferred(() => {
+          state.lastAuditCount = { where: args?.where }
+          return state.store.adminAuditLogs.filter(log => matches(log, args?.where)).length
+        }),
 
-      findMany(args: FindManyArgs) {
+      // Sin orderBy el orden real no está definido: se exige, como hace la ruta.
+      findMany(args: FindManyArgs & { orderBy?: OrderBy }) {
+        if (!args.orderBy) throw new Error('adminAuditLog.findMany sin orderBy no soportado por el falso')
+        const orderBy = args.orderBy
         return deferred(() => {
-          state.lastAuditFindMany = { skip: args.skip, take: args.take }
-          return page(state.store.adminAuditLogs, args)
+          state.lastAuditFindMany = { where: args.where, skip: args.skip, take: args.take }
+          const sorted = sortBy(state.store.adminAuditLogs.filter(log => matches(log, args.where)), orderBy)
+          return args.skip === undefined || args.take === undefined ? sorted : sorted.slice(args.skip, args.skip + args.take)
         })
       },
 
@@ -329,6 +380,8 @@ const TARGET = 'target-1'
 const HOLD_DATE = new Date('2026-10-01T10:00:00.000Z')
 const SUSPENSION_DATE = new Date('2026-10-02T10:00:00.000Z')
 const USED_DATE = new Date('2026-09-01T10:00:00.000Z')
+// Muy en el futuro: las sesiones de la semilla siguen activas al ejecutar los tests.
+const SESSION_EXPIRY = new Date('2999-01-01T00:00:00.000Z')
 
 function emailOf(id: string) {
   return `${id}@estateforge.test`
@@ -357,9 +410,9 @@ function seed(): Store {
       user(TARGET, 'USER'),
     ],
     sessions: [
-      { id: 's-target-1', userId: TARGET },
-      { id: 's-target-2', userId: TARGET },
-      { id: 's-user-1', userId: USER },
+      { id: 's-target-1', userId: TARGET, expiresAt: SESSION_EXPIRY },
+      { id: 's-target-2', userId: TARGET, expiresAt: SESSION_EXPIRY },
+      { id: 's-user-1', userId: USER, expiresAt: SESSION_EXPIRY },
     ],
     passwordResetTokens: [
       { id: 'prt-target-pending', userId: TARGET, usedAt: null },
@@ -376,6 +429,7 @@ function seed(): Store {
     ],
     adminAuditLogs: [],
     propertyCount: 4,
+    propertiesByUser: { [TARGET]: 3, [USER]: 1 },
     generationCount: 7,
   }
 }
@@ -432,6 +486,7 @@ describe('Admin routes', () => {
     fake.state.userFindManyCalls = 0
     fake.state.beforeUserFindUnique = null
     fake.state.lastAuditFindMany = null
+    fake.state.lastAuditCount = null
     fake.state.sessionTokens = new Map([
       ['owner-token', OWNER],
       ['user-token', USER],
@@ -825,7 +880,7 @@ describe('Admin routes', () => {
 
   describe('revoke-sessions', () => {
     it('cierra las sesiones del objetivo y registra el número en metadata', async () => {
-      store().sessions.push({ id: 's-target-3', userId: TARGET })
+      store().sessions.push({ id: 's-target-3', userId: TARGET, expiresAt: SESSION_EXPIRY })
 
       const response = await action('revoke-sessions', TARGET, { reason: 'Acceso sospechoso' })
 
@@ -960,7 +1015,7 @@ describe('Admin routes', () => {
       const response = await getAudit(value === '' ? '' : `?page=${value}`)
 
       expect(response.statusCode).toBe(200)
-      expect(fake.state.lastAuditFindMany).toEqual({ skip: (expected - 1) * 10, take: 10 })
+      expect(fake.state.lastAuditFindMany).toEqual({ where: {}, skip: (expected - 1) * 10, take: 10 })
       expect(response.json().pagination.page).toBe(expected)
     })
 
@@ -1136,6 +1191,177 @@ describe('Admin routes', () => {
   })
 
   // ----------------------------------------------------------
+  // FILTROS DE AUDITORÍA
+  // ----------------------------------------------------------
+
+  describe('filtros de auditoría', () => {
+    const GONE = 'gone-1'
+
+    function day(n: number) {
+      return new Date(Date.UTC(2026, 9, n))
+    }
+
+    function log(id: string, action: string, targetUserId: string | null, createdAt: Date, metadata: string | null = null): AuditRecord {
+      return { id, actorUserId: OWNER, targetUserId, action, reason: 'r', metadata, createdAt }
+    }
+
+    beforeEach(() => {
+      store().adminAuditLogs.push(
+        log('l1', 'ACCOUNT_SUSPENDED', TARGET, day(1)),
+        log('l2', 'ACCOUNT_UNSUSPENDED', TARGET, day(2)),
+        log('l3', 'SESSIONS_REVOKED', USER, day(3), JSON.stringify({ revokedCount: 1 })),
+        log('l4', 'ACCOUNT_SUSPENDED', USER, day(4)),
+        log('l5', 'SESSIONS_REVOKED', GONE, day(5), JSON.stringify({ revokedCount: 0, targetEmail: 'borrada@estateforge.test' })),
+      )
+    })
+
+    async function getAudit(query: string) {
+      const response = await app.inject({ method: 'GET', url: `/api/admin/audit${query}`, headers: asOwner })
+      expect(response.statusCode).toBe(200)
+      // El total y la página tienen que calcularse con el mismo filtro.
+      expect(fake.state.lastAuditCount).not.toBeNull()
+      expect(fake.state.lastAuditCount?.where).toEqual(fake.state.lastAuditFindMany?.where)
+      const body = response.json() as { logs: Record<string, unknown>[]; pagination: Record<string, number> }
+      return { ...body, ids: body.logs.map(item => item.id) }
+    }
+
+    it('sin filtros devuelve todo, con where vacío', async () => {
+      const result = await getAudit('')
+
+      expect(fake.state.lastAuditFindMany).toEqual({ where: {}, skip: 0, take: 10 })
+      expect(result.ids).toEqual(['l5', 'l4', 'l3', 'l2', 'l1'])
+      expect(result.pagination).toEqual({ page: 1, pageSize: 10, total: 5, pages: 1 })
+    })
+
+    it('filtra por acción y ajusta el total y las páginas', async () => {
+      const result = await getAudit('?action=ACCOUNT_SUSPENDED')
+
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ action: 'ACCOUNT_SUSPENDED' })
+      expect(result.ids).toEqual(['l4', 'l1'])
+      expect(result.pagination).toEqual({ page: 1, pageSize: 10, total: 2, pages: 1 })
+    })
+
+    it('filtra por cuenta afectada', async () => {
+      const result = await getAudit(`?targetUserId=${TARGET}`)
+
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ targetUserId: TARGET })
+      expect(result.ids).toEqual(['l2', 'l1'])
+      expect(result.pagination.total).toBe(2)
+    })
+
+    it('recorta los espacios del identificador de cuenta', async () => {
+      const result = await getAudit(`?targetUserId=${encodeURIComponent(`  ${USER}  `)}`)
+
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ targetUserId: USER })
+      expect(result.ids).toEqual(['l4', 'l3'])
+    })
+
+    it('combina los dos filtros', async () => {
+      const result = await getAudit(`?action=ACCOUNT_SUSPENDED&targetUserId=${USER}`)
+
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ action: 'ACCOUNT_SUSPENDED', targetUserId: USER })
+      expect(fake.state.lastAuditCount).toEqual({ where: { action: 'ACCOUNT_SUSPENDED', targetUserId: USER } })
+      expect(result.ids).toEqual(['l4'])
+      expect(result.pagination).toEqual({ page: 1, pageSize: 10, total: 1, pages: 1 })
+    })
+
+    it('pagina el resultado filtrado', async () => {
+      for (let i = 1; i <= 12; i++) {
+        store().adminAuditLogs.push(log(`r${i}`, 'SESSIONS_REVOKED', TARGET, day(10 + i)))
+      }
+
+      const result = await getAudit(`?action=SESSIONS_REVOKED&targetUserId=${TARGET}&page=2`)
+
+      expect(fake.state.lastAuditFindMany).toEqual({
+        where: { action: 'SESSIONS_REVOKED', targetUserId: TARGET },
+        skip: 10,
+        take: 10,
+      })
+      expect(result.ids).toEqual(['r2', 'r1'])
+      expect(result.pagination).toEqual({ page: 2, pageSize: 10, total: 12, pages: 2 })
+    })
+
+    it('con la misma fecha, desempata por id descendente', async () => {
+      // Se insertan en orden ascendente: solo el desempate de la ruta los invierte.
+      store().adminAuditLogs.push(
+        log('tie-a', 'ACCOUNT_SUSPENDED', TARGET, day(20)),
+        log('tie-b', 'ACCOUNT_SUSPENDED', TARGET, day(20)),
+      )
+
+      const result = await getAudit(`?targetUserId=${TARGET}`)
+
+      expect(result.ids).toEqual(['tie-b', 'tie-a', 'l2', 'l1'])
+    })
+
+    it('devuelve una página vacía si nada coincide, sin consultar usuarios', async () => {
+      const result = await getAudit(`?action=ACCOUNT_UNSUSPENDED&targetUserId=${USER}`)
+
+      expect(result.logs).toEqual([])
+      expect(result.pagination).toEqual({ page: 1, pageSize: 10, total: 0, pages: 0 })
+      expect(fake.state.userFindManyCalls).toBe(0)
+    })
+
+    it.each([
+      ['desconocida', 'OTRA_ACCION'],
+      ['en minúsculas', 'account_suspended'],
+      ['vacía', ''],
+    ])('ignora una acción %s', async (_label, value) => {
+      const result = await getAudit(`?action=${value}`)
+
+      expect(fake.state.lastAuditFindMany?.where).toEqual({})
+      expect(result.pagination.total).toBe(5)
+    })
+
+    it.each([
+      ['vacío', ''],
+      ['solo con espacios', '%20%20'],
+      ['de más de 128 caracteres', 'a'.repeat(129)],
+    ])('ignora un identificador de cuenta %s', async (_label, value) => {
+      const result = await getAudit(`?targetUserId=${value}`)
+
+      expect(fake.state.lastAuditFindMany?.where).toEqual({})
+      expect(result.pagination.total).toBe(5)
+    })
+
+    it('ignora los filtros repetidos, pero conserva los válidos', async () => {
+      const repeated = await getAudit(`?action=ACCOUNT_SUSPENDED&action=SESSIONS_REVOKED&targetUserId=${TARGET}`)
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ targetUserId: TARGET })
+      expect(repeated.ids).toEqual(['l2', 'l1'])
+
+      await getAudit(`?targetUserId=${TARGET}&targetUserId=${USER}&action=SESSIONS_REVOKED`)
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ action: 'SESSIONS_REVOKED' })
+    })
+
+    it('ignora parámetros desconocidos junto a los filtros', async () => {
+      await getAudit('?action=SESSIONS_REVOKED&actorUserId=owner-1&foo=bar')
+
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ action: 'SESSIONS_REVOKED' })
+    })
+
+    it('filtra por una cuenta que ya no existe y conserva la instantánea de D1', async () => {
+      const result = await getAudit(`?targetUserId=${GONE}`)
+
+      expect(result.ids).toEqual(['l5'])
+      expect(result.logs[0]).toMatchObject({
+        targetUserId: GONE,
+        targetEmail: null,
+        targetEmailAtAction: 'borrada@estateforge.test',
+        targetFound: false,
+        revokedCount: 0,
+      })
+    })
+
+    it('resuelve los emails del resultado filtrado en una sola consulta', async () => {
+      const result = await getAudit(`?targetUserId=${USER}`)
+
+      expect(fake.state.userFindManyCalls).toBe(1)
+      const where = fake.state.lastUserFindMany?.where as { id: { in: string[] } }
+      expect([...where.id.in].sort()).toEqual([OWNER, USER].sort())
+      expect(result.logs[0]).toMatchObject({ targetEmail: emailOf(USER), actorEmail: emailOf(OWNER) })
+    })
+  })
+
+  // ----------------------------------------------------------
   // RATE LIMIT
   // ----------------------------------------------------------
 
@@ -1191,6 +1417,146 @@ describe('Admin routes', () => {
         const response = await app.inject({ method: 'GET', url: '/api/admin/overview', headers: asOwner })
         expect(response.statusCode).toBe(200)
       }
+    })
+  })
+
+  // ----------------------------------------------------------
+  // DETALLE DE CUENTA
+  // ----------------------------------------------------------
+
+  describe('detalle de cuenta', () => {
+    function getDetail(id: string) {
+      return app.inject({ method: 'GET', url: `/api/admin/users/${id}`, headers: asOwner })
+    }
+
+    it('devuelve exactamente los campos de la cuenta, sin datos sensibles', async () => {
+      const response = await getDetail(TARGET)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        id: TARGET,
+        email: emailOf(TARGET),
+        role: 'USER',
+        createdAt: '2026-09-01T00:00:00.000Z',
+        securityHoldAt: null,
+        adminSuspendedAt: null,
+        adminSuspensionReason: null,
+        properties: 3,
+        activeSessions: 2,
+      })
+    })
+
+    it('no cuenta las sesiones caducadas como activas', async () => {
+      store().sessions.push(
+        { id: 's-target-expired', userId: TARGET, expiresAt: new Date('2020-01-01T00:00:00.000Z') },
+        { id: 's-user-expired', userId: USER, expiresAt: new Date('2020-01-01T00:00:00.000Z') },
+      )
+
+      const response = await getDetail(TARGET)
+
+      expect(response.json()).toMatchObject({ activeSessions: 2, properties: 3 })
+    })
+
+    it('usa el instante de la petición: una sesión que caduca justo entonces ya no es activa', async () => {
+      const now = new Date('2026-11-01T12:00:00.000Z')
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(now)
+      try {
+        store().sessions = [
+          { id: 's-boundary', userId: TARGET, expiresAt: now },
+          { id: 's-later', userId: TARGET, expiresAt: new Date(now.getTime() + 1) },
+          { id: 's-earlier', userId: TARGET, expiresAt: new Date(now.getTime() - 1) },
+        ]
+
+        const response = await getDetail(TARGET)
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json().activeSessions).toBe(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('cuenta inmuebles y sesiones de cada cuenta por separado', async () => {
+      expect((await getDetail(USER)).json()).toMatchObject({ properties: 1, activeSessions: 1 })
+      expect((await getDetail(OTHER_OWNER)).json()).toMatchObject({ properties: 0, activeSessions: 0 })
+    })
+
+    it('el recuento de inmuebles no depende de las sesiones', async () => {
+      store().sessions = []
+
+      expect((await getDetail(TARGET)).json()).toMatchObject({ properties: 3, activeSessions: 0 })
+    })
+
+    it('devuelve 404 si la cuenta no existe', async () => {
+      const response = await getDetail('no-existe')
+
+      expect(response.statusCode).toBe(404)
+      expect(response.json()).toEqual({ message: 'No se ha encontrado la cuenta.' })
+    })
+
+    it('devuelve 400 con un id formado solo por espacios', async () => {
+      const response = await getDetail('%20%20')
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json()).toEqual({ message: 'Identificador de cuenta no válido.' })
+    })
+
+    // El router de Fastify limita los parámetros a 100 caracteres (maxParamLength por
+    // defecto, igual que en app.ts) y responde 414 antes de llegar a la validación.
+    it('acepta un id de 100 caracteres y responde 404 si no existe', async () => {
+      expect((await getDetail('a'.repeat(100))).statusCode).toBe(404)
+    })
+
+    it('rechaza en el router un id de más de 100 caracteres (414)', async () => {
+      expect((await getDetail('a'.repeat(101))).statusCode).toBe(414)
+    })
+
+    it('permite consultar otra cuenta propietaria', async () => {
+      const response = await getDetail(OTHER_OWNER)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({ id: OTHER_OWNER, role: 'OWNER' })
+    })
+
+    it('permite consultar la propia cuenta', async () => {
+      const response = await getDetail(OWNER)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({ id: OWNER, email: emailOf(OWNER), role: 'OWNER' })
+    })
+
+    it('devuelve por separado la protección por incidente y la suspensión administrativa', async () => {
+      findUser(TARGET).adminSuspendedAt = SUSPENSION_DATE
+      findUser(TARGET).adminSuspensionReason = 'Motivo de prueba'
+
+      const suspended = (await getDetail(TARGET)).json()
+      const held = (await getDetail(HELD_OWNER)).json()
+
+      expect(suspended).toMatchObject({
+        securityHoldAt: null,
+        adminSuspendedAt: SUSPENSION_DATE.toISOString(),
+        adminSuspensionReason: 'Motivo de prueba',
+      })
+      expect(held).toMatchObject({
+        securityHoldAt: HOLD_DATE.toISOString(),
+        adminSuspendedAt: null,
+        adminSuspensionReason: null,
+      })
+    })
+
+    it('no tiene rate limit, como el resto de consultas', async () => {
+      for (let i = 0; i < 25; i++) {
+        expect((await getDetail(TARGET)).statusCode).toBe(200)
+      }
+    })
+
+    it('no modifica datos', async () => {
+      const before = structuredClone(store())
+
+      await getDetail(TARGET)
+
+      expect(store()).toEqual(before)
     })
   })
 
