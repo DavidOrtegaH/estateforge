@@ -1,30 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { API_URL } from '@/lib/api'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  getAdminAudit, getAdminOverview, getAdminUsers, runAdminUserAction,
+  type AdminAuditResponse, type AdminOverview, type AdminUser, type AdminUserAction, type AdminUsersResponse,
+} from '@/services/adminService'
 
 const REASON_MIN = 3
 const REASON_MAX = 500
 
-type Overview = { users: number; properties: number; generations: number; blockedUsers: number; suspendedUsers: number }
-type AdminUser = {
-  id: string; email: string; role: 'USER' | 'OWNER'; createdAt: string
-  securityHoldAt: string | null; adminSuspendedAt: string | null
-  adminSuspensionReason: string | null; properties: number
-}
-type UserResponse = { users: AdminUser[]; pagination: { page: number; pageSize: number; total: number; pages: number } }
-type AuditLog = { id: string; actorUserId: string; targetUserId: string | null; action: string; reason: string | null; createdAt: string }
-type AuditResponse = { logs: AuditLog[]; pagination: { page: number; pageSize: number; total: number; pages: number } }
-type UserAction = 'suspend' | 'unsuspend' | 'revoke-sessions'
-type PendingAction = { user: AdminUser; action: UserAction }
-
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    credentials: 'include', ...init,
-    headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
-  })
-  const body = await response.json().catch(() => ({})) as { message?: string }
-  if (!response.ok) throw new Error(body.message ?? `No se pudo completar la operación (${response.status}).`)
-  return body as T
-}
+type PendingAction = { user: AdminUser; action: AdminUserAction }
 
 function actionLabel(action: string) {
   const labels: Record<string, string> = {
@@ -35,53 +18,82 @@ function actionLabel(action: string) {
   return labels[action] ?? action
 }
 
-function actionTitle(action: UserAction) {
+function actionTitle(action: AdminUserAction) {
   if (action === 'suspend') return 'Suspender cuenta'
   if (action === 'unsuspend') return 'Reactivar cuenta'
   return 'Cerrar todas las sesiones'
 }
 
-function actionDescription(action: UserAction, email: string) {
+function actionDescription(action: AdminUserAction, email: string) {
   if (action === 'suspend') return `La cuenta ${email} quedará suspendida y se cerrarán sus sesiones.`
   if (action === 'unsuspend') return `Se retirará la suspensión administrativa de ${email}. Una protección por incidente de seguridad seguirá activa.`
   return `Se cerrarán todas las sesiones activas de ${email}.`
 }
 
 export default function AdminPage() {
-  const [overview, setOverview] = useState<Overview | null>(null)
-  const [data, setData] = useState<UserResponse | null>(null)
-  const [audit, setAudit] = useState<AuditResponse | null>(null)
+  const [overview, setOverview] = useState<AdminOverview | null>(null)
+  const [data, setData] = useState<AdminUsersResponse | null>(null)
+  const [audit, setAudit] = useState<AdminAuditResponse | null>(null)
   const [search, setSearch] = useState('')
+  // Último filtro enviado; search es solo el texto que se está escribiendo.
+  const [appliedSearch, setAppliedSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
+  const [changingUsersPage, setChangingUsersPage] = useState(false)
+  // Identifica la última petición de usuarios; las respuestas anteriores se descartan.
+  const usersRequest = useRef(0)
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
   const [auditPage, setAuditPage] = useState(1)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string | null>(null)
 
+  // Devuelve null si mientras tanto se lanzó otra petición de usuarios.
+  async function loadUsers(query: { search: string; page: number }) {
+    const requestId = ++usersRequest.current
+    try {
+      const result = await getAdminUsers(query)
+      return requestId === usersRequest.current ? result : null
+    } catch (e) {
+      if (requestId !== usersRequest.current) return null
+      throw e
+    }
+  }
+
   async function refresh(nextAuditPage = auditPage) {
     const [stats, users, auditResult] = await Promise.all([
-      requestJson<Overview>('/api/admin/overview'),
-      requestJson<UserResponse>(`/api/admin/users?search=${encodeURIComponent(search)}&page=${data?.pagination.page ?? 1}`),
-      requestJson<AuditResponse>(`/api/admin/audit?page=${nextAuditPage}`),
+      getAdminOverview(),
+      loadUsers({ search: appliedSearch, page: data?.pagination.page ?? 1 }),
+      getAdminAudit(nextAuditPage),
     ])
-    setOverview(stats); setData(users); setAudit(auditResult); setAuditPage(auditResult.pagination.page)
+    setOverview(stats); setAudit(auditResult); setAuditPage(auditResult.pagination.page)
+    if (!users) return
+    // Si la página actual ha quedado vacía, se carga la última página con resultados.
+    if (users.users.length === 0 && users.pagination.page > 1) {
+      const lastPage = await loadUsers({ search: appliedSearch, page: Math.max(1, users.pagination.pages) })
+      if (lastPage) setData(lastPage)
+      return
+    }
+    setData(users)
   }
 
   useEffect(() => {
     let active = true
     async function load() {
       setLoading(true); setError(null)
+      const requestId = ++usersRequest.current
       try {
         const [stats, users, auditResult] = await Promise.all([
-          requestJson<Overview>('/api/admin/overview'),
-          requestJson<UserResponse>('/api/admin/users'),
-          requestJson<AuditResponse>('/api/admin/audit?page=1'),
+          getAdminOverview(),
+          getAdminUsers(),
+          getAdminAudit(1),
         ])
-        if (active) { setOverview(stats); setData(users); setAudit(auditResult); setAuditPage(1) }
+        if (active) {
+          setOverview(stats); setAudit(auditResult); setAuditPage(1)
+          if (requestId === usersRequest.current) setData(users)
+        }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Error al cargar el panel.') }
       finally { if (active) setLoading(false) }
     }
@@ -93,12 +105,26 @@ export default function AdminPage() {
     event.preventDefault()
     if (searching) return
     setSearching(true); setError(null)
-    try { setData(await requestJson<UserResponse>(`/api/admin/users?search=${encodeURIComponent(search)}&page=1`)) }
+    const submittedSearch = search
+    try {
+      const users = await loadUsers({ search: submittedSearch, page: 1 })
+      if (users) { setData(users); setAppliedSearch(submittedSearch) }
+    }
     catch (e) { setError(e instanceof Error ? e.message : 'Error de búsqueda.') }
     finally { setSearching(false) }
   }
 
-  function openAction(user: AdminUser, action: UserAction) {
+  async function changeUsersPage(page: number) {
+    if (!data || page < 1 || page > data.pagination.pages || page === data.pagination.page) return
+    setChangingUsersPage(true); setError(null)
+    try {
+      const users = await loadUsers({ search: appliedSearch, page })
+      if (users) setData(users)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo cargar la página de usuarios.') }
+    finally { setChangingUsersPage(false) }
+  }
+
+  function openAction(user: AdminUser, action: AdminUserAction) {
     setPendingAction({ user, action })
     setReason('')
     setReasonError(null)
@@ -117,9 +143,7 @@ export default function AdminPage() {
     const { user, action } = pendingAction
     setBusyUserId(user.id); setError(null); setNotice(null)
     try {
-      const result = await requestJson<{ message: string }>(`/api/admin/users/${encodeURIComponent(user.id)}/${action}`, {
-        method: 'POST', body: JSON.stringify({ reason: trimmedReason }),
-      })
+      const result = await runAdminUserAction(user.id, action, trimmedReason)
       setNotice(result.message)
       setPendingAction(null)
       setReason('')
@@ -132,7 +156,7 @@ export default function AdminPage() {
     if (!audit || page < 1 || page > audit.pagination.pages || page === auditPage) return
     try {
       setError(null)
-      const result = await requestJson<AuditResponse>(`/api/admin/audit?page=${page}`)
+      const result = await getAdminAudit(page)
       setAudit(result); setAuditPage(result.pagination.page)
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo cargar la auditoría.') }
   }
@@ -166,7 +190,10 @@ export default function AdminPage() {
           </tr>)}</tbody></table>
           {!loading && !searching && data?.users.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No se han encontrado cuentas.</p>}
         </div>
-        {data && <p className="text-xs text-muted-foreground">{data.pagination.total} cuentas en total · Página {data.pagination.page} de {Math.max(1, data.pagination.pages)}</p>}
+        {data && <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">{data.pagination.total} cuentas en total · Página {data.pagination.page} de {Math.max(1, data.pagination.pages)}</p>
+          <div className="flex items-center gap-2"><button type="button" aria-label="Página anterior de usuarios" onClick={() => void changeUsersPage(data.pagination.page - 1)} disabled={loading || searching || changingUsersPage || data.pagination.page <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" aria-label="Página siguiente de usuarios" onClick={() => void changeUsersPage(data.pagination.page + 1)} disabled={loading || searching || changingUsersPage || data.pagination.page >= data.pagination.pages} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>
+        </div>}
       </section>
       <section className="space-y-4 rounded-xl border bg-card p-5">
         <div><h2 className="text-xl font-semibold">Auditoría administrativa</h2><p className="mt-1 text-sm text-muted-foreground">Acciones administrativas ordenadas de más recientes a más antiguas. Se muestran 10 registros por página.</p></div>
