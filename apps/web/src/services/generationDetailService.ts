@@ -1,8 +1,5 @@
+import { API_URL } from '@/lib/api'
 import type { GenerationHistoryItem } from './generationHistoryService'
-
-const API_URL =
-  import.meta.env.VITE_API_URL ??
-  'http://localhost:3000'
 
 export async function getGeneration(
   id: string,

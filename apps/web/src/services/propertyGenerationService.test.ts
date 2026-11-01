@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { API_URL } from '@/lib/api'
 import {
   GenerationApiError,
   generatePropertyListing,
@@ -41,9 +42,10 @@ describe('propertyGenerationService', () => {
 
     await expect(generatePropertyListing(request)).resolves.toEqual(result)
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:3000/api/generations/from-property',
+      `${API_URL}/api/generations/from-property`,
       expect.objectContaining({
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       }),

@@ -4,6 +4,8 @@ import type {
   ListingTone,
 } from '@estateforge/shared'
 
+import { API_URL } from '@/lib/api'
+
 export type GenerationApiErrorCode =
   | 'AI_QUOTA_EXCEEDED'
   | 'AI_INVALID_API_KEY'
@@ -72,7 +74,7 @@ export async function generatePropertyListing(
   request: GeneratePropertyListingRequest,
 ): Promise<GeneratePropertyListingResult> {
   const response = await fetch(
-    'http://localhost:3000/api/generations/from-property',
+    `${API_URL}/api/generations/from-property`,
     {
       method: 'POST',
       credentials: 'include',
@@ -129,7 +131,7 @@ export async function updateGeneration(
   request: UpdatePropertyListingRequest,
 ): Promise<UpdatedGeneration> {
   const response = await fetch(
-    `http://localhost:3000/api/generations/${id}`,
+    `${API_URL}/api/generations/${id}`,
     {
       method: 'PUT',
       credentials: 'include',
@@ -165,7 +167,7 @@ export async function deleteGeneration(
   id: string,
 ): Promise<{ success: boolean }> {
   const response = await fetch(
-    `http://localhost:3000/api/generations/${id}`,
+    `${API_URL}/api/generations/${id}`,
     {
       method: 'DELETE',
       credentials: 'include',

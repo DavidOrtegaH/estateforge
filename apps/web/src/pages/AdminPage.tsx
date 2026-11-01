@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { API_URL } from '@/lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const REASON_MIN = 3
 const REASON_MAX = 500
 

@@ -1,11 +1,11 @@
+import { API_URL } from '@/lib/api'
+
 export type StoredAIKeyProvider = 'gemini' | 'openai'
 
 export interface StoredAIKeyStatus {
   gemini: boolean
   openai: boolean
 }
-
-const API_BASE_URL = 'http://localhost:3000'
 
 async function parseResponse(response: Response): Promise<unknown> {
   const data: unknown = await response.json().catch(() => null)
@@ -27,7 +27,7 @@ async function parseResponse(response: Response): Promise<unknown> {
 
 export async function getStoredAIKeyStatus(): Promise<StoredAIKeyStatus> {
   const response = await fetch(
-    `${API_BASE_URL}/api/account/ai-keys`,
+    `${API_URL}/api/account/ai-keys`,
     {
       credentials: 'include',
     },
@@ -41,7 +41,7 @@ export async function saveStoredAIKey(
   apiKey: string,
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE_URL}/api/account/ai-keys/${provider}`,
+    `${API_URL}/api/account/ai-keys/${provider}`,
     {
       method: 'PUT',
       credentials: 'include',
@@ -59,7 +59,7 @@ export async function deleteStoredAIKey(
   provider: StoredAIKeyProvider,
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE_URL}/api/account/ai-keys/${provider}`,
+    `${API_URL}/api/account/ai-keys/${provider}`,
     {
       method: 'DELETE',
       credentials: 'include',

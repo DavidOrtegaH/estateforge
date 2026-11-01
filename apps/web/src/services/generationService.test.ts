@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { API_URL } from '@/lib/api'
 import {
   GenerationApiError,
   generateListing,
@@ -69,7 +70,7 @@ describe('generationService', () => {
 
     expect(result.listing).toEqual(listing)
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:3000/api/generations',
+      `${API_URL}/api/generations`,
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
