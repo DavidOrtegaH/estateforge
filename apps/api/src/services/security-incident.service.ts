@@ -33,7 +33,8 @@ export async function reportSecurityIncident(token: string): Promise<'reported' 
     if (claimed.count !== 1) return 'invalid'
     await tx.user.update({
       where: { id: record.userId },
-      data: { securityHoldAt: now },
+      // Cada incidente recibe una versión nueva, aunque la cuenta ya estuviera protegida.
+      data: { securityHoldAt: now, securityHoldVersion: { increment: 1 } },
     })
     await tx.session.deleteMany({ where: { userId: record.userId } })
     await tx.passwordResetToken.deleteMany({ where: { userId: record.userId } })

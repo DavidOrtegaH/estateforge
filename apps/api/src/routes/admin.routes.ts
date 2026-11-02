@@ -15,13 +15,17 @@ const UsersQuery = z.object({
   search: z.string().catch('').transform(value => value.trim().slice(0, 120)),
   page: pageQuery(10000),
 })
-const AUDIT_ACTIONS = ['ACCOUNT_SUSPENDED', 'ACCOUNT_UNSUSPENDED', 'SESSIONS_REVOKED'] as const
+const AUDIT_ACTIONS = ['ACCOUNT_SUSPENDED', 'ACCOUNT_UNSUSPENDED', 'SESSIONS_REVOKED', 'SECURITY_HOLD_RESOLVED'] as const
 // Un filtro inválido o repetido no filtra, igual que page y search.
 const AuditQuery = z.object({
   page: pageQuery(100000),
   action: z.enum(AUDIT_ACTIONS).optional().catch(undefined),
   targetUserId: z.string().trim().min(1).max(128).optional().catch(undefined),
 })
+
+// La protección por incidente y la suspensión administrativa son estados independientes:
+// una cuenta protegida no se suspende, se resuelve primero su protección.
+const HELD_SUSPEND_MESSAGE = 'La cuenta está protegida por un incidente de seguridad; no se puede suspender administrativamente.'
 
 // Límite para las acciones que modifican cuentas; las consultas no lo tienen.
 const ACCOUNT_ACTION_RATE_LIMIT = { max: 20, timeWindow: '1 minute' }
@@ -130,27 +134,32 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!body.success) return reply.code(400).send({ message: 'Indica un motivo de entre 3 y 500 caracteres.' })
     const actorUserId = request.userId
     if (!actorUserId || actorUserId === params.data.id) return reply.code(400).send({ message: 'No puedes suspender tu propia cuenta.' })
-    const target = await prisma.user.findUnique({ where: { id: params.data.id }, select: { id: true, email: true, role: true, adminSuspendedAt: true } })
+    const target = await prisma.user.findUnique({ where: { id: params.data.id }, select: { id: true, email: true, role: true, adminSuspendedAt: true, securityHoldAt: true } })
     if (!target) return reply.code(404).send({ message: 'No se ha encontrado la cuenta.' })
     if (target.role === 'OWNER') return reply.code(403).send({ message: 'No se pueden suspender cuentas propietarias.' })
     if (target.adminSuspendedAt) return reply.code(409).send({ message: 'La cuenta ya está suspendida administrativamente.' })
+    if (target.securityHoldAt) return reply.code(409).send({ message: HELD_SUSPEND_MESSAGE })
     const metadata = buildAuditMetadata({ actorEmail: await actorEmail(actorUserId), targetEmail: target.email })
     const now = new Date()
-    // La condición forma parte de la escritura: si otra petición suspendió la cuenta
-    // después de la comprobación anterior, no se escribe nada y se responde 409.
-    const suspended = await prisma.$transaction(async tx => {
+    // La condición forma parte de la escritura: si otra petición suspendió o protegió
+    // la cuenta después de la comprobación anterior, no se escribe nada y se responde 409.
+    const outcome = await prisma.$transaction(async tx => {
       const updated = await tx.user.updateMany({
-        where: { id: target.id, adminSuspendedAt: null },
+        where: { id: target.id, adminSuspendedAt: null, securityHoldAt: null },
         data: { adminSuspendedAt: now, adminSuspensionReason: body.data.reason },
       })
-      if (updated.count !== 1) return false
+      if (updated.count !== 1) {
+        const current = await tx.user.findUnique({ where: { id: target.id }, select: { securityHoldAt: true } })
+        return current?.securityHoldAt ? 'held' : 'already-suspended'
+      }
       await tx.session.deleteMany({ where: { userId: target.id } })
       await tx.passwordResetToken.deleteMany({ where: { userId: target.id } })
       await tx.emailChangeVerification.deleteMany({ where: { userId: target.id, usedAt: null } })
       await tx.adminAuditLog.create({ data: { actorUserId, targetUserId: target.id, action: 'ACCOUNT_SUSPENDED', reason: body.data.reason, metadata } })
-      return true
+      return 'suspended'
     })
-    if (!suspended) return reply.code(409).send({ message: 'La cuenta ya está suspendida administrativamente.' })
+    if (outcome === 'held') return reply.code(409).send({ message: HELD_SUSPEND_MESSAGE })
+    if (outcome === 'already-suspended') return reply.code(409).send({ message: 'La cuenta ya está suspendida administrativamente.' })
     return { success: true, message: 'Cuenta suspendida y sesiones cerradas.' }
   })
 
@@ -177,6 +186,39 @@ export async function adminRoutes(app: FastifyInstance) {
     })
     if (!unsuspended) return reply.code(409).send({ message: 'La cuenta no tiene una suspensión administrativa activa.' })
     return { success: true, message: 'Suspensión administrativa retirada. Si existe una protección por incidente, seguirá activa.' }
+  })
+
+  // Retira solo la protección por incidente: no toca la suspensión, sesiones, tokens ni contraseña.
+  app.post('/api/admin/users/:id/resolve-security-hold', { preHandler: requireOwner, config: { rateLimit: ACCOUNT_ACTION_RATE_LIMIT } }, async (request, reply) => {
+    const params = validParams(request.params)
+    const body = ActionReasonBody.safeParse(request.body)
+    if (!params.success) return reply.code(400).send({ message: 'Identificador de cuenta no válido.' })
+    if (!body.success) return reply.code(400).send({ message: 'Indica un motivo de entre 3 y 500 caracteres.' })
+    const actorUserId = request.userId
+    if (!actorUserId || actorUserId === params.data.id) return reply.code(400).send({ message: 'No puedes modificar tu propia cuenta desde esta acción.' })
+    const target = await prisma.user.findUnique({ where: { id: params.data.id }, select: { id: true, email: true, role: true, securityHoldAt: true, securityHoldVersion: true } })
+    if (!target) return reply.code(404).send({ message: 'No se ha encontrado la cuenta.' })
+    if (target.role === 'OWNER') return reply.code(403).send({ message: 'No se pueden modificar cuentas propietarias.' })
+    if (!target.securityHoldAt) return reply.code(409).send({ message: 'La cuenta no tiene una protección por incidente activa.' })
+    // Solo se retira la protección comprobada: cada incidente nuevo incrementa la versión,
+    // así que si cambia antes de escribir no se toca nada y se responde 409.
+    const heldVersion = target.securityHoldVersion
+    const metadata = buildAuditMetadata({ actorEmail: await actorEmail(actorUserId), targetEmail: target.email })
+    const outcome = await prisma.$transaction(async tx => {
+      const updated = await tx.user.updateMany({
+        where: { id: target.id, securityHoldAt: { not: null }, securityHoldVersion: heldVersion },
+        data: { securityHoldAt: null },
+      })
+      if (updated.count !== 1) {
+        const current = await tx.user.findUnique({ where: { id: target.id }, select: { securityHoldAt: true } })
+        return current?.securityHoldAt ? 'hold-changed' : 'not-held'
+      }
+      await tx.adminAuditLog.create({ data: { actorUserId, targetUserId: target.id, action: 'SECURITY_HOLD_RESOLVED', reason: body.data.reason, metadata } })
+      return 'resolved'
+    })
+    if (outcome === 'hold-changed') return reply.code(409).send({ message: 'La protección por incidente ha cambiado durante la operación. Revisa la cuenta antes de volver a intentarlo.' })
+    if (outcome === 'not-held') return reply.code(409).send({ message: 'La cuenta no tiene una protección por incidente activa.' })
+    return { success: true, message: 'Protección por incidente retirada. Si existe una suspensión administrativa, seguirá activa.' }
   })
 
   app.post('/api/admin/users/:id/revoke-sessions', { preHandler: requireOwner, config: { rateLimit: ACCOUNT_ACTION_RATE_LIMIT } }, async (request, reply) => {

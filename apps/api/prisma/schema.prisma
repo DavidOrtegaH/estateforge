@@ -16,6 +16,7 @@ model User {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   securityHoldAt      DateTime?
+  securityHoldVersion Int                 @default(0)
   adminSuspendedAt    DateTime?
   adminSuspensionReason String?
   role                String              @default("USER")

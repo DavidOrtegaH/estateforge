@@ -20,6 +20,7 @@ interface UserRecord {
   role: Role
   createdAt: Date
   securityHoldAt: Date | null
+  securityHoldVersion: number
   adminSuspendedAt: Date | null
   adminSuspensionReason: string | null
 }
@@ -89,6 +90,7 @@ const fake = vi.hoisted(() => {
     // de la ruta y su escritura condicional.
     beforeUserUpdateMany: null as (() => void) | null,
     userUpdateManyCalls: 0,
+    lastUserUpdateManyWhere: null as Where | null,
     // Últimos argumentos de paginación recibidos por los findMany.
     lastUserFindMany: null as FindManyArgs | null,
     lastAuditFindMany: null as FindManyArgs | null,
@@ -162,6 +164,11 @@ const fake = vi.hoisted(() => {
         }
 
         throw new Error(`Filtro no soportado por el falso: ${key}`)
+      }
+
+      // Prisma compara las fechas por valor (texto ISO con milisegundos), no por referencia.
+      if (expected instanceof Date) {
+        return value instanceof Date && value.getTime() === expected.getTime()
       }
 
       return value === expected
@@ -264,6 +271,7 @@ const fake = vi.hoisted(() => {
         return deferred(() => {
           recordWrite()
           state.userUpdateManyCalls += 1
+          state.lastUserUpdateManyWhere = args.where
           state.beforeUserUpdateMany?.()
           const users = state.store.users.filter(user => matches(user, args.where))
           for (const user of users) Object.assign(user, args.data)
@@ -394,6 +402,8 @@ function user(id: string, role: Role, extra: Partial<UserRecord> = {}): UserReco
     role,
     createdAt: new Date('2026-09-01T00:00:00.000Z'),
     securityHoldAt: null,
+    // Valor por defecto de la migración: también el de las cuentas protegidas antes de ella.
+    securityHoldVersion: 0,
     adminSuspendedAt: null,
     adminSuspensionReason: null,
     ...extra,
@@ -451,8 +461,8 @@ function idsOf(rows: { id: string; userId: string }[], userId: string): string[]
 const cookieFor = (token: string) => ({ cookie: `estateforge_session=${token}` })
 const asOwner = cookieFor('owner-token')
 
-type ActionRoute = 'suspend' | 'unsuspend' | 'revoke-sessions'
-const ACTIONS: ActionRoute[] = ['suspend', 'unsuspend', 'revoke-sessions']
+type ActionRoute = 'suspend' | 'unsuspend' | 'revoke-sessions' | 'resolve-security-hold'
+const ACTIONS: ActionRoute[] = ['suspend', 'unsuspend', 'revoke-sessions', 'resolve-security-hold']
 
 const ALL_ROUTES = [
   { method: 'GET' as const, url: '/api/admin/overview' },
@@ -482,6 +492,7 @@ describe('Admin routes', () => {
     fake.state.auditFailureInsideTransaction = null
     fake.state.beforeUserUpdateMany = null
     fake.state.userUpdateManyCalls = 0
+    fake.state.lastUserUpdateManyWhere = null
     fake.state.lastUserFindMany = null
     fake.state.userFindManyCalls = 0
     fake.state.beforeUserFindUnique = null
@@ -608,6 +619,7 @@ describe('Admin routes', () => {
       ['suspend', 'No puedes suspender tu propia cuenta.'],
       ['unsuspend', 'No puedes modificar tu propia cuenta desde esta acción.'],
       ['revoke-sessions', 'No puedes cerrar tus propias sesiones desde esta acción.'],
+      ['resolve-security-hold', 'No puedes modificar tu propia cuenta desde esta acción.'],
     ] as const)('%s sobre la propia cuenta devuelve 400', async (route, message) => {
       const before = structuredClone(store())
 
@@ -622,9 +634,14 @@ describe('Admin routes', () => {
       ['suspend', 'No se pueden suspender cuentas propietarias.'],
       ['unsuspend', 'No se pueden modificar cuentas propietarias.'],
       ['revoke-sessions', 'No se pueden cerrar sesiones de otra cuenta propietaria desde este panel.'],
+      ['resolve-security-hold', 'No se pueden modificar cuentas propietarias.'],
     ] as const)('%s sobre otra cuenta OWNER devuelve 403', async (route, message) => {
       if (route === 'unsuspend') {
         findUser(OTHER_OWNER).adminSuspendedAt = SUSPENSION_DATE
+      }
+      if (route === 'resolve-security-hold') {
+        // Con la protección activa, el 403 se debe al rol y no a la falta de protección.
+        findUser(OTHER_OWNER).securityHoldAt = HOLD_DATE
       }
       const before = structuredClone(store())
 
@@ -931,6 +948,303 @@ describe('Admin routes', () => {
       expect(fake.state.auditFailureInsideTransaction).toBe(true)
       expect(store()).toEqual(before)
       expect(idsOf(store().sessions, TARGET)).toEqual(['s-target-1', 's-target-2'])
+    })
+  })
+
+  // ----------------------------------------------------------
+  // SUSPENSIÓN DE CUENTAS PROTEGIDAS (S4)
+  // ----------------------------------------------------------
+
+  describe('suspend sobre una cuenta protegida por incidente', () => {
+    const HELD_MESSAGE = 'La cuenta está protegida por un incidente de seguridad; no se puede suspender administrativamente.'
+
+    it('devuelve 409 sin escribir nada si la cuenta ya está protegida', async () => {
+      findUser(TARGET).securityHoldAt = HOLD_DATE
+      const before = structuredClone(store())
+
+      const response = await action('suspend', TARGET, { reason: 'Motivo válido' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: HELD_MESSAGE })
+      expect(fake.state.userUpdateManyCalls).toBe(0)
+      expect(store()).toEqual(before)
+    })
+
+    it('devuelve 409 sin efectos si la cuenta se protege antes de la escritura condicional', async () => {
+      fake.state.beforeUserUpdateMany = () => {
+        findUser(TARGET).securityHoldAt = HOLD_DATE
+      }
+
+      const response = await action('suspend', TARGET, { reason: 'Motivo perdedor' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: HELD_MESSAGE })
+      expect(fake.state.userUpdateManyCalls).toBe(1)
+      expect(findUser(TARGET).adminSuspendedAt).toBeNull()
+      expect(findUser(TARGET).adminSuspensionReason).toBeNull()
+      expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
+      expect(store().adminAuditLogs).toEqual([])
+      expect(idsOf(store().sessions, TARGET)).toEqual(['s-target-1', 's-target-2'])
+      expect(idsOf(store().passwordResetTokens, TARGET)).toEqual(['prt-target-pending', 'prt-target-used'])
+      expect(idsOf(store().emailChangeVerifications, TARGET)).toEqual(['ecv-target-pending', 'ecv-target-used'])
+    })
+
+    it('si otra petición suspende la cuenta antes de la escritura, mantiene el 409 de cuenta ya suspendida', async () => {
+      fake.state.beforeUserUpdateMany = () => {
+        findUser(TARGET).adminSuspendedAt = SUSPENSION_DATE
+      }
+
+      const response = await action('suspend', TARGET, { reason: 'Motivo perdedor' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: 'La cuenta ya está suspendida administrativamente.' })
+      expect(store().adminAuditLogs).toEqual([])
+    })
+
+    it('una cuenta sin protección se sigue suspendiendo como antes', async () => {
+      const response = await action('suspend', TARGET, { reason: 'Motivo válido' })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ success: true, message: 'Cuenta suspendida y sesiones cerradas.' })
+      expect(findUser(TARGET).adminSuspendedAt).toBeInstanceOf(Date)
+      expect(findUser(TARGET).securityHoldAt).toBeNull()
+      expect(store().adminAuditLogs).toEqual([expect.objectContaining({ action: 'ACCOUNT_SUSPENDED' })])
+    })
+  })
+
+  // ----------------------------------------------------------
+  // RETIRAR LA PROTECCIÓN POR INCIDENTE
+  // ----------------------------------------------------------
+
+  describe('resolve-security-hold', () => {
+    const NOT_HELD_MESSAGE = 'La cuenta no tiene una protección por incidente activa.'
+    const HOLD_CHANGED_MESSAGE = 'La protección por incidente ha cambiado durante la operación. Revisa la cuenta antes de volver a intentarlo.'
+
+    beforeEach(() => {
+      findUser(TARGET).securityHoldAt = HOLD_DATE
+    })
+
+    it('retira la protección y registra auditoría SECURITY_HOLD_RESOLVED', async () => {
+      const response = await action('resolve-security-hold', TARGET, { reason: '  Incidente revisado  ' })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        success: true,
+        message: 'Protección por incidente retirada. Si existe una suspensión administrativa, seguirá activa.',
+      })
+      expect(fake.state.userUpdateManyCalls).toBe(1)
+      expect(findUser(TARGET).securityHoldAt).toBeNull()
+      expect(store().adminAuditLogs).toEqual([
+        expect.objectContaining({
+          actorUserId: OWNER,
+          targetUserId: TARGET,
+          action: 'SECURITY_HOLD_RESOLVED',
+          reason: 'Incidente revisado',
+          metadata: JSON.stringify({ actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET) }),
+        }),
+      ])
+    })
+
+    it.each([
+      ['exactamente 3 caracteres', 'abc'],
+      ['exactamente 500 caracteres', 'a'.repeat(500)],
+    ])('acepta un motivo de %s', async (_label, reason) => {
+      const response = await action('resolve-security-hold', TARGET, { reason })
+
+      expect(response.statusCode).toBe(200)
+      expect(store().adminAuditLogs[0].reason).toBe(reason)
+    })
+
+    it('no modifica la suspensión administrativa', async () => {
+      findUser(TARGET).adminSuspendedAt = SUSPENSION_DATE
+      findUser(TARGET).adminSuspensionReason = 'Motivo anterior'
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+      expect(response.statusCode).toBe(200)
+      expect(findUser(TARGET).securityHoldAt).toBeNull()
+      expect(findUser(TARGET).adminSuspendedAt).toEqual(SUSPENSION_DATE)
+      expect(findUser(TARGET).adminSuspensionReason).toBe('Motivo anterior')
+    })
+
+    it('no modifica sesiones, tokens ni otros datos de la cuenta', async () => {
+      const before = structuredClone(store())
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+      expect(response.statusCode).toBe(200)
+      expect(store()).toEqual({
+        ...before,
+        users: before.users.map(item => (item.id === TARGET ? { ...item, securityHoldAt: null } : item)),
+        adminAuditLogs: store().adminAuditLogs,
+      })
+      expect(store().adminAuditLogs).toHaveLength(1)
+    })
+
+    it('devuelve 409 sin escribir nada si la cuenta no está protegida', async () => {
+      findUser(TARGET).securityHoldAt = null
+      const before = structuredClone(store())
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo válido' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: NOT_HELD_MESSAGE })
+      expect(fake.state.userUpdateManyCalls).toBe(0)
+      expect(store()).toEqual(before)
+    })
+
+    it('devuelve 409 sin auditoría si otra petición retira la protección antes de la escritura condicional', async () => {
+      fake.state.beforeUserUpdateMany = () => {
+        findUser(TARGET).securityHoldAt = null
+      }
+      const before = structuredClone(store())
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: NOT_HELD_MESSAGE })
+      expect(fake.state.userUpdateManyCalls).toBe(1)
+      expect(store().adminAuditLogs).toEqual([])
+      // El único cambio es el de la otra petición.
+      expect(store()).toEqual({
+        ...before,
+        users: before.users.map(item => (item.id === TARGET ? { ...item, securityHoldAt: null } : item)),
+      })
+    })
+
+    it('no retira una protección nueva que aparece entre la lectura y la escritura', async () => {
+      const newHold = new Date(HOLD_DATE.getTime() + 1)
+      fake.state.beforeUserUpdateMany = () => {
+        // Nuevo incidente, como lo registra reportSecurityIncident: nueva fecha y versión + 1.
+        findUser(TARGET).securityHoldAt = newHold
+        findUser(TARGET).securityHoldVersion += 1
+      }
+      const before = structuredClone(store())
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
+      expect(fake.state.userUpdateManyCalls).toBe(1)
+      expect(findUser(TARGET).securityHoldAt).toEqual(newHold)
+      expect(store().adminAuditLogs).toEqual([])
+      // El único cambio es el del nuevo incidente.
+      expect(store()).toEqual({
+        ...before,
+        users: before.users.map(item => (item.id === TARGET ? { ...item, securityHoldAt: newHold, securityHoldVersion: 1 } : item)),
+      })
+    })
+
+    it('no retira un incidente nuevo con la misma fecha si su versión es distinta', async () => {
+      fake.state.beforeUserUpdateMany = () => {
+        // Mismo milisegundo, otro incidente: solo la versión los distingue.
+        findUser(TARGET).securityHoldVersion += 1
+      }
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
+      expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
+      expect(findUser(TARGET).securityHoldVersion).toBe(1)
+      expect(store().adminAuditLogs).toEqual([])
+    })
+
+    it('no aplica una retirada antigua si entre medias se retiró la protección y llegó otro incidente', async () => {
+      fake.state.beforeUserUpdateMany = () => {
+        // Otra persona retiró la protección (versión 0) y después se registró otro incidente.
+        findUser(TARGET).securityHoldAt = new Date(HOLD_DATE.getTime())
+        findUser(TARGET).securityHoldVersion = 1
+      }
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Retirada antigua' })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
+      expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
+      expect(findUser(TARGET).securityHoldVersion).toBe(1)
+      expect(store().adminAuditLogs).toEqual([])
+    })
+
+    it('con la misma versión, la retirada no depende de la fecha guardada', async () => {
+      fake.state.beforeUserUpdateMany = () => {
+        // La fecha leída puede no coincidir textualmente con la guardada; la versión sí.
+        findUser(TARGET).securityHoldAt = new Date(HOLD_DATE.getTime() + 5)
+      }
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+      expect(response.statusCode).toBe(200)
+      expect(findUser(TARGET).securityHoldAt).toBeNull()
+      expect(store().adminAuditLogs).toEqual([expect.objectContaining({ action: 'SECURITY_HOLD_RESOLVED' })])
+    })
+
+    it('envía a Prisma la condición por protección activa y versión leída', async () => {
+      findUser(TARGET).securityHoldVersion = 3
+
+      await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+      expect(fake.state.lastUserUpdateManyWhere).toEqual({
+        id: TARGET,
+        securityHoldAt: { not: null },
+        securityHoldVersion: 3,
+      })
+    })
+
+    it('retira una protección anterior a la migración (versión 0) sin cambiar el contador', async () => {
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+      expect(response.statusCode).toBe(200)
+      expect(findUser(TARGET).securityHoldAt).toBeNull()
+      expect(findUser(TARGET).securityHoldVersion).toBe(0)
+      expect(store().adminAuditLogs).toHaveLength(1)
+    })
+
+    it('retira una protección con versión distinta de 0 sin cambiar el contador', async () => {
+      findUser(TARGET).securityHoldVersion = 3
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+      expect(response.statusCode).toBe(200)
+      expect(findUser(TARGET).securityHoldAt).toBeNull()
+      expect(findUser(TARGET).securityHoldVersion).toBe(3)
+    })
+
+    it('dos retiradas seguidas de la misma protección solo registran una auditoría', async () => {
+      const first = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+      const second = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+      expect(first.statusCode).toBe(200)
+      expect(second.statusCode).toBe(409)
+      expect(second.json()).toEqual({ message: NOT_HELD_MESSAGE })
+      expect(store().adminAuditLogs).toHaveLength(1)
+    })
+
+    it('revierte todos los cambios si falla la auditoría dentro de la transacción', async () => {
+      fake.state.failAuditCreate = true
+      const before = structuredClone(store())
+
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo válido' })
+
+      expect(response.statusCode).toBe(500)
+      expect(fake.state.auditFailureInsideTransaction).toBe(true)
+      expect(store()).toEqual(before)
+      expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
+    })
+
+    it('la acción queda disponible en el filtro de auditoría', async () => {
+      await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+      await action('revoke-sessions', USER, { reason: 'Otra acción' })
+
+      const response = await app.inject({ method: 'GET', url: '/api/admin/audit?action=SECURITY_HOLD_RESOLVED', headers: asOwner })
+
+      expect(response.statusCode).toBe(200)
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ action: 'SECURITY_HOLD_RESOLVED' })
+      expect(fake.state.lastAuditCount?.where).toEqual({ action: 'SECURITY_HOLD_RESOLVED' })
+      expect(response.json().logs).toEqual([
+        expect.objectContaining({ action: 'SECURITY_HOLD_RESOLVED', targetUserId: TARGET, targetEmail: emailOf(TARGET) }),
+      ])
+      expect(response.json().pagination.total).toBe(1)
     })
   })
 
