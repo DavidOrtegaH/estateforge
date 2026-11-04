@@ -33,3 +33,6 @@ Thumbs.db
 
 # Codigo del proyecto en txt exprtaciones de contenido
 codigo_proyecto.txt
+
+# Base de datos SQLite local de desarrollo (se recrea con las migraciones de Prisma)
+apps/api/dev.db*
