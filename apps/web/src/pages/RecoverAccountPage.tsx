@@ -37,6 +37,13 @@ const CLOSED_LINK_MESSAGES: Record<ClosedLinkKind | 'missing_token', string> = {
     'No se ha podido completar la recuperación porque el email de recuperación no está disponible. Contacta con soporte.',
 }
 
+// Solo un enlace ausente, inválido o caducado se resuelve pidiendo otro; en los demás
+// estados el texto remite a soporte.
+const REQUEST_NEW_LINK_REASONS: readonly (ClosedLinkKind | 'missing_token')[] = [
+  'missing_token',
+  'invalid_link',
+]
+
 const UNEXPECTED_ERROR_MESSAGE =
   'No se ha podido completar la recuperación. Inténtalo de nuevo en unos minutos.'
 
@@ -179,6 +186,18 @@ function RecoverAccountPage() {
             {CLOSED_LINK_MESSAGES[pageState.reason]}
           </p>
         )}
+
+        {pageState.status === 'closed' &&
+          REQUEST_NEW_LINK_REASONS.includes(pageState.reason) && (
+            <p className="mt-3 text-sm">
+              <Link
+                to="/recuperar-cuenta/solicitar"
+                className="font-medium text-primary hover:underline"
+              >
+                Solicitar un enlace nuevo
+              </Link>
+            </p>
+          )}
 
         {pageState.status === 'form' && (
           <form

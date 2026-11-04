@@ -188,6 +188,82 @@ export async function completeSecurityRecovery(
   return data.message
 }
 
+// Mensaje del 423 de login cuando la cuenta tiene la recuperación obligatoria pendiente.
+// La API solo devuelve { message }, así que se reconoce por su texto exacto.
+const PASSWORD_RESET_REQUIRED_MESSAGE =
+  'Debes establecer una contraseña nueva antes de volver a acceder. Si no has recibido el enlace de recuperación, contacta con soporte.'
+
+export function isSecurityRecoveryRequiredMessage(message: string): boolean {
+  return message === PASSWORD_RESET_REQUIRED_MESSAGE
+}
+
+// Solicitud de un enlace nuevo de recuperación obligatoria (E4.1). Ningún mensaje de error
+// incluye el email ni detalles del servidor: solo el texto de la API en un 400 o textos propios.
+const SECURITY_RECOVERY_REQUEST_RATE_LIMITED_MESSAGE =
+  'Has hecho demasiadas solicitudes. Inténtalo de nuevo más tarde.'
+const SECURITY_RECOVERY_REQUEST_UNEXPECTED_MESSAGE =
+  'No se ha podido enviar la solicitud. Inténtalo de nuevo en unos minutos.'
+
+export type SecurityRecoveryRequestErrorKind =
+  // 400: validación o Turnstile; el mensaje de la API indica qué corregir.
+  | 'rejected'
+  // 429: límite de solicitudes por IP.
+  | 'rate_limited'
+  // Cualquier otra respuesta, una respuesta no JSON o un fallo de red.
+  | 'unexpected'
+
+export class SecurityRecoveryRequestError extends Error {
+  readonly kind: SecurityRecoveryRequestErrorKind
+
+  constructor(message: string, kind: SecurityRecoveryRequestErrorKind) {
+    super(message)
+    this.name = 'SecurityRecoveryRequestError'
+    this.kind = kind
+  }
+}
+
+async function readMessage(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as { message?: unknown }
+    return typeof body.message === 'string' && body.message ? body.message : null
+  } catch {
+    return null
+  }
+}
+
+export async function requestSecurityRecoveryLink(
+  email: string,
+  turnstileToken?: string,
+): Promise<string> {
+  let response: Response
+
+  try {
+    response = await fetch(`${API_URL}/api/auth/security-recovery/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, turnstileToken }),
+    })
+  } catch {
+    throw new SecurityRecoveryRequestError(SECURITY_RECOVERY_REQUEST_UNEXPECTED_MESSAGE, 'unexpected')
+  }
+
+  if (response.status === 429) {
+    throw new SecurityRecoveryRequestError(SECURITY_RECOVERY_REQUEST_RATE_LIMITED_MESSAGE, 'rate_limited')
+  }
+
+  const message = await readMessage(response)
+
+  if (response.ok && message) {
+    return message
+  }
+
+  if (response.status === 400 && message) {
+    throw new SecurityRecoveryRequestError(message, 'rejected')
+  }
+
+  throw new SecurityRecoveryRequestError(SECURITY_RECOVERY_REQUEST_UNEXPECTED_MESSAGE, 'unexpected')
+}
+
 export async function changePassword(
   currentPassword: string,
   newPassword: string,

@@ -7,6 +7,7 @@ import {
   getAdminUserDetail,
   getAdminUsers,
   runAdminUserAction,
+  type AdminAuditAction,
 } from './adminService'
 
 function jsonResponse(body: unknown, status = 200) {
@@ -118,6 +119,45 @@ describe('adminService', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_URL}/api/admin/audit?page=1&action=SESSIONS_REVOKED`,
+      expect.objectContaining({ credentials: 'include' }),
+    )
+  })
+
+  it.each([
+    'SECURITY_HOLD_RESOLVED',
+    'SECURITY_RECOVERY_DESTINATION_CHANGED',
+    'SECURITY_RECOVERY_LINK_RESENT',
+    'SECURITY_RECOVERY_LINK_REQUESTED',
+    'SECURITY_RECOVERY_COMPLETED',
+  ] as const)('envía el filtro por la acción de recuperación %s', async (action) => {
+    const fetchMock = stubFetch(jsonResponse({ logs: [], pagination }))
+
+    await getAdminAudit(1, { action })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_URL}/api/admin/audit?page=1&action=${action}`,
+      expect.objectContaining({ credentials: 'include' }),
+    )
+  })
+
+  it('combina una acción de recuperación con el filtro por cuenta', async () => {
+    const fetchMock = stubFetch(jsonResponse({ logs: [], pagination }))
+
+    await getAdminAudit(3, { action: 'SECURITY_RECOVERY_LINK_REQUESTED', targetUserId: 'user/1' })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_URL}/api/admin/audit?page=3&action=SECURITY_RECOVERY_LINK_REQUESTED&targetUserId=user%2F1`,
+      expect.objectContaining({ credentials: 'include' }),
+    )
+  })
+
+  it('codifica la acción: un valor inesperado no añade parámetros a la URL', async () => {
+    const fetchMock = stubFetch(jsonResponse({ logs: [], pagination }))
+
+    await getAdminAudit(1, { action: 'SESSIONS_REVOKED&targetUserId=otra' as AdminAuditAction })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_URL}/api/admin/audit?page=1&action=SESSIONS_REVOKED%26targetUserId%3Dotra`,
       expect.objectContaining({ credentials: 'include' }),
     )
   })

@@ -14,6 +14,7 @@ import {
 } from '@/components/security/TurnstileField'
 
 import { PasswordInput } from '@/components/ui/PasswordInput'
+import { isSecurityRecoveryRequiredMessage } from '@/services/authService'
 
 interface LocationState {
   from?: {
@@ -266,6 +267,17 @@ function LoginPage() {
           {error && (
             <p className="text-sm text-destructive">
               {error}
+            </p>
+          )}
+
+          {error && isSecurityRecoveryRequiredMessage(error) && (
+            <p className="text-sm">
+              <Link
+                to="/recuperar-cuenta/solicitar"
+                className="font-medium text-primary hover:underline"
+              >
+                Solicitar un enlace de recuperación
+              </Link>
             </p>
           )}
 

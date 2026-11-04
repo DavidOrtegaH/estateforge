@@ -16,11 +16,20 @@ export type AdminAuditLog = {
   actorEmail: string | null; actorEmailAtAction: string | null; actorFound: boolean | null
   targetEmail: string | null; targetEmailAtAction: string | null; targetFound: boolean | null
   revokedCount: number | null
+  // De dónde salió el destino de la recuperación (E2.4); la API nunca devuelve la dirección.
+  recoveryDestination: AuditRecoveryDestination | null
 }
+export type AuditRecoveryDestination = 'STORED' | 'OWNER_PROVIDED' | 'OWNER_CORRECTED'
+// Las mismas acciones que acepta el filtro de GET /api/admin/audit.
 export type AdminAuditAction =
   | 'ACCOUNT_SUSPENDED'
   | 'ACCOUNT_UNSUSPENDED'
   | 'SESSIONS_REVOKED'
+  | 'SECURITY_HOLD_RESOLVED'
+  | 'SECURITY_RECOVERY_DESTINATION_CHANGED'
+  | 'SECURITY_RECOVERY_LINK_RESENT'
+  | 'SECURITY_RECOVERY_LINK_REQUESTED'
+  | 'SECURITY_RECOVERY_COMPLETED'
 export type AdminAuditResponse = { logs: AdminAuditLog[]; pagination: AdminPagination }
 export type AdminUserAction = 'suspend' | 'unsuspend' | 'revoke-sessions'
 
@@ -56,7 +65,7 @@ export function getAdminAudit(
   filters: { action?: AdminAuditAction; targetUserId?: string } = {},
 ): Promise<AdminAuditResponse> {
   let path = `/api/admin/audit?page=${page}`
-  if (filters.action !== undefined) path += `&action=${filters.action}`
+  if (filters.action !== undefined) path += `&action=${encodeURIComponent(filters.action)}`
   if (filters.targetUserId !== undefined && filters.targetUserId.trim() !== '') {
     path += `&targetUserId=${encodeURIComponent(filters.targetUserId)}`
   }

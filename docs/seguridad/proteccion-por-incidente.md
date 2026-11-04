@@ -2,7 +2,7 @@
 
 Este documento describe cómo funciona la protección de una cuenta tras un incidente de seguridad, cómo la retira un administrador y cómo se evita retirar por error una protección más reciente. Distingue entre lo que hace el código actual, lo que está demostrado por pruebas y lo que sigue pendiente.
 
-> **Estado:** la retirada administrativa, el bloqueo de suspensión de cuentas protegidas y el contador de versión (V1–V5) están commiteados en la rama `feat/keys` (`6c19574`). La recuperación obligatoria tras la retirada (E2.1–E2.6) está integrada y verificada en la misma rama, **pendiente de commit**, y se describe en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). Las migraciones del contador y de E2.1 están aplicadas a la base local `apps/api/dev.db` desde el 2026-11-02, y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) desde el 2026-11-04; cualquier otra base debe migrarse antes de usar este código. Ver [Migración del contador](#7-migración-del-contador).
+> **Estado:** la retirada administrativa, el bloqueo de suspensión de cuentas protegidas y el contador de versión (V1–V5) están commiteados en la rama `feat/keys` (`6c19574`). La recuperación obligatoria tras la retirada (E2.1–E2.6) está commiteada en la misma rama (`1a6e29a`) y se describe en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). Las migraciones del contador y de E2.1 están aplicadas a la base local `apps/api/dev.db` desde el 2026-11-02, y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) desde el 2026-11-04; cualquier otra base debe migrarse antes de usar este código. Ver [Migración del contador](#7-migración-del-contador).
 
 ## 1. Dos estados independientes
 
@@ -76,7 +76,7 @@ Mientras `securityHoldAt` no es nulo:
 - borra los tokens de recuperación no usados de la cuenta y crea un token `SECURITY_RECOVERY` ligado al destino (`deliverTo`) y a la versión resuelta (`securityHoldVersion`);
 - registra la auditoría `SECURITY_HOLD_RESOLVED` con el motivo, los emails de operador y cuenta y el origen del destino (`recoveryDestination`: `STORED`, `OWNER_PROVIDED` u `OWNER_CORRECTED`), sin la dirección de destino, el token ni el enlace.
 
-Si cualquier paso falla, no se retira nada. **Después del commit** envía el correo con el enlace a `/recuperar-cuenta`. Si el envío falla, la protección queda retirada pero la obligación y el token se mantienen y la respuesta trae `recoveryEmailSent: false`. La API (`GET /api/admin/audit?action=SECURITY_HOLD_RESOLVED`) admite esta acción como filtro, junto a `ACCOUNT_SUSPENDED`, `ACCOUNT_UNSUSPENDED`, `SESSIONS_REVOKED`, `SECURITY_RECOVERY_COMPLETED`, `SECURITY_RECOVERY_DESTINATION_CHANGED`, `SECURITY_RECOVERY_LINK_RESENT` y `SECURITY_RECOVERY_LINK_REQUESTED`; el panel web todavía no las ofrece ni tiene botón para retirar la protección (**E4, pendiente**).
+Si cualquier paso falla, no se retira nada. **Después del commit** envía el correo con el enlace a `/recuperar-cuenta`. Si el envío falla, la protección queda retirada pero la obligación y el token se mantienen y la respuesta trae `recoveryEmailSent: false`. La API (`GET /api/admin/audit?action=SECURITY_HOLD_RESOLVED`) admite esta acción como filtro, junto a `ACCOUNT_SUSPENDED`, `ACCOUNT_UNSUSPENDED`, `SESSIONS_REVOKED`, `SECURITY_RECOVERY_COMPLETED`, `SECURITY_RECOVERY_DESTINATION_CHANGED`, `SECURITY_RECOVERY_LINK_RESENT` y `SECURITY_RECOVERY_LINK_REQUESTED`; el panel web las muestra con su etiqueta y las ofrece en el filtro del historial (E4.2), pero todavía no tiene botón para retirar la protección.
 
 **Qué no hace:** no modifica la suspensión administrativa, no cambia `securityHoldVersion`, no toca sesiones, contraseña ni `User.email`. La contraseña y el email cambian solo cuando el titular completa la recuperación. Ciclo completo en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md).
 
@@ -230,7 +230,7 @@ pnpm --filter api test   # suite completa de la API, incluida la integración
 
 ## 11. Trabajo pendiente (no disponible todavía)
 
-- **E2 (implementado hasta E2.6, integrado y verificado, pendiente de commit):** la retirada obliga a establecer una contraseña nueva y envía el enlace a un destino autorizado; un OWNER puede corregir el destino o reenviar el enlace, y el propio titular puede pedir un enlace nuevo al destino guardado; ver [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). Queda pendiente la página web de esa solicitud.
+- **E2 (implementado hasta E2.6, commiteado en `1a6e29a`):** la retirada obliga a establecer una contraseña nueva y envía el enlace a un destino autorizado; un OWNER puede corregir el destino o reenviar el enlace, y el propio titular puede pedir un enlace nuevo al destino guardado; ver [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). La página web de esa solicitud es `/recuperar-cuenta/solicitar` (E4.1).
 - **E3:** procedimiento por línea de comandos para retirar la protección de una cuenta OWNER, que deberá incrementar o respetar la versión.
-- **E4:** botón «Retirar protección» y la nueva acción en el filtro del panel web.
+- **Panel web:** botón «Retirar protección» (pendiente, fuera de E4). La acción `SECURITY_HOLD_RESOLVED` ya aparece con su etiqueta y en el filtro del historial (E4.2).
 - **F:** accesibilidad de los diálogos del panel y visibilidad del incidente para el usuario.

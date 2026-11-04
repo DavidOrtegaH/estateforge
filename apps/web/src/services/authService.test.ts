@@ -4,8 +4,11 @@ import { API_URL } from '@/lib/api'
 import {
   completeSecurityRecovery,
   getCurrentUser,
+  isSecurityRecoveryRequiredMessage,
   login,
+  requestSecurityRecoveryLink,
   SecurityRecoveryError,
+  SecurityRecoveryRequestError,
 } from './authService'
 
 const RESET_REQUIRED_MESSAGE =
@@ -127,5 +130,118 @@ describe('completeSecurityRecovery', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
 
     await expect(completeSecurityRecovery(TOKEN, PASSWORD)).rejects.toThrow(TypeError)
+  })
+})
+
+describe('requestSecurityRecoveryLink', () => {
+  // Valores de prueba, no reales.
+  const EMAIL = 'titular@estateforge.test'
+  const GENERIC = 'Si la cuenta puede recuperar el acceso, recibirás instrucciones en el destino de recuperación registrado.'
+  const RATE_LIMITED = 'Has hecho demasiadas solicitudes. Inténtalo de nuevo más tarde.'
+  const UNEXPECTED = 'No se ha podido enviar la solicitud. Inténtalo de nuevo en unos minutos.'
+
+  async function rejection(promise: Promise<unknown>): Promise<SecurityRecoveryRequestError> {
+    const error = await promise.then(() => null, (reason: unknown) => reason)
+    expect(error).toBeInstanceOf(SecurityRecoveryRequestError)
+    expect(error).toBeInstanceOf(Error)
+    const requestError = error as SecurityRecoveryRequestError
+    // Ningún mensaje de error repite el email introducido.
+    expect(requestError.message).not.toContain(EMAIL)
+    return requestError
+  }
+
+  it('envía POST al endpoint de solicitud con el email y Turnstile, sin cookie', async () => {
+    stubFetch(jsonResponse({ message: GENERIC }, 200))
+
+    await requestSecurityRecoveryLink(EMAIL, 'turnstile-de-prueba')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toBe(`${API_URL}/api/auth/security-recovery/request`)
+    expect(init?.method).toBe('POST')
+    expect(init?.headers).toEqual({ 'Content-Type': 'application/json' })
+    // La API acepta este esquema estricto: exactamente estos campos, ni uno más.
+    expect(JSON.parse(String(init?.body))).toEqual({ email: EMAIL, turnstileToken: 'turnstile-de-prueba' })
+    // Ruta pública: no se envía la cookie de sesión.
+    expect(init).not.toHaveProperty('credentials')
+    expect(Object.keys(init ?? {}).sort()).toEqual(['body', 'headers', 'method'])
+  })
+
+  it('sin Turnstile configurado no envía el campo', async () => {
+    stubFetch(jsonResponse({ message: GENERIC }, 200))
+
+    await requestSecurityRecoveryLink(EMAIL)
+
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ email: EMAIL })
+  })
+
+  it('devuelve el mensaje genérico de la API', async () => {
+    stubFetch(jsonResponse({ message: GENERIC }, 200))
+
+    await expect(requestSecurityRecoveryLink(EMAIL)).resolves.toBe(GENERIC)
+  })
+
+  it.each([
+    ['de validación', 'Introduce un email válido.'],
+    ['de Turnstile', 'No se ha podido completar la verificación de seguridad. Inténtalo de nuevo.'],
+  ])('un 400 %s es rejected y conserva el mensaje de la API', async (_label, message) => {
+    stubFetch(jsonResponse({ message }, 400))
+
+    const error = await rejection(requestSecurityRecoveryLink(EMAIL))
+
+    expect(error.kind).toBe('rejected')
+    expect(error.message).toBe(message)
+  })
+
+  it('un 429 es rate_limited con un mensaje propio en español, no el del servidor', async () => {
+    stubFetch(jsonResponse({ statusCode: 429, error: 'Too Many Requests', message: 'Rate limit exceeded, retry in 15 minutes' }, 429))
+
+    const error = await rejection(requestSecurityRecoveryLink(EMAIL))
+
+    expect(error.kind).toBe('rate_limited')
+    expect(error.message).toBe(RATE_LIMITED)
+  })
+
+  it.each([
+    ['un 500 con mensaje', () => jsonResponse({ message: 'Error interno: detalle del servidor' }, 500)],
+    ['un 502 sin cuerpo', () => new Response(null, { status: 502 })],
+    ['un 400 sin mensaje', () => jsonResponse({}, 400)],
+    ['un 400 no JSON', () => new Response('<html>Bad Request</html>', { status: 400 })],
+    ['un 200 no JSON', () => new Response('<html>ok</html>', { status: 200 })],
+    ['un 200 sin mensaje', () => jsonResponse({}, 200)],
+  ])('%s es unexpected y no expone detalles del servidor', async (_label, makeResponse) => {
+    stubFetch(makeResponse())
+
+    const error = await rejection(requestSecurityRecoveryLink(EMAIL))
+
+    expect(error.kind).toBe('unexpected')
+    expect(error.message).toBe(UNEXPECTED)
+  })
+
+  it('un fallo de red es unexpected', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+    const error = await rejection(requestSecurityRecoveryLink(EMAIL))
+
+    expect(error.kind).toBe('unexpected')
+    expect(error.message).toBe(UNEXPECTED)
+  })
+})
+
+describe('isSecurityRecoveryRequiredMessage', () => {
+  it('reconoce el texto exacto del 423 de recuperación pendiente', () => {
+    expect(isSecurityRecoveryRequiredMessage(RESET_REQUIRED_MESSAGE)).toBe(true)
+  })
+
+  it.each([
+    ['otro 423', 'La cuenta está protegida temporalmente. Contacta con soporte para verificar su titularidad.'],
+    ['la suspensión', 'La cuenta está suspendida por el equipo de EstateForge. Contacta con soporte.'],
+    ['credenciales incorrectas', 'Credenciales incorrectas.'],
+    ['el texto con espacios', ` ${RESET_REQUIRED_MESSAGE} `],
+    ['el texto en minúsculas', RESET_REQUIRED_MESSAGE.toLowerCase()],
+    ['solo una parte', 'Debes establecer una contraseña nueva antes de volver a acceder.'],
+    ['un texto vacío', ''],
+  ])('no reconoce %s', (_label, message) => {
+    expect(isSecurityRecoveryRequiredMessage(message)).toBe(false)
   })
 })

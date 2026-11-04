@@ -2,7 +2,7 @@
 
 Este documento describe cómo una cuenta que sufrió un incidente de seguridad vuelve a ser utilizable: el titular tiene que establecer una contraseña nueva, y el email de la cuenta vuelve a la dirección autorizada. Complementa a [Protección por incidente y su versionado](proteccion-por-incidente.md), que explica cómo se protege una cuenta y cómo se evita retirar una protección más reciente.
 
-> **Estado:** E2.1 a E2.6 están integrados y verificados en la rama `feat/keys`, **pendientes de commit**. Las dos migraciones de E2 están en el repositorio y aplicadas a la base local `apps/api/dev.db`: la de E2.1 (`20261102090000_add_security_recovery_fields`) desde el 2026-11-02 y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) desde el 2026-11-04; cualquier otra base debe migrarse antes de usar este código (ver [Migración](#9-migración)). El panel web todavía no tiene botón para retirar la protección (**E4, pendiente**): hoy la retirada solo se hace llamando a la API.
+> **Estado:** E2.1 a E2.6 están commiteados en la rama `feat/keys` (`1a6e29a`). La página web para pedir un enlace nuevo y la presentación de estas acciones en la auditoría del panel (E4.1 y E4.2) están integradas en la misma rama. Las dos migraciones de E2 están en el repositorio y aplicadas a la base local `apps/api/dev.db`: la de E2.1 (`20261102090000_add_security_recovery_fields`) desde el 2026-11-02 y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) desde el 2026-11-04; cualquier otra base debe migrarse antes de usar este código (ver [Migración](#9-migración)). El panel web todavía no tiene botones para retirar la protección, corregir el destino ni reenviar el enlace (pendiente, fuera de E4): hoy esas acciones solo se hacen llamando a la API.
 
 ## 1. Qué problema resuelve
 
@@ -24,6 +24,8 @@ E2 resuelve ambos: guarda el email al que se avisó del incidente, obliga a esta
 | E2.5d | Página web `/recuperar-cuenta` | `apps/web/src/pages/RecoverAccountPage.tsx`, `apps/web/src/services/authService.ts` |
 | E2.5f | Corrección del destino y reenvío del enlace por un OWNER | `apps/api/src/routes/admin.routes.ts` |
 | E2.6 | Solicitud de un enlace nuevo por el propio titular | `apps/api/src/services/security-recovery.service.ts`, `apps/api/src/routes/auth.routes.ts` |
+| E4.1 | Página web `/recuperar-cuenta/solicitar` y enlaces de acceso desde el login y `/recuperar-cuenta` | `apps/web/src/pages/RequestRecoveryLinkPage.tsx`, `apps/web/src/services/authService.ts` |
+| E4.2 | Etiquetas, filtro y origen del destino en la auditoría del panel | `apps/web/src/lib/adminAudit.ts`, `apps/web/src/pages/AdminPage.tsx` |
 
 ### Campos (E2.1)
 
@@ -93,9 +95,9 @@ La retirada exige sesión de un OWNER no protegido (`requireOwner`), no se puede
 
 **Nunca se usa `User.email` como destino de reserva.** Si el incidente fue real, el email actual puede ser el del atacante, y enviarle el enlace le devolvería el control de la cuenta. Las cuentas protegidas antes de E2 no tienen destino guardado: el OWNER debe indicarlo tras verificar la identidad del titular por otra vía. La retirada **no** cambia `User.email`; eso solo ocurre al completar la recuperación.
 
-**Auditoría `SECURITY_HOLD_RESOLVED`:** se registra en la misma transacción. Guarda el OWNER (`actorUserId`), la cuenta (`targetUserId`), el motivo, los emails de ambos en el momento de la acción (como las demás acciones de administración) y `recoveryDestination`. **No** guarda la dirección de destino, el token ni el enlace. `GET /api/admin/audit` expone `recoveryDestination` y acepta como filtro `SECURITY_HOLD_RESOLVED`, `SECURITY_RECOVERY_COMPLETED`, `SECURITY_RECOVERY_DESTINATION_CHANGED`, `SECURITY_RECOVERY_LINK_RESENT` y `SECURITY_RECOVERY_LINK_REQUESTED`; el panel web todavía no muestra estas acciones (**E4, pendiente**).
+**Auditoría `SECURITY_HOLD_RESOLVED`:** se registra en la misma transacción. Guarda el OWNER (`actorUserId`), la cuenta (`targetUserId`), el motivo, los emails de ambos en el momento de la acción (como las demás acciones de administración) y `recoveryDestination`. **No** guarda la dirección de destino, el token ni el enlace. `GET /api/admin/audit` expone `recoveryDestination` y acepta como filtro `SECURITY_HOLD_RESOLVED`, `SECURITY_RECOVERY_COMPLETED`, `SECURITY_RECOVERY_DESTINATION_CHANGED`, `SECURITY_RECOVERY_LINK_RESENT` y `SECURITY_RECOVERY_LINK_REQUESTED`; el panel web las muestra con su etiqueta y permite filtrarlas (ver [Auditoría en el panel de administración](#auditoría-en-el-panel-de-administración-e42)).
 
-**Actor opcional:** `AdminAuditLog.actorUserId` admite NULL (migración `20261103120000_admin_audit_optional_actor`, que reconstruye la tabla porque SQLite no permite quitar `NOT NULL`; conserva las filas y los dos índices). Un registro sin actor es una acción sin un actor autenticado; hoy solo `SECURITY_RECOVERY_LINK_REQUESTED`. En `GET /api/admin/audit` ese registro trae `actorUserId`, `actorEmail`, `actorEmailAtAction` y `actorFound` a `null`, y el panel muestra «Solicitud no autenticada» como operador.
+**Actor opcional:** `AdminAuditLog.actorUserId` admite NULL (migración `20261103120000_admin_audit_optional_actor`, que reconstruye la tabla porque SQLite no permite quitar `NOT NULL`; conserva las filas y los dos índices). Un registro sin actor es una acción sin un actor autenticado; hoy solo `SECURITY_RECOVERY_LINK_REQUESTED`. En `GET /api/admin/audit` ese registro trae `actorUserId`, `actorEmail`, `actorEmailAtAction` y `actorFound` a `null`. El panel muestra «Solicitud no autenticada» como operador, sin identificador de actor. La cuenta afectada continúa mostrándose en su columna correspondiente.
 
 ### Corrección del destino y reenvío del enlace (E2.5f)
 
@@ -123,7 +125,7 @@ Las dos auditorías guardan el OWNER, la cuenta, el motivo y los emails de ambos
 
 ### Solicitud de un enlace nuevo por el titular (E2.6)
 
-El titular puede pedir un enlace nuevo sin intervención de un OWNER con `POST /api/auth/security-recovery/request` (pública, en `apps/api/src/routes/auth.routes.ts`; la lógica está en `apps/api/src/services/security-recovery.service.ts`). No hay todavía página web que la use.
+El titular puede pedir un enlace nuevo sin intervención de un OWNER con `POST /api/auth/security-recovery/request` (pública, en `apps/api/src/routes/auth.routes.ts`; la lógica está en `apps/api/src/services/security-recovery.service.ts`). La usa la página web `/recuperar-cuenta/solicitar` (E4.1, ver sección 7).
 
 - **Cuerpo:** `{ email, turnstileToken? }`, estricto: cualquier otro campo (destino, token, versión…) da 400. El email se valida como en `forgot-password` y se normaliza (`trim` y minúsculas). `turnstileToken` usa el mismo esquema opcional que las demás rutas públicas (`register`, `login`, `forgot-password`, `reset-password`): el servidor solo lo exige si tiene configurada la clave secreta de Turnstile.
 - **Cuentas candidatas:** las que tienen la recuperación pendiente, sin protección ni suspensión y con destino guardado, cuyo `User.email` **o** cuyo `securityRecoveryEmail` coincida con el email introducido. Se procesan **todas**: se leen por páginas de 50, ordenadas por id con un cursor estable (`id` mayor que el último leído). Ninguna se repite y no se omite ninguna de las que coinciden durante todo el recorrido, pero la paginación **no es una instantánea** de la tabla: una cuenta que cambie a la vez los campos de la búsqueda, o una creada con un id anterior al cursor, puede quedar fuera. Cada cuenta procesada se protege con su escritura condicional. Se busca también por el destino porque, si el incidente fue real, el `User.email` actual es el del atacante y el titular solo conoce su email anterior, que es el destino. `securityRecoveryEmail` no tiene índice: esa búsqueda recorre la tabla `User`.
@@ -132,6 +134,37 @@ El titular puede pedir un enlace nuevo sin intervención de un OWNER con `POST /
 - **Envío:** después del commit y **sin esperar** a que termine, para que el tiempo de respuesta no dependa del correo. Los envíos pendientes se registran; cualquier error, incluso antes de llamar al SMTP (por ejemplo, al construir el enlace), se captura y se registra en el log sin datos sensibles, sin dejar rechazos sin gestionar. Ante `SIGINT` o `SIGTERM`, `apps/api/src/server.ts` llama a `registerGracefulShutdown` (`apps/api/src/shutdown.ts`), que cierra la app: Fastify deja terminar las peticiones en curso y después ejecuta el hook `onClose` de `authRoutes`, que espera a todos los envíos registrados, también a los de esas peticiones. Una segunda señal, sea la misma o la otra (SIGTERM y luego SIGINT, o al revés), sale al momento con código 1 sin esperar al cierre; el proceso solo sale una vez. En Windows no se puede probar con un proceso real (enviar la señal a un proceso hijo lo termina sin ejecutar manejadores); se prueba el manejador con un servidor HTTP real y la señal emitida sobre un emisor inyectado. Un cliente que mantenga abierta su conexión (keep-alive) puede retrasar el cierre hasta que esta caduque. En una caída brusca del proceso (por ejemplo, `kill -9`) un envío en curso se perdería; el token y la obligación quedan guardados y el titular puede volver a pedirlo tras el enfriamiento, o un OWNER reenviarlo. Un fallo del SMTP se registra en el log solo con el id de la cuenta y el tipo de error.
 - **Respuesta:** siempre 200 `{ message: "Si la cuenta puede recuperar el acceso, recibirás instrucciones en el destino de recuperación registrado." }`, la misma para una cuenta inexistente, sin recuperación, protegida, suspendida, sin destino, con el destino ocupado, en enfriamiento, con un conflicto de concurrencia, con varias cuentas o con un error interno. No indica cuántas cuentas hay ni si se envió algo.
 - **Abuso:** Turnstile (si está configurado) y 5 solicitudes cada 15 minutos por IP, con contador propio de la ruta. El enfriamiento limita a 4 los correos por hora a cada cuenta y evita invalidar en bucle un enlace recién enviado; como cada enlace nuevo va al mismo destino, un tercero no puede dejar al titular sin enlace. El enfriamiento no afecta a la retirada ni a las acciones del OWNER.
+
+### Auditoría en el panel de administración (E4.2)
+
+El historial de acciones del panel (`/admin`, solo para cuentas OWNER: `OwnerRoute` en la web y `requireOwner` en la API) muestra los registros de `GET /api/admin/audit` con las columnas Acción, Cuenta afectada, Operador, Fecha y Motivo. Las etiquetas y el texto de la columna Acción están en `apps/web/src/lib/adminAudit.ts` (`AUDIT_ACTION_LABELS`, `auditActionLabel`, `recoveryDestinationLabel` y `describeAuditAction`).
+
+| Acción | Etiqueta en el panel | Quién aparece como operador |
+|---|---|---|
+| `ACCOUNT_SUSPENDED` | Cuenta suspendida | El OWNER |
+| `ACCOUNT_UNSUSPENDED` | Suspensión retirada | El OWNER |
+| `SESSIONS_REVOKED` | Sesiones cerradas | El OWNER |
+| `SECURITY_HOLD_RESOLVED` | Protección retirada | El OWNER |
+| `SECURITY_RECOVERY_DESTINATION_CHANGED` | Destino de recuperación corregido | El OWNER |
+| `SECURITY_RECOVERY_LINK_RESENT` | Enlace de recuperación reenviado | El OWNER |
+| `SECURITY_RECOVERY_LINK_REQUESTED` | Enlace solicitado por el titular | «Solicitud no autenticada» (sin actor, sin identificador) |
+| `SECURITY_RECOVERY_COMPLETED` | Recuperación completada | La propia cuenta afectada |
+
+Una acción que el panel no conozca se muestra con su código tal cual.
+
+**Filtro «Acción»:** ofrece «Todas» y las ocho acciones, en el orden de la tabla. Se combina con el filtro por cuenta (botón «Filtrar» de la columna Cuenta afectada). La acción se envía codificada en la URL (`?action=…`) y la API solo acepta esas ocho; un valor no válido no filtra.
+
+**Texto de la columna Acción:** la etiqueta y, entre paréntesis, los datos adicionales que haya: el número de sesiones cerradas en `SESSIONS_REVOKED` (por ejemplo, «Sesiones cerradas (3)») y el origen del destino de recuperación (`recoveryDestination`), por ejemplo «Protección retirada (destino guardado)».
+
+| `recoveryDestination` | Texto | Cuándo se registra |
+|---|---|---|
+| `STORED` | destino guardado | Retirada que usa el destino ya guardado (también si el OWNER indica esa misma dirección) |
+| `OWNER_PROVIDED` | destino indicado por un OWNER | No había destino guardado y lo indicó el OWNER, en la retirada o en la corrección |
+| `OWNER_CORRECTED` | destino corregido por un OWNER | Había destino guardado y el OWNER indicó otro, en la retirada o en la corrección |
+
+Solo `SECURITY_HOLD_RESOLVED` y `SECURITY_RECOVERY_DESTINATION_CHANGED` guardan el origen. Si es `null` (el resto de acciones o retiradas anteriores a E2.4) o un valor desconocido, no se añade nada.
+
+**Qué no muestra:** el origen del destino no es la dirección. La API no devuelve en la auditoría el destino de recuperación, el token ni el enlace, y el panel no los muestra. Las columnas Cuenta afectada y Operador muestran, como antes, el email actual de cada cuenta y, si cambió o la cuenta ya no existe, el registrado al hacer la acción.
 
 ## 5. Ciclo de vida del token `SECURITY_RECOVERY`
 
@@ -207,10 +240,35 @@ Ruta pública (fuera de `ProtectedRoute`). Lee `token` de la URL y no pide ni mu
 - Formulario: contraseña y confirmación con la misma validación que `/restablecer-contrasena`, y Turnstile si está configurado.
 - Éxito: muestra el mensaje y un enlace para iniciar sesión; el formulario desaparece.
 - `invalid_token`, `state_mismatch` y `email_taken`: muestra un texto propio y el formulario desaparece.
+- Sin `token` o con `invalid_token` (enlace no válido o caducado), ofrece además el enlace «Solicitar un enlace nuevo» a `/recuperar-cuenta/solicitar` (E4.1). Con `state_mismatch` y `email_taken` no, porque sus textos remiten a soporte.
 - Otros 400 (validación o Turnstile), 429, 5xx o errores de red: muestra el error, mantiene el formulario y renueva el widget de Turnstile, porque el servidor ya gastó el token anterior.
 - Un bloqueo síncrono (`submittingRef`) impide enviar dos veces la misma petición.
 
 `completeSecurityRecovery` (en `authService.ts`) distingue los dos 400 que cierran el enlace por el **texto exacto** del mensaje, porque la API solo devuelve `{ message }`.
+
+### Página `/recuperar-cuenta/solicitar` (E4.1)
+
+Ruta pública (fuera de `ProtectedRoute`), en `apps/web/src/pages/RequestRecoveryLinkPage.tsx`. Permite al titular pedir un enlace nuevo con `POST /api/auth/security-recovery/request` (E2.6, ver sección 4) mediante `requestSecurityRecoveryLink` de `authService.ts`.
+
+**Accesos:**
+
+- Desde `/recuperar-cuenta`, cuando no hay `token` o cuando la respuesta se clasifica específicamente como `invalid_token`. Muestra el enlace «Solicitar un enlace nuevo».
+- Desde el login, cuando el error es **exactamente** el 423 de recuperación pendiente («Debes establecer una contraseña nueva antes de volver a acceder. Si no has recibido el enlace de recuperación, contacta con soporte.»): enlace «Solicitar un enlace de recuperación». No aparece con los 423 de protección o de suspensión ni con otros errores. La comparación la hace `isSecurityRecoveryRequiredMessage`, porque la API solo devuelve `{ message }`.
+
+**Formulario:** email, Turnstile si está configurado y botón «Enviar enlace». El texto explica que, si la cuenta tiene una recuperación pendiente, se enviará un enlace nuevo al destino de recuperación registrado, sin indicar cuál. La petición lleva exactamente `{ email, turnstileToken }` (el email recortado; la API lo normaliza) y no envía la cookie de sesión.
+
+**Resultado:** si la API acepta la solicitud, la página muestra su mensaje tal cual («Si la cuenta puede recuperar el acceso, recibirás instrucciones en el destino de recuperación registrado.»), que es el mismo exista o no la cuenta, se envíe o no un enlace y aunque la cuenta esté en el enfriamiento de 15 minutos. Después vacía el campo, oculta el formulario y ofrece «Enviar otra solicitud», que vuelve al formulario vacío con un widget de Turnstile nuevo. «Volver a iniciar sesión» está siempre visible. La página no vuelve a mostrar el email introducido ni ningún destino, y no lo guarda en la URL ni en el almacenamiento del navegador.
+
+| Situación | Mensaje |
+|---|---|
+| Turnstile configurado y sin completar | «Completa la verificación de seguridad e inténtalo de nuevo.» (no se envía nada) |
+| 400 de validación o de Turnstile | El mensaje de la API (por ejemplo, «Introduce un email válido.») |
+| 429 (5 solicitudes cada 15 minutos por IP) | «Has hecho demasiadas solicitudes. Inténtalo de nuevo más tarde.» (texto propio; el plugin de rate limit responde en inglés) |
+| Otro estado, respuesta sin mensaje o no JSON, o error de red | «No se ha podido enviar la solicitud. Inténtalo de nuevo en unos minutos.» |
+
+Tras cualquier error del servidor o de red, la página renueva el widget de Turnstile, porque el servidor ya gastó el token anterior. Un bloqueo síncrono (`submittingRef`) impide enviar dos veces la misma solicitud. La página no añade límites propios: el límite por IP y el enfriamiento por cuenta son los de la API.
+
+El enlace que llega por correo es el de siempre: abre `/recuperar-cuenta?token=…` y sigue el flujo de finalización de la sección 6.
 
 ### `POST /api/admin/users/:id/recovery-destination` y `POST /api/admin/users/:id/resend-recovery`
 
@@ -253,9 +311,9 @@ Hoy todos ellos se resuelven con las acciones anteriores.
 
 ### Pruebas
 
-Cifras de la última ejecución de las suites (API 561/561 en 25 ficheros; web 57/57 en 8 ficheros; shared 20/20 en 1 fichero):
+Cifras de la última ejecución de cada suite (API 561/561 en 25 ficheros y shared 20/20 en 1 fichero, al integrar E2; web 112/112 en 8 ficheros, al integrar E4.2):
 
-| Fichero | Pruebas | Qué cubre de E2 |
+| Fichero | Pruebas | Qué cubre de E2 y E4 |
 |---|---|---|
 | `apps/api/src/integration/security-hold-version.integration.test.ts` | 67 | SQLite real con las migraciones del proyecto. Bloques 7 (destino propuesto, E2.2), 8 (sesión con recuperación pendiente, E2.3), 9 (retirada con recuperación obligatoria, E2.4) y 10 (consumo, E2.5: ciclo completo con login, destino ocupado con comprobación previa y con `P2002` real, doble consumo simultáneo, incidente nuevo, estados incompatibles, `ROLLBACK` real provocado con triggers, token caducado o usado, `reset-password` con el token obligatorio, `forgot-password` con la obligación activa y autoservicio normal) y 11 (E2.5f: corrección y reenvío con consumo posterior, enlace anterior invalidado, consumo intercalado, suspensión y reactivación, incidente nuevo, dos correcciones intercaladas, dos reenvíos simultáneos, `ROLLBACK` real, fallo del envío, y destino ocupado o compartido) y 12 (E2.6: solicitud por el email actual o por el destino, enfriamiento, respuesta idéntica en todos los casos, varias cuentas con el mismo destino, campos del cliente rechazados, consumo, incidente o suspensión intercalados, dos solicitudes simultáneas, `ROLLBACK` real, fallo del envío y reenvío del OWNER durante el enfriamiento, y más de diez candidatas con algunas que no pueden recibir enlace; la solicitud se audita sin actor y `GET /api/admin/audit` la lista con el actor a `null`, también con filtros) y 13 (actor opcional: `actorUserId` admite NULL y se conservan los dos índices tras todas las migraciones; registros con y sin actor) |
 | `apps/api/src/routes/admin.routes.test.ts` | 260 | Retirada, corrección del destino y reenvío: destinos, idempotencia, transacción, estados, concurrencia simulada, auditoría y correo; listado de un registro sin actor (`actorFound` null) (dobles) |
@@ -267,18 +325,21 @@ Cifras de la última ejecución de las suites (API 561/561 en 25 ficheros; web 5
 | `apps/api/src/services/email.service.test.ts` | 10 | Plantilla del correo de recuperación obligatoria |
 | `apps/api/src/services/security-recovery.service.test.ts` | 17 | Candidatas, paginación con cursor, evaluación independiente por cuenta, enfriamiento, destino ocupado, auditoría sin metadatos y envíos en segundo plano, incluido un error antes del SMTP sin rechazos sin gestionar (dobles) |
 | `apps/api/src/shutdown.test.ts` | 9 | Cierre ordenado ante `SIGTERM` y `SIGINT`: espera a los envíos registrados, también los de una petición en curso (servidor HTTP real); segunda señal en las cuatro secuencias (sale con 1 sin esperar y una sola vez); señal tras un cierre completo; fallo del cierre |
-| `apps/web/src/services/authService.test.ts` | 16 | 13 de `completeSecurityRecovery` (contrato y clasificación de errores) y 3 de E2.3 |
-| `apps/web/src/lib/adminAudit.test.ts` | 7 | 2 de `describeAuditActor`: sin actor, «Solicitud no autenticada» sin identificador; con actor, igual que cualquier cuenta. Las otras 5 son anteriores a E2 |
+| `apps/web/src/services/authService.test.ts` | 37 | 13 de `completeSecurityRecovery` (contrato y clasificación de errores), 3 de E2.3 y 21 de E4.1: contrato exacto de `requestSecurityRecoveryLink` (sin cookie ni campos extra), clasificación de 400, 429, otros estados, respuestas no JSON y errores de red, y `isSecurityRecoveryRequiredMessage` solo con el texto exacto |
+| `apps/web/src/lib/adminAudit.test.ts` | 34 | 2 de `describeAuditActor`: sin actor, «Solicitud no autenticada» sin identificador; con actor, igual que cualquier cuenta. 27 de E4.2: etiquetas de las ocho acciones, códigos desconocidos, opciones del filtro, orígenes del destino y texto de la columna Acción. Las otras 5 son anteriores a E2 |
+| `apps/web/src/services/adminService.test.ts` | 28 | 7 de E4.2: filtro de la auditoría con las acciones de recuperación, combinado con el filtro por cuenta, y la acción codificada en la URL. Las otras 21 son anteriores |
 
 Las cifras de los ficheros de la API incluyen también las pruebas anteriores a E2.
 
 **Página `RecoverAccountPage`: no tiene pruebas automáticas** de renderizado ni de interacción. La web no tiene Testing Library ni entorno DOM, y en E2.5d no se añadieron dependencias. La página se ha comprobado con typecheck y build, revisión de código y una prueba manual de una persona a través de un túnel. Las 13 pruebas de `authService.test.ts` cubren el servicio, no la página.
 
-**`AdminPage`: tampoco tiene pruebas de componente.** Ningún test comprueba que la celda del operador oculta la línea del identificador cuando el actor es null. Sí está probado que `describeAuditActor` devuelve «Solicitud no autenticada» con `id: null`; en la prueba de mutación, pintar esa línea aunque el id sea null no hace fallar ningún test.
+**`AdminPage`: tampoco tiene pruebas de componente.** Ningún test comprueba que la celda del operador oculta la línea del identificador cuando el actor es null. Sí está probado que `describeAuditActor` devuelve «Solicitud no autenticada» con `id: null`; en la prueba de mutación, pintar esa línea aunque el id sea null no hace fallar ningún test. Del mismo modo, las etiquetas, las opciones del filtro y el texto de la columna Acción están probados en `adminAudit.test.ts`, pero no que la página los pinte.
+
+**`RequestRecoveryLinkPage` y los enlaces de acceso (E4.1): sin pruebas automáticas** de renderizado ni de interacción, por la misma razón. Se han comprobado con typecheck, build y revisión de código; las pruebas de `authService.test.ts` cubren el servicio y la detección del mensaje 423, no la página.
 
 ### Observaciones menores de E2.5d (sin corregir)
 
-- Un token con formato no válido en la URL (por ejemplo, un enlace cortado) hace que la API responda 400 «El enlace de recuperación no es válido.», que la web clasifica como error reintentable (`rejected`) en lugar de enlace inválido: el formulario sigue visible y cada intento falla igual.
+- Un token con formato no válido en la URL (por ejemplo, un enlace cortado) hace que la API responda 400 «El enlace de recuperación no es válido.», que la web clasifica como error reintentable (`rejected`) en lugar de enlace inválido: el formulario sigue visible y cada intento falla igual. Por eso, en ese caso tampoco aparece el enlace «Solicitar un enlace nuevo» (E4.1).
 - El estado inicial de la página se calcula con el `token` de la URL al montarla. Si se navegara dentro de la SPA a `/recuperar-cuenta` con otro token sin recargar, la página no se reiniciaría.
 
 ### Riesgos conocidos
@@ -290,7 +351,7 @@ Las cifras de los ficheros de la API incluyen también las pruebas anteriores a 
 - **Un destino compartido solo lo puede restaurar una cuenta.** Varias cuentas pueden tener el mismo `securityRecoveryEmail` y recibir cada una su enlace, pero cuando la primera completa, esa dirección pasa a ser su `User.email`; las demás reciben `email_taken` al finalizar y necesitan que un OWNER corrija su destino (demostrado en el bloque 12).
 - **Tiempo de respuesta de la solicitud del titular (limitación aceptada).** El cuerpo, el código y las cabeceras son idénticos y el correo no se espera, pero la búsqueda y las transacciones solo se ejecutan para las cuentas que coinciden y cumplen las condiciones, así que quedan diferencias de tiempo pequeñas que no se ocultan. El límite por IP del plugin vive en la memoria de cada proceso. `forgot-password` sigue esperando al SMTP (fuga de tiempo previa, fuera de E2.6).
 - **Envíos en segundo plano.** Sobreviven al final de la petición y a un cierre ordenado, pero no a una caída brusca del proceso (ver sección 4); no hay cola ni outbox duraderos.
-- **Distinción por texto en la web.** Si cambiaran los mensajes de la API, la web dejaría de distinguir `invalid_token` y `state_mismatch` y los trataría como errores reintentables.
+- **Distinción por texto en la web.** Si cambiaran los mensajes de la API, la web dejaría de distinguir `invalid_token` y `state_mismatch` y los trataría como errores reintentables, y el login dejaría de mostrar el enlace a `/recuperar-cuenta/solicitar` (sin otro efecto: el error se seguiría mostrando).
 
 ## 9. Migración
 
@@ -308,6 +369,5 @@ Para aplicar estas migraciones en otra base se siguen los mismos pasos que en el
 
 ## 10. Pendiente
 
-- Página web para la solicitud del titular (propuesta: `/recuperar-cuenta/solicitar`, enlazada desde los estados de enlace inválido de `/recuperar-cuenta` y desde el mensaje 423 del login).
-- **E4:** botón para retirar la protección y etiquetas de las acciones nuevas en el panel web.
+- Botones del panel web para retirar la protección, corregir el destino y reenviar el enlace, y mostrar en el panel que una cuenta tiene la recuperación pendiente (fuera de E4; la API de usuarios del panel no devuelve hoy ese estado).
 - Que la API devuelva un código de error además del mensaje, para que la web no dependa del texto.
