@@ -3,7 +3,7 @@ import {
   getAdminAudit, getAdminOverview, getAdminUserDetail, getAdminUsers, runAdminUserAction,
   type AdminAuditAction, type AdminAuditResponse, type AdminOverview, type AdminUser, type AdminUserAction, type AdminUserDetail, type AdminUsersResponse,
 } from '@/services/adminService'
-import { describeAuditAccount, type AuditAccountView } from '@/lib/adminAudit'
+import { describeAuditAccount, describeAuditActor, type AuditAccountView } from '@/lib/adminAudit'
 
 const REASON_MIN = 3
 const REASON_MAX = 500
@@ -39,7 +39,7 @@ function AuditAccount({ view, filter }: { view: AuditAccountView | null; filter?
   if (!view) return <>—</>
   return <>
     <span className="block break-all font-medium">{view.primary}</span>
-    <span className="block break-all font-mono text-xs text-muted-foreground">{view.id}</span>
+    {view.id !== null && <span className="block break-all font-mono text-xs text-muted-foreground">{view.id}</span>}
     {view.note !== null && <span className="mt-1 block text-xs text-muted-foreground">{view.note}</span>}
     {filter && <button type="button" aria-label={`Filtrar el historial por ${filter.label}`} onClick={filter.onClick} className="mt-1 text-xs font-semibold text-primary underline">Filtrar</button>}
   </>
@@ -370,7 +370,7 @@ export default function AdminPage() {
           {hasAuditFilters && <button type="button" onClick={() => void applyAuditFilters(NO_AUDIT_FILTERS)} className="rounded-lg border px-3 py-2 text-sm font-medium">Limpiar filtros</button>}
         </div>
         {!audit || audit.logs.length === 0 ? <p className="text-sm text-muted-foreground">{hasAuditFilters ? 'No hay acciones que coincidan con los filtros.' : 'Todavía no hay acciones administrativas registradas.'}</p> : <>
-          <div className="overflow-x-auto"><table className="w-full table-fixed text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="w-36 p-3">Acción</th><th className="w-40 p-3">Cuenta afectada</th><th className="w-40 p-3">Operador</th><th className="w-44 p-3">Fecha</th><th className="p-3">Motivo</th></tr></thead><tbody>{audit.logs.map(log => <tr key={log.id} className="border-b align-top last:border-0"><td className="p-3">{actionLabel(log.action)}{log.revokedCount !== null && ` (${log.revokedCount})`}</td><td className="p-3"><AuditAccount view={describeAuditAccount({ id: log.targetUserId, email: log.targetEmail, emailAtAction: log.targetEmailAtAction, found: log.targetFound })} filter={log.targetUserId !== null && auditFilters.target?.id !== log.targetUserId ? targetFilter(log.targetUserId, log.targetEmail ?? log.targetEmailAtAction ?? log.targetUserId) : undefined} /></td><td className="p-3"><AuditAccount view={describeAuditAccount({ id: log.actorUserId, email: log.actorEmail, emailAtAction: log.actorEmailAtAction, found: log.actorFound })} /></td><td className="p-3">{new Date(log.createdAt).toLocaleString('es-ES')}</td><td className="p-3">{log.reason ? <AuditReason reason={log.reason} /> : '—'}</td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full table-fixed text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="w-36 p-3">Acción</th><th className="w-40 p-3">Cuenta afectada</th><th className="w-40 p-3">Operador</th><th className="w-44 p-3">Fecha</th><th className="p-3">Motivo</th></tr></thead><tbody>{audit.logs.map(log => <tr key={log.id} className="border-b align-top last:border-0"><td className="p-3">{actionLabel(log.action)}{log.revokedCount !== null && ` (${log.revokedCount})`}</td><td className="p-3"><AuditAccount view={describeAuditAccount({ id: log.targetUserId, email: log.targetEmail, emailAtAction: log.targetEmailAtAction, found: log.targetFound })} filter={log.targetUserId !== null && auditFilters.target?.id !== log.targetUserId ? targetFilter(log.targetUserId, log.targetEmail ?? log.targetEmailAtAction ?? log.targetUserId) : undefined} /></td><td className="p-3"><AuditAccount view={describeAuditActor({ id: log.actorUserId, email: log.actorEmail, emailAtAction: log.actorEmailAtAction, found: log.actorFound })} /></td><td className="p-3">{new Date(log.createdAt).toLocaleString('es-ES')}</td><td className="p-3">{log.reason ? <AuditReason reason={log.reason} /> : '—'}</td></tr>)}</tbody></table></div>
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">{audit.pagination.total} acciones · Página {audit.pagination.page} de {Math.max(1, audit.pagination.pages)}</p>
             <div className="flex items-center gap-2"><button type="button" onClick={() => void changeAuditPage(auditPage - 1)} disabled={auditLoading || auditPage <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" onClick={() => void changeAuditPage(auditPage + 1)} disabled={auditLoading || auditPage >= audit.pagination.pages} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>

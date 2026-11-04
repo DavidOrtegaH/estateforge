@@ -2,7 +2,7 @@
 
 Este documento describe cómo funciona la protección de una cuenta tras un incidente de seguridad, cómo la retira un administrador y cómo se evita retirar por error una protección más reciente. Distingue entre lo que hace el código actual, lo que está demostrado por pruebas y lo que sigue pendiente.
 
-> **Estado:** los cambios descritos (retirada administrativa, bloqueo de suspensión de cuentas protegidas y contador de versión) están implementados en la rama `feat/keys`, pero **sin commitear**. La migración del contador está aplicada a la base local `apps/api/dev.db` desde el 2026-11-02; cualquier otra base debe migrarse antes de usar este código. Ver [Migración del contador](#7-migración-del-contador).
+> **Estado:** la retirada administrativa, el bloqueo de suspensión de cuentas protegidas y el contador de versión (V1–V5) están commiteados en la rama `feat/keys` (`6c19574`). La recuperación obligatoria tras la retirada (E2.1–E2.6) está integrada y verificada en la misma rama, **pendiente de commit**, y se describe en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). Las migraciones del contador y de E2.1 están aplicadas a la base local `apps/api/dev.db` desde el 2026-11-02, y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) desde el 2026-11-04; cualquier otra base debe migrarse antes de usar este código. Ver [Migración del contador](#7-migración-del-contador).
 
 ## 1. Dos estados independientes
 
@@ -15,7 +15,7 @@ Una cuenta (`User` en `apps/api/prisma/schema.prisma`) tiene dos estados de bloq
 
 Consecuencias de esa independencia:
 
-- **Retirar la protección por incidente no reactiva una cuenta suspendida.** Si la cuenta también está suspendida, sigue suspendida; la respuesta lo indica: «Protección por incidente retirada. Si existe una suspensión administrativa, seguirá activa.».
+- **Retirar la protección por incidente no reactiva una cuenta suspendida.** Si la cuenta también está suspendida, sigue suspendida, y el mensaje de la retirada lo indica («…Si existe una suspensión administrativa, seguirá activa.»). Además, desde E2.4 la cuenta queda pendiente de establecer una contraseña nueva (sección 4).
 - **Retirar la suspensión no retira la protección.** La respuesta de `unsuspend` dice: «Suspensión administrativa retirada. Si existe una protección por incidente, seguirá activa.».
 - **Una cuenta protegida no se puede suspender** (corrección S4): la API responde 409 «La cuenta está protegida por un incidente de seguridad; no se puede suspender administrativamente.». Primero hay que resolver la protección.
 - El contador `securityHoldVersion` pertenece solo a la protección por incidente; la suspensión no lo usa.
@@ -32,15 +32,17 @@ Mientras `securityHoldAt` no es nulo:
 | Panel de administración | `requireOwner` deniega el acceso (403 «No tienes permisos para acceder a esta sección.») aunque la cuenta sea OWNER. | `apps/api/src/middleware/owner.middleware.ts` |
 | Suspensión administrativa | Bloqueada (S4), ver sección 1. | `apps/api/src/routes/admin.routes.ts` |
 
+**Recuperación obligatoria (E2).** Tras retirar la protección, la cuenta queda con `passwordResetRequiredAt` activo hasta que establece una contraseña nueva. Mientras tanto se aplican bloqueos equivalentes: el login responde 423 (después de comprobar la contraseña), las sesiones se invalidan en `getUserIdFromSession`, y `GET /api/auth/me` y `getAuthenticatedUser` borran las sesiones y responden 423. Además, `forgot-password` tampoco envía nada a estas cuentas y `consumePasswordResetToken` las rechaza. Detalle en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md#3-autoservicio-frente-a-recuperación-obligatoria).
+
 ## 3. Flujo de un incidente
 
-1. **Emisión del enlace.** Solo se emite al completar un cambio de email: `issueSecurityIncidentToken` (en `apps/api/src/services/security-incident.service.ts`) genera un token aleatorio, guarda su hash SHA-256 con caducidad de 7 días y se envía al email anterior.
+1. **Emisión del enlace.** Solo se emite al completar un cambio de email: `issueSecurityIncidentToken` (en `apps/api/src/services/security-incident.service.ts`) genera un token aleatorio, guarda su hash SHA-256 con caducidad de 7 días y, en `notifiedEmail`, el email anterior normalizado, que es al que se envía el aviso (E2.2).
    - **Hallazgo pendiente:** la emisión **no es atómica**. Borra los tokens pendientes y crea el nuevo en dos operaciones sin transacción, así que dos emisiones simultáneas pueden dejar dos tokens válidos. No se le atribuye ninguna garantía.
 2. **Confirmación.** `GET /api/auth/security-incident/:token` solo muestra una página con un botón (para que los escáneres de enlaces no bloqueen cuentas). `POST /api/auth/security-incident/:token` (rate limit 5 cada 15 minutos) ejecuta `reportSecurityIncident`.
 3. **Registro (`reportSecurityIncident`)**, todo dentro de una transacción:
    1. Busca el token por su hash; si no existe, está usado o caducado → `invalid`.
    2. **Reclama** el token con un `updateMany` condicional (`usedAt` nulo y no caducado). Si no afecta a una fila → `invalid`. Esto impide usar el mismo token dos veces.
-   3. Protege la cuenta: `securityHoldAt = ahora` y **`securityHoldVersion` + 1**. Ocurre aunque la cuenta ya estuviera protegida.
+   3. Protege la cuenta: `securityHoldAt = ahora` y **`securityHoldVersion` + 1**. Ocurre aunque la cuenta ya estuviera protegida. En la misma escritura copia el `notifiedEmail` del token reclamado a `User.securityRecoveryEmail`, como destino propuesto para la recuperación (nulo si el token es anterior a E2). `User.email` no cambia.
    4. Borra sesiones, tokens de recuperación, verificaciones de email y los demás tokens de incidente de la cuenta.
 
    Si algo falla después del incremento, la transacción se deshace entera: el token sigue sin usar, la versión no cambia y la sesión sigue existiendo (demostrado con SQLite real, ver sección 8).
@@ -56,19 +58,27 @@ Mientras `securityHoldAt` no es nulo:
 | Sin sesión, sesión no válida, rol USER u OWNER protegido | 401 / 403 (`requireAuth` + `requireOwner`) |
 | Más de 20 peticiones por minuto a esta ruta desde la misma IP (`ACCOUNT_ACTION_RATE_LIMIT`: misma configuración que las demás acciones de cuenta, con un contador propio por ruta) | 429 |
 | Identificador no válido | 400 «Identificador de cuenta no válido.» |
+| `recoveryEmail` no válido (E2.4) | 400 «El email de recuperación no es válido.» |
 | Motivo de menos de 3 o más de 500 caracteres (tras recortar) | 400 «Indica un motivo de entre 3 y 500 caracteres.» |
 | La propia cuenta del administrador | 400 «No puedes modificar tu propia cuenta desde esta acción.» |
 | Cuenta inexistente | 404 «No se ha encontrado la cuenta.» |
 | Cuenta OWNER | 403 «No se pueden modificar cuentas propietarias.» |
 | Sin protección activa (o la retiró otra petición) | 409 «La cuenta no tiene una protección por incidente activa.» |
+| Sin destino de recuperación guardado ni indicado (E2.4) | 400 «La cuenta no tiene un destino de recuperación guardado. Indica el email al que enviar el enlace de recuperación obligatoria.» |
 | Llegó un incidente nuevo entre la lectura y la escritura | 409 «La protección por incidente ha cambiado durante la operación. Revisa la cuenta antes de volver a intentarlo.» |
-| Éxito | 200 «Protección por incidente retirada. Si existe una suspensión administrativa, seguirá activa.» |
+| Éxito | 200 con `success: true`, `recoveryEmailSent` (si se pudo enviar el enlace) y un mensaje que indica que la cuenta no podrá acceder hasta establecer una contraseña nueva y que una suspensión, si existe, sigue activa. Textos exactos en [Recuperación obligatoria](recuperacion-obligatoria.md#7-errores-respuestas-y-operativa). |
 
-**Qué hace:** pone `securityHoldAt` a nulo y, en la misma transacción, registra la auditoría `SECURITY_HOLD_RESOLVED` (con el motivo y los emails de operador y cuenta en `metadata`). Si la auditoría falla, no se retira nada. La API (`GET /api/admin/audit?action=SECURITY_HOLD_RESOLVED`) admite esta acción como filtro, junto a `ACCOUNT_SUSPENDED`, `ACCOUNT_UNSUSPENDED` y `SESSIONS_REVOKED`; el panel web todavía no la ofrece ni tiene botón para retirar la protección (**E4, pendiente**).
+**Cuerpo:** `{ reason, recoveryEmail? }`. Desde E2.4, la retirada necesita un destino para la recuperación: el guardado al informar del incidente o el que indique el OWNER en `recoveryEmail`. **Nunca se usa `User.email` como alternativa.**
 
-**Qué no hace:** no modifica la suspensión administrativa, no cambia `securityHoldVersion`, no toca sesiones, tokens ni contraseña, y no envía correos.
+**Qué hace,** en una sola transacción y con la condición por versión de la sección 5:
 
-**Riesgo conocido:** tras retirar la protección, nada obliga a cambiar la contraseña. Si el incidente fue real, quien conozca la contraseña podría volver a entrar. Está previsto estudiarlo en **E2 (pendiente)**.
+- pone `securityHoldAt` a nulo, activa `passwordResetRequiredAt` y guarda el destino en `securityRecoveryEmail`;
+- borra los tokens de recuperación no usados de la cuenta y crea un token `SECURITY_RECOVERY` ligado al destino (`deliverTo`) y a la versión resuelta (`securityHoldVersion`);
+- registra la auditoría `SECURITY_HOLD_RESOLVED` con el motivo, los emails de operador y cuenta y el origen del destino (`recoveryDestination`: `STORED`, `OWNER_PROVIDED` u `OWNER_CORRECTED`), sin la dirección de destino, el token ni el enlace.
+
+Si cualquier paso falla, no se retira nada. **Después del commit** envía el correo con el enlace a `/recuperar-cuenta`. Si el envío falla, la protección queda retirada pero la obligación y el token se mantienen y la respuesta trae `recoveryEmailSent: false`. La API (`GET /api/admin/audit?action=SECURITY_HOLD_RESOLVED`) admite esta acción como filtro, junto a `ACCOUNT_SUSPENDED`, `ACCOUNT_UNSUSPENDED`, `SESSIONS_REVOKED`, `SECURITY_RECOVERY_COMPLETED`, `SECURITY_RECOVERY_DESTINATION_CHANGED`, `SECURITY_RECOVERY_LINK_RESENT` y `SECURITY_RECOVERY_LINK_REQUESTED`; el panel web todavía no las ofrece ni tiene botón para retirar la protección (**E4, pendiente**).
+
+**Qué no hace:** no modifica la suspensión administrativa, no cambia `securityHoldVersion`, no toca sesiones, contraseña ni `User.email`. La contraseña y el email cambian solo cuando el titular completa la recuperación. Ciclo completo en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md).
 
 ### Cuentas OWNER protegidas
 
@@ -187,6 +197,8 @@ Estas pruebas demuestran **qué pide el código**, no cómo lo ejecuta SQLite.
 
 **Alcance del caso 4:** demuestra que un incidente nuevo invalida una retirada obsoleta en el orden real de las operaciones. **No** demuestra concurrencia entre procesos ni la ausencia de `SQLITE_BUSY`.
 
+El mismo fichero incluye los bloques 7 a 13, que cubren la recuperación obligatoria (E2), incluida la auditoría con actor opcional. Esa cobertura, junto con la de las demás pruebas de E2, se detalla en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md#8-pruebas-limitaciones-y-riesgos).
+
 ### Cómo ejecutar las pruebas
 
 Desde la raíz del repositorio:
@@ -218,7 +230,7 @@ pnpm --filter api test   # suite completa de la API, incluida la integración
 
 ## 11. Trabajo pendiente (no disponible todavía)
 
-- **E2:** obligar a recuperar la contraseña (o enviar un correo de recuperación) al retirar una protección.
+- **E2 (implementado hasta E2.6, integrado y verificado, pendiente de commit):** la retirada obliga a establecer una contraseña nueva y envía el enlace a un destino autorizado; un OWNER puede corregir el destino o reenviar el enlace, y el propio titular puede pedir un enlace nuevo al destino guardado; ver [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). Queda pendiente la página web de esa solicitud.
 - **E3:** procedimiento por línea de comandos para retirar la protección de una cuenta OWNER, que deberá incrementar o respetar la versión.
 - **E4:** botón «Retirar protección» y la nueva acción en el filtro del panel web.
 - **F:** accesibilidad de los diálogos del panel y visibilidad del incidente para el usuario.

@@ -10,9 +10,10 @@ export type AdminUserDetail = AdminUser & { activeSessions: number }
 export type AdminPagination = { page: number; pageSize: number; total: number; pages: number }
 export type AdminUsersResponse = { users: AdminUser[]; pagination: AdminPagination }
 export type AdminAuditLog = {
-  id: string; actorUserId: string; targetUserId: string | null; action: string; reason: string | null; createdAt: string
+  // actorUserId null: acción sin un actor autenticado (p. ej., la solicitud pública de un enlace de recuperación).
+  id: string; actorUserId: string | null; targetUserId: string | null; action: string; reason: string | null; createdAt: string
   // Email actual (null si la cuenta ya no existe) y el registrado al hacer la acción (null en registros antiguos).
-  actorEmail: string | null; actorEmailAtAction: string | null; actorFound: boolean
+  actorEmail: string | null; actorEmailAtAction: string | null; actorFound: boolean | null
   targetEmail: string | null; targetEmailAtAction: string | null; targetFound: boolean | null
   revokedCount: number | null
 }

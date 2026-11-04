@@ -56,7 +56,7 @@ export async function getUserIdFromSession(
       select: {
         userId: true,
         expiresAt: true,
-        user: { select: { securityHoldAt: true, adminSuspendedAt: true } },
+        user: { select: { securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true } },
       },
     })
 
@@ -64,7 +64,9 @@ export async function getUserIdFromSession(
     return null
   }
 
-  if (session.user.securityHoldAt || session.user.adminSuspendedAt) {
+  // Protección, suspensión y recuperación obligatoria son estados independientes;
+  // cualquiera de ellos invalida la sesión.
+  if (session.user.securityHoldAt || session.user.adminSuspendedAt || session.user.passwordResetRequiredAt) {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } })
     return null
   }

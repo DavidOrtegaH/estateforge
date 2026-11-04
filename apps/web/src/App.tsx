@@ -18,6 +18,7 @@ import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
+import RecoverAccountPage from '@/pages/RecoverAccountPage'
 import AccountPage from '@/pages/AccountPage'
 import AdminPage from '@/pages/AdminPage'
 import { OwnerRoute } from '@/components/auth/OwnerRoute'
@@ -30,6 +31,7 @@ function App() {
         <Route path="/registro" element={<RegisterPage />} />
         <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
         <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
+        <Route path="/recuperar-cuenta" element={<RecoverAccountPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>

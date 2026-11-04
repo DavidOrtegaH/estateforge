@@ -15,6 +15,7 @@ import {
 import {
   issuePasswordResetToken,
   consumePasswordResetToken,
+  consumeSecurityRecoveryToken,
 } from '../services/password-reset.service.js'
 import { emailService } from '../services/email.service.js'
 import { issueSecurityIncidentToken, reportSecurityIncident } from '../services/security-incident.service.js'
@@ -23,6 +24,11 @@ import {
   issueEmailChangeCode,
   normalizeEmail,
 } from '../services/email-change.service.js'
+import {
+  deliverRecoveryLinkInBackground,
+  issueRequestedRecoveryLinks,
+  waitForPendingRecoveryDeliveries,
+} from '../services/security-recovery.service.js'
 import {
   hashPassword,
   verifyPassword,
@@ -64,6 +70,17 @@ const ForgotPasswordSchema = z.object({
   turnstileToken: TurnstileTokenSchema,
 })
 
+// Solicitud del titular de un enlace de recuperación obligatoria (E2.6). Estricto: el cliente
+// no puede indicar destino, token ni versión.
+const SecurityRecoveryRequestSchema = z.object({
+  email: z.string().trim().email().max(254),
+  turnstileToken: TurnstileTokenSchema,
+}).strict()
+
+// Igual para cualquier cuenta y resultado: no revela si existe, su estado ni su destino.
+const SECURITY_RECOVERY_REQUEST_MESSAGE =
+  'Si la cuenta puede recuperar el acceso, recibirás instrucciones en el destino de recuperación registrado.'
+
 const ResetPasswordSchema = z.object({
   token: z.string().trim().min(32).max(256),
   password: z
@@ -79,6 +96,11 @@ const RESET_PASSWORD_URL =
   process.env.WEB_APP_URL ?? 'http://localhost:5173'
 const API_PUBLIC_URL =
   process.env.API_PUBLIC_URL ?? 'http://localhost:3000'
+
+// Recuperación obligatoria tras un incidente (E2). No remite a «¿Has olvidado tu
+// contraseña?»: ese flujo aún envía el enlace al email actual de la cuenta.
+const PASSWORD_RESET_REQUIRED_MESSAGE =
+  'Debes establecer una contraseña nueva antes de volver a acceder. Si no has recibido el enlace de recuperación, contacta con soporte.'
 
 function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -199,6 +221,7 @@ async function getAuthenticatedUser(
           email: true,
           password: true,
           securityHoldAt: true,
+          passwordResetRequiredAt: true,
         },
       },
       expiresAt: true,
@@ -232,6 +255,13 @@ async function getAuthenticatedUser(
     return null
   }
 
+  if (session.user.passwordResetRequiredAt) {
+    await prisma.session.deleteMany({ where: { userId: session.user.id } })
+    clearSessionCookie(reply)
+    reply.code(423).send({ message: PASSWORD_RESET_REQUIRED_MESSAGE })
+    return null
+  }
+
   return {
     token,
     ...session.user,
@@ -239,6 +269,11 @@ async function getAuthenticatedUser(
 }
 
 export async function authRoutes(app: FastifyInstance) {
+  // Al cerrar la app, espera a los enlaces de recuperación que se enviaban en segundo plano.
+  app.addHook('onClose', async () => {
+    await waitForPendingRecoveryDeliveries()
+  })
+
   app.post(
     '/api/auth/register',
     {
@@ -359,6 +394,10 @@ export async function authRoutes(app: FastifyInstance) {
         })
       }
 
+      if (user.passwordResetRequiredAt) {
+        return reply.code(423).send({ message: PASSWORD_RESET_REQUIRED_MESSAGE })
+      }
+
       const session = await createSession(user.id)
       setSessionCookie(reply, session.token, session.expiresAt)
 
@@ -396,10 +435,12 @@ export async function authRoutes(app: FastifyInstance) {
       const normalizedEmail = normalizeEmail(result.data.email)
       const user = await prisma.user.findUnique({
         where: { email: normalizedEmail },
-        select: { id: true, email: true, securityHoldAt: true, adminSuspendedAt: true },
+        select: { id: true, email: true, securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true },
       })
 
-      if (user && !user.securityHoldAt && !user.adminSuspendedAt) {
+      // Una cuenta en recuperación obligatoria (E2) no recibe un enlace de autoservicio al
+      // email actual: su único enlace válido es el obligatorio. La respuesta sigue siendo genérica.
+      if (user && !user.securityHoldAt && !user.adminSuspendedAt && !user.passwordResetRequiredAt) {
         const reset = await issuePasswordResetToken(user.id)
         const resetUrl = new URL(
           '/restablecer-contrasena',
@@ -418,6 +459,44 @@ export async function authRoutes(app: FastifyInstance) {
         message:
           'Si la cuenta existe, recibirás instrucciones para restablecer la contraseña.',
       }
+    },
+  )
+
+  // El titular pide un enlace nuevo de recuperación obligatoria (E2.6). Siempre al destino
+  // guardado de cada cuenta, nunca a User.email. La respuesta no depende de la cuenta y el
+  // correo se envía sin esperar, para que el tiempo de respuesta tampoco lo revele.
+  app.post(
+    '/api/auth/security-recovery/request',
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '15 minutes',
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = SecurityRecoveryRequestSchema.safeParse(request.body)
+
+      if (!result.success) {
+        return sendValidationError(reply, 'Introduce un email válido.')
+      }
+
+      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+        return
+      }
+
+      try {
+        const links = await issueRequestedRecoveryLinks(request.log, normalizeEmail(result.data.email))
+        for (const link of links) {
+          deliverRecoveryLinkInBackground(request.log, link)
+        }
+      } catch (error) {
+        // La respuesta es la misma: un fallo tampoco debe distinguir unas cuentas de otras.
+        request.log.error({ errorName: error instanceof Error ? error.name : typeof error }, 'No se pudo procesar una solicitud de recuperación obligatoria')
+      }
+
+      return { message: SECURITY_RECOVERY_REQUEST_MESSAGE }
     },
   )
 
@@ -467,6 +546,70 @@ export async function authRoutes(app: FastifyInstance) {
       return {
         message:
           'Contraseña restablecida correctamente. Ya puedes iniciar sesión.',
+      }
+    },
+  )
+
+  // Recuperación obligatoria tras un incidente (E2.5): mismas validaciones, Turnstile y
+  // límite que reset-password. La operación completa la hace el servicio en una transacción.
+  app.post(
+    '/api/auth/security-recovery/complete',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '15 minutes',
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = ResetPasswordSchema.safeParse(request.body)
+
+      if (!result.success) {
+        const hasPasswordError = result.error.issues.some((issue) =>
+          issue.path.includes('password'),
+        )
+
+        return sendValidationError(
+          reply,
+          hasPasswordError
+            ? PASSWORD_POLICY_MESSAGE
+            : 'El enlace de recuperación no es válido.',
+        )
+      }
+
+      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+        return
+      }
+
+      const passwordHash = await hashPassword(result.data.password)
+      const outcome = await consumeSecurityRecoveryToken(
+        result.data.token,
+        passwordHash,
+      )
+
+      // Ninguna respuesta incluye el destino, la cuenta ni detalles internos.
+      switch (outcome) {
+        case 'completed':
+          return {
+            message:
+              'Contraseña establecida y acceso recuperado. Ya puedes iniciar sesión con el email al que recibiste este enlace.',
+          }
+        case 'invalid_token':
+          return reply.code(400).send({
+            message:
+              'El enlace de recuperación no es válido o ha caducado.',
+          })
+        case 'state_mismatch':
+          return reply.code(400).send({
+            message:
+              'Este enlace ya no permite completar la recuperación de la cuenta. Contacta con soporte si sigues sin poder acceder.',
+          })
+        case 'email_taken':
+          return reply.code(409).send({
+            message:
+              'No se ha podido completar la recuperación porque el email de recuperación no está disponible. Contacta con soporte.',
+          })
       }
     },
   )
@@ -593,7 +736,8 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       try {
-        const incident = await issueSecurityIncidentToken(user.id)
+        // El token guarda el email anterior: es la dirección a la que se envía el aviso.
+        const incident = await issueSecurityIncidentToken(user.id, verification.oldEmail)
         const incidentUrl = new URL(`/api/auth/security-incident/${incident.token}`, API_PUBLIC_URL)
         await emailService.sendEmailChangeNoticeEmail({
           to: verification.oldEmail,
@@ -782,6 +926,7 @@ export async function authRoutes(app: FastifyInstance) {
             role: true,
             securityHoldAt: true,
             adminSuspendedAt: true,
+            passwordResetRequiredAt: true,
           },
         },
         expiresAt: true,
@@ -818,6 +963,12 @@ export async function authRoutes(app: FastifyInstance) {
       await prisma.session.deleteMany({ where: { userId: session.user.id } })
       clearSessionCookie(reply)
       return reply.code(423).send({ message: 'La cuenta está suspendida por el equipo de EstateForge. Contacta con soporte.' })
+    }
+
+    if (session.user.passwordResetRequiredAt) {
+      await prisma.session.deleteMany({ where: { userId: session.user.id } })
+      clearSessionCookie(reply)
+      return reply.code(423).send({ message: PASSWORD_RESET_REQUIRED_MESSAGE })
     }
 
     return { user: { id: session.user.id, email: session.user.email, role: session.user.role } }

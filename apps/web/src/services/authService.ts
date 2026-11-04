@@ -121,6 +121,73 @@ export async function resetPassword(
   return data.message
 }
 
+// Recuperación obligatoria tras un incidente (E2.5). La API solo devuelve { message },
+// así que los dos 400 que cierran el enlace se distinguen por su texto exacto.
+const SECURITY_RECOVERY_INVALID_LINK_MESSAGE =
+  'El enlace de recuperación no es válido o ha caducado.'
+const SECURITY_RECOVERY_NO_LONGER_VALID_MESSAGE =
+  'Este enlace ya no permite completar la recuperación de la cuenta. Contacta con soporte si sigues sin poder acceder.'
+
+export type SecurityRecoveryErrorKind =
+  // Token inválido, caducado o ya usado.
+  | 'invalid_link'
+  // El estado de seguridad de la cuenta ya no permite usar el enlace.
+  | 'link_no_longer_valid'
+  // 409: el email de destino está ocupado por otra cuenta.
+  | 'email_unavailable'
+  // Otro 400 (validación o Turnstile): se puede corregir y reintentar.
+  | 'rejected'
+  // Cualquier otra respuesta (429, 5xx...).
+  | 'unexpected'
+
+export class SecurityRecoveryError extends Error {
+  readonly kind: SecurityRecoveryErrorKind
+
+  constructor(message: string, kind: SecurityRecoveryErrorKind) {
+    super(message)
+    this.name = 'SecurityRecoveryError'
+    this.kind = kind
+  }
+}
+
+function securityRecoveryErrorKind(
+  status: number,
+  message: string,
+): SecurityRecoveryErrorKind {
+  if (status === 409) return 'email_unavailable'
+  if (status !== 400) return 'unexpected'
+  if (message === SECURITY_RECOVERY_INVALID_LINK_MESSAGE) return 'invalid_link'
+  if (message === SECURITY_RECOVERY_NO_LONGER_VALID_MESSAGE) return 'link_no_longer_valid'
+  return 'rejected'
+}
+
+export async function completeSecurityRecovery(
+  token: string,
+  password: string,
+  turnstileToken?: string,
+): Promise<string> {
+  const response = await fetch(`${API_URL}/api/auth/security-recovery/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password, turnstileToken }),
+  })
+
+  if (!response.ok) {
+    const message = await extractErrorMessage(
+      response,
+      `Security recovery failed: ${response.status}`,
+    )
+
+    throw new SecurityRecoveryError(
+      message,
+      securityRecoveryErrorKind(response.status, message),
+    )
+  }
+
+  const data = (await response.json()) as { message: string }
+  return data.message
+}
+
 export async function changePassword(
   currentPassword: string,
   newPassword: string,

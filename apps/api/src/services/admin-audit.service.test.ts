@@ -29,6 +29,12 @@ describe('buildAuditMetadata', () => {
     const input = { revokedCount: 0, actorEmail: 'a@x.test', targetEmail: 'b@x.test' }
     expect(parseAuditMetadata(buildAuditMetadata(input))).toEqual(input)
   })
+
+  it('guarda el origen del destino de recuperación', () => {
+    const input = { actorEmail: 'a@x.test', targetEmail: 'b@x.test', recoveryDestination: 'OWNER_PROVIDED' as const }
+    expect(JSON.parse(buildAuditMetadata(input)!)).toEqual(input)
+    expect(parseAuditMetadata(buildAuditMetadata(input))).toEqual(input)
+  })
 })
 
 describe('parseAuditMetadata', () => {
@@ -73,6 +79,18 @@ describe('parseAuditMetadata', () => {
     expect(parseAuditMetadata(JSON.stringify({ targetEmail: `${'a'.repeat(250)}@x.test` }))).toEqual({})
   })
 
+  it.each(['STORED', 'OWNER_PROVIDED', 'OWNER_CORRECTED'])('lee recoveryDestination %s', recoveryDestination => {
+    expect(parseAuditMetadata(JSON.stringify({ recoveryDestination }))).toEqual({ recoveryDestination })
+  })
+
+  it.each([
+    ['desconocido', 'OTRO'],
+    ['que es una dirección', 'titular@x.test'],
+    ['que no es texto', 1],
+  ])('ignora un recoveryDestination %s', (_label, recoveryDestination) => {
+    expect(parseAuditMetadata(JSON.stringify({ recoveryDestination, actorEmail: 'a@x.test' }))).toEqual({ actorEmail: 'a@x.test' })
+  })
+
   it('ignora las claves desconocidas', () => {
     expect(parseAuditMetadata(JSON.stringify({ revokedCount: 1, extra: 'x' }))).toEqual({ revokedCount: 1 })
   })
@@ -99,6 +117,7 @@ describe('resolveAuditAccounts', () => {
       targetEmailAtAction: 'antiguo@x.test',
       targetFound: true,
       revokedCount: null,
+      recoveryDestination: null,
     })
     expect(log).not.toHaveProperty('metadata')
   })
@@ -125,6 +144,15 @@ describe('resolveAuditAccounts', () => {
     expect(log).toMatchObject({ targetUserId: null, targetEmail: null, targetFound: null })
   })
 
+  it('sin actor (solicitud no autenticada) devuelve actorFound null y no busca su email', () => {
+    const [log] = resolveAuditAccounts([{ ...base, actorUserId: null, targetUserId: 'user', metadata: null }], emails)
+
+    expect(log).toMatchObject({
+      actorUserId: null, actorEmail: null, actorEmailAtAction: null, actorFound: null,
+      targetUserId: 'user', targetEmail: 'user@x.test', targetFound: true,
+    })
+  })
+
   it('expone revokedCount, incluido 0', () => {
     const logs = resolveAuditAccounts(
       [
@@ -135,5 +163,14 @@ describe('resolveAuditAccounts', () => {
     )
 
     expect(logs.map(log => log.revokedCount)).toEqual([0, 4])
+  })
+
+  it('expone el origen del destino de recuperación, sin la dirección', () => {
+    const [log] = resolveAuditAccounts(
+      [{ ...base, actorUserId: 'owner', targetUserId: 'user', metadata: JSON.stringify({ recoveryDestination: 'OWNER_CORRECTED' }) }],
+      emails,
+    )
+
+    expect(log.recoveryDestination).toBe('OWNER_CORRECTED')
   })
 })

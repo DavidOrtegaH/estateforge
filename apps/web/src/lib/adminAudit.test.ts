@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { describeAuditAccount } from './adminAudit'
+import { describeAuditAccount, describeAuditActor } from './adminAudit'
 
 describe('describeAuditAccount', () => {
   it('muestra el email actual de una cuenta existente', () => {
@@ -32,5 +32,22 @@ describe('describeAuditAccount', () => {
 
   it('devuelve null si el registro no tiene cuenta afectada', () => {
     expect(describeAuditAccount({ id: null, email: null, emailAtAction: null, found: null })).toBeNull()
+  })
+})
+
+describe('describeAuditActor', () => {
+  it('sin actor indica una solicitud no autenticada, sin identificador', () => {
+    expect(describeAuditActor({ id: null, email: null, emailAtAction: null, found: null })).toEqual({
+      primary: 'Solicitud no autenticada', id: null, note: null,
+    })
+  })
+
+  it('con actor se describe igual que cualquier cuenta', () => {
+    expect(describeAuditActor({ id: 'o1', email: 'o@x.test', emailAtAction: 'o@x.test', found: true })).toEqual({
+      primary: 'o@x.test', id: 'o1', note: null,
+    })
+    expect(describeAuditActor({ id: 'o1', email: null, emailAtAction: null, found: false })).toEqual({
+      primary: 'Cuenta no encontrada', id: 'o1', note: null,
+    })
   })
 })

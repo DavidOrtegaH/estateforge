@@ -1,4 +1,7 @@
-export type AuditAccountView = { primary: string; id: string; note: string | null }
+// id null: no hay cuenta que mostrar (acción sin actor autenticado).
+export type AuditAccountView = { primary: string; id: string | null; note: string | null }
+
+export const UNAUTHENTICATED_ACTOR_LABEL = 'Solicitud no autenticada'
 
 /**
  * Texto para identificar una cuenta en la auditoría. Sin cuenta devuelve null.
@@ -26,4 +29,14 @@ export function describeAuditAccount(account: {
   }
 
   return { primary: 'Cuenta no encontrada', id: account.id, note: null }
+}
+
+/** Operador de un registro. Sin actor, la acción la pidió alguien sin sesión: se indica así, sin cuenta. */
+export function describeAuditActor(actor: {
+  id: string | null
+  email: string | null
+  emailAtAction: string | null
+  found: boolean | null
+}): AuditAccountView {
+  return describeAuditAccount(actor) ?? { primary: UNAUTHENTICATED_ACTOR_LABEL, id: null, note: null }
 }

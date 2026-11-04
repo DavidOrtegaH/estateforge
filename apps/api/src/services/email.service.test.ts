@@ -394,5 +394,28 @@ describe('SMTPEmailService', () => {
     expect(message.text).toContain('se ha cambiado correctamente')
   })
 
+  it('envía el enlace de recuperación obligatoria al destino indicado', async () => {
+    const service = new SMTPEmailService()
+    const recoveryUrl = 'http://localhost:5173/recuperar-cuenta?token=test-token&x=1'
+
+    await service.sendSecurityRecoveryEmail({
+      to: 'destino@example.com',
+      recoveryUrl,
+      expiresAt: new Date('2026-11-02T12:30:00.000Z'),
+    })
+
+    const message = mocks.sendMail.mock.calls[0][0]
+    expect(message).toMatchObject({
+      from: 'EstateForge <noreply@example.com>',
+      to: 'destino@example.com',
+      subject: 'EstateForge — Establece una contraseña nueva',
+    })
+    expect(message.text).toContain(recoveryUrl)
+    expect(message.text).toContain('no podrás iniciar sesión')
+    // En el HTML el enlace va escapado.
+    expect(message.html).toContain('href="http://localhost:5173/recuperar-cuenta?token=test-token&amp;x=1"')
+    expect(message.html).toContain('Establecer contraseña nueva')
+  })
+
 })
 

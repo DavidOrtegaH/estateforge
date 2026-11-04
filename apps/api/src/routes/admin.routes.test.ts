@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import Fastify, { type FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,12 +24,23 @@ interface UserRecord {
   securityHoldVersion: number
   adminSuspendedAt: Date | null
   adminSuspensionReason: string | null
+  passwordResetRequiredAt: Date | null
+  securityRecoveryEmail: string | null
 }
 
 interface TokenRecord {
   id: string
   userId: string
   usedAt: Date | null
+}
+
+// Los tokens que crea la resolución (E2.4) llevan además estos campos.
+interface ResetTokenRecord extends TokenRecord {
+  tokenHash?: string
+  expiresAt?: Date
+  purpose?: string
+  deliverTo?: string | null
+  securityHoldVersion?: number | null
 }
 
 interface SessionRecord {
@@ -39,7 +51,7 @@ interface SessionRecord {
 
 interface AuditRecord {
   id: string
-  actorUserId: string
+  actorUserId: string | null
   targetUserId: string | null
   action: string
   reason: string | null
@@ -50,7 +62,7 @@ interface AuditRecord {
 interface Store {
   users: UserRecord[]
   sessions: SessionRecord[]
-  passwordResetTokens: TokenRecord[]
+  passwordResetTokens: ResetTokenRecord[]
   emailChangeVerifications: TokenRecord[]
   securityIncidentTokens: TokenRecord[]
   adminAuditLogs: AuditRecord[]
@@ -85,12 +97,14 @@ const fake = vi.hoisted(() => {
     writesOutsideTx: 0,
     failAuditCreate: false,
     auditFailureInsideTransaction: null as boolean | null,
+    failResetTokenCreate: false,
     sessionTokens: new Map<string, string>(),
     // Simula otra petición que confirma un cambio entre la lectura previa
     // de la ruta y su escritura condicional.
     beforeUserUpdateMany: null as (() => void) | null,
     userUpdateManyCalls: 0,
     lastUserUpdateManyWhere: null as Where | null,
+    lastUserUpdateManyData: null as Partial<UserRecord> | null,
     // Últimos argumentos de paginación recibidos por los findMany.
     lastUserFindMany: null as FindManyArgs | null,
     lastAuditFindMany: null as FindManyArgs | null,
@@ -224,7 +238,8 @@ const fake = vi.hoisted(() => {
   const prisma = {
     user: {
       // _count solo admite properties y sessions (con where opcional), como el detalle de cuenta.
-      findUnique(args: { where: { id: string }; select?: Record<string, unknown> }) {
+      // Por id o, como la comprobación de destinos ocupados, por email.
+      findUnique(args: { where: { id?: string; email?: string }; select?: Record<string, unknown> }) {
         const countSelect = args.select?._count as { select: Record<string, unknown> } | undefined
         if (countSelect) {
           const unsupported = Object.keys(countSelect.select).filter(key => key !== 'properties' && key !== 'sessions')
@@ -232,8 +247,10 @@ const fake = vi.hoisted(() => {
         }
 
         return deferred(() => {
-          state.beforeUserFindUnique?.(args.where.id)
-          const user = state.store.users.find(item => item.id === args.where.id)
+          if (args.where.id !== undefined) state.beforeUserFindUnique?.(args.where.id)
+          const user = args.where.email !== undefined
+            ? state.store.users.find(item => item.email === args.where.email)
+            : state.store.users.find(item => item.id === args.where.id)
           if (!user) return null
           if (!countSelect) return { ...user }
 
@@ -272,6 +289,7 @@ const fake = vi.hoisted(() => {
           recordWrite()
           state.userUpdateManyCalls += 1
           state.lastUserUpdateManyWhere = args.where
+          state.lastUserUpdateManyData = args.data
           state.beforeUserUpdateMany?.()
           const users = state.store.users.filter(user => matches(user, args.where))
           for (const user of users) Object.assign(user, args.data)
@@ -294,6 +312,16 @@ const fake = vi.hoisted(() => {
 
     passwordResetToken: {
       deleteMany: (args: { where: Where }) => deleteMany('passwordResetTokens', args),
+
+      create(args: { data: Omit<ResetTokenRecord, 'id' | 'usedAt'> }) {
+        return deferred(() => {
+          recordWrite()
+          if (state.failResetTokenCreate) throw new Error('Fallo simulado al crear el token de recuperación')
+          const record: ResetTokenRecord = { id: `prt-new-${state.store.passwordResetTokens.length + 1}`, usedAt: null, ...args.data }
+          state.store.passwordResetTokens.push(record)
+          return record
+        })
+      },
     },
 
     emailChangeVerification: {
@@ -365,6 +393,22 @@ const fake = vi.hoisted(() => {
 
 vi.mock('../db/prisma.js', () => ({ prisma: fake.prisma }))
 
+// Doble del envío de la recuperación obligatoria: guarda cada llamada junto con el
+// estado de la transacción simulada en ese momento.
+const mail = vi.hoisted(() => ({
+  calls: [] as { args: { to: string; recoveryUrl: string; expiresAt: Date }; transactionActive: boolean }[],
+  fail: false,
+}))
+
+vi.mock('../services/email.service.js', () => ({
+  emailService: {
+    sendSecurityRecoveryEmail: vi.fn(async (args: { to: string; recoveryUrl: string; expiresAt: Date }) => {
+      mail.calls.push({ args, transactionActive: fake.state.transactionActive })
+      if (mail.fail) throw new Error('Fallo SMTP simulado')
+    }),
+  },
+}))
+
 // Solo se simula la resolución del token de sesión. La lectura de la
 // cookie, requireAuth y requireOwner son los reales.
 vi.mock('../services/session.service.js', () => ({
@@ -406,6 +450,8 @@ function user(id: string, role: Role, extra: Partial<UserRecord> = {}): UserReco
     securityHoldVersion: 0,
     adminSuspendedAt: null,
     adminSuspensionReason: null,
+    passwordResetRequiredAt: null,
+    securityRecoveryEmail: null,
     ...extra,
   }
 }
@@ -461,8 +507,13 @@ function idsOf(rows: { id: string; userId: string }[], userId: string): string[]
 const cookieFor = (token: string) => ({ cookie: `estateforge_session=${token}` })
 const asOwner = cookieFor('owner-token')
 
-type ActionRoute = 'suspend' | 'unsuspend' | 'revoke-sessions' | 'resolve-security-hold'
-const ACTIONS: ActionRoute[] = ['suspend', 'unsuspend', 'revoke-sessions', 'resolve-security-hold']
+type ActionRoute = 'suspend' | 'unsuspend' | 'revoke-sessions' | 'resolve-security-hold' | 'recovery-destination' | 'resend-recovery'
+const ACTIONS: ActionRoute[] = ['suspend', 'unsuspend', 'revoke-sessions', 'resolve-security-hold', 'recovery-destination', 'resend-recovery']
+
+// Cuerpo válido de cada acción: la corrección del destino exige además recoveryEmail.
+function validPayload(route: ActionRoute) {
+  return { reason: 'Motivo válido', ...(route === 'recovery-destination' && { recoveryEmail: 'nuevo-destino@estateforge.test' }) }
+}
 
 const ALL_ROUTES = [
   { method: 'GET' as const, url: '/api/admin/overview' },
@@ -472,7 +523,7 @@ const ALL_ROUTES = [
   ...ACTIONS.map(action => ({
     method: 'POST' as const,
     url: `/api/admin/users/${TARGET}/${action}`,
-    payload: { reason: 'Motivo válido' },
+    payload: validPayload(action),
   })),
 ]
 
@@ -490,9 +541,13 @@ describe('Admin routes', () => {
     fake.state.writesOutsideTx = 0
     fake.state.failAuditCreate = false
     fake.state.auditFailureInsideTransaction = null
+    fake.state.failResetTokenCreate = false
+    mail.calls = []
+    mail.fail = false
     fake.state.beforeUserUpdateMany = null
     fake.state.userUpdateManyCalls = 0
     fake.state.lastUserUpdateManyWhere = null
+    fake.state.lastUserUpdateManyData = null
     fake.state.lastUserFindMany = null
     fake.state.userFindManyCalls = 0
     fake.state.beforeUserFindUnique = null
@@ -620,10 +675,12 @@ describe('Admin routes', () => {
       ['unsuspend', 'No puedes modificar tu propia cuenta desde esta acción.'],
       ['revoke-sessions', 'No puedes cerrar tus propias sesiones desde esta acción.'],
       ['resolve-security-hold', 'No puedes modificar tu propia cuenta desde esta acción.'],
+      ['recovery-destination', 'No puedes modificar tu propia cuenta desde esta acción.'],
+      ['resend-recovery', 'No puedes modificar tu propia cuenta desde esta acción.'],
     ] as const)('%s sobre la propia cuenta devuelve 400', async (route, message) => {
       const before = structuredClone(store())
 
-      const response = await action(route, OWNER, { reason: 'Motivo válido' })
+      const response = await action(route, OWNER, validPayload(route))
 
       expect(response.statusCode).toBe(400)
       expect(response.json()).toEqual({ message })
@@ -635,6 +692,8 @@ describe('Admin routes', () => {
       ['unsuspend', 'No se pueden modificar cuentas propietarias.'],
       ['revoke-sessions', 'No se pueden cerrar sesiones de otra cuenta propietaria desde este panel.'],
       ['resolve-security-hold', 'No se pueden modificar cuentas propietarias.'],
+      ['recovery-destination', 'No se pueden modificar cuentas propietarias.'],
+      ['resend-recovery', 'No se pueden modificar cuentas propietarias.'],
     ] as const)('%s sobre otra cuenta OWNER devuelve 403', async (route, message) => {
       if (route === 'unsuspend') {
         findUser(OTHER_OWNER).adminSuspendedAt = SUSPENSION_DATE
@@ -643,9 +702,13 @@ describe('Admin routes', () => {
         // Con la protección activa, el 403 se debe al rol y no a la falta de protección.
         findUser(OTHER_OWNER).securityHoldAt = HOLD_DATE
       }
+      if (route === 'recovery-destination' || route === 'resend-recovery') {
+        // Con la recuperación pendiente, el 403 se debe al rol y no a su estado.
+        Object.assign(findUser(OTHER_OWNER), { passwordResetRequiredAt: HOLD_DATE, securityRecoveryEmail: 'destino-owner@estateforge.test' })
+      }
       const before = structuredClone(store())
 
-      const response = await action(route, OTHER_OWNER, { reason: 'Motivo válido' })
+      const response = await action(route, OTHER_OWNER, validPayload(route))
 
       expect(response.statusCode).toBe(403)
       expect(response.json()).toEqual({ message })
@@ -655,7 +718,7 @@ describe('Admin routes', () => {
     it.each(ACTIONS)('%s sobre una cuenta inexistente devuelve 404', async route => {
       const before = structuredClone(store())
 
-      const response = await action(route, 'no-existe', { reason: 'Motivo válido' })
+      const response = await action(route, 'no-existe', validPayload(route))
 
       expect(response.statusCode).toBe(404)
       expect(response.json()).toEqual({ message: 'No se ha encontrado la cuenta.' })
@@ -1019,220 +1082,428 @@ describe('Admin routes', () => {
   describe('resolve-security-hold', () => {
     const NOT_HELD_MESSAGE = 'La cuenta no tiene una protección por incidente activa.'
     const HOLD_CHANGED_MESSAGE = 'La protección por incidente ha cambiado durante la operación. Revisa la cuenta antes de volver a intentarlo.'
+    const MISSING_DESTINATION_MESSAGE = 'La cuenta no tiene un destino de recuperación guardado. Indica el email al que enviar el enlace de recuperación obligatoria.'
+    const SENT_MESSAGE = 'Protección por incidente retirada. Se ha enviado el enlace de recuperación obligatoria; la cuenta no podrá acceder hasta establecer una contraseña nueva. Si existe una suspensión administrativa, seguirá activa.'
+    const FAILED_MESSAGE = 'Protección por incidente retirada y recuperación obligatoria activada, pero no se pudo enviar el enlace. La cuenta sigue sin acceso hasta establecer una contraseña nueva.'
+    // Destino guardado al informar del incidente (E2.2): el email anterior al cambio.
+    const STORED_DESTINATION = 'anterior@estateforge.test'
 
     beforeEach(() => {
       findUser(TARGET).securityHoldAt = HOLD_DATE
+      findUser(TARGET).securityRecoveryEmail = STORED_DESTINATION
     })
 
-    it('retira la protección y registra auditoría SECURITY_HOLD_RESOLVED', async () => {
-      const response = await action('resolve-security-hold', TARGET, { reason: '  Incidente revisado  ' })
+    function recoveryTokens() {
+      return store().passwordResetTokens.filter(token => token.purpose === 'SECURITY_RECOVERY')
+    }
 
-      expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({
-        success: true,
-        message: 'Protección por incidente retirada. Si existe una suspensión administrativa, seguirá activa.',
+    function auditMetadata(index = 0) {
+      return JSON.parse(store().adminAuditLogs[index].metadata!)
+    }
+
+    // Token en claro del único enlace enviado.
+    function sentToken() {
+      expect(mail.calls).toHaveLength(1)
+      return new URL(mail.calls[0].args.recoveryUrl).searchParams.get('token')!
+    }
+
+    function sha256(value: string) {
+      return createHash('sha256').update(value).digest('hex')
+    }
+
+    describe('destino y transacción', () => {
+      it('con el destino guardado retira la protección, activa la recuperación y crea el token obligatorio', async () => {
+        const before = Date.now()
+
+        const response = await action('resolve-security-hold', TARGET, { reason: '  Incidente revisado  ' })
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toEqual({ success: true, recoveryEmailSent: true, message: SENT_MESSAGE })
+        const target = findUser(TARGET)
+        expect(target.securityHoldAt).toBeNull()
+        expect(target.passwordResetRequiredAt).toBeInstanceOf(Date)
+        expect(target.passwordResetRequiredAt!.getTime()).toBeGreaterThanOrEqual(before)
+        expect(target.securityRecoveryEmail).toBe(STORED_DESTINATION)
+        expect(target.email).toBe(emailOf(TARGET))
+        expect(target.securityHoldVersion).toBe(0)
+
+        const [token] = recoveryTokens()
+        expect(recoveryTokens()).toHaveLength(1)
+        expect(token).toEqual({
+          id: expect.any(String),
+          userId: TARGET,
+          usedAt: null,
+          tokenHash: sha256(sentToken()),
+          expiresAt: expect.any(Date),
+          purpose: 'SECURITY_RECOVERY',
+          deliverTo: STORED_DESTINATION,
+          securityHoldVersion: 0,
+        })
+        // Misma caducidad que la recuperación de autoservicio: una hora.
+        expect(token.expiresAt!.getTime() - before).toBeGreaterThan(59 * 60_000)
+        expect(token.expiresAt!.getTime() - Date.now()).toBeLessThanOrEqual(60 * 60_000)
+
+        expect(store().adminAuditLogs).toEqual([
+          expect.objectContaining({ actorUserId: OWNER, targetUserId: TARGET, action: 'SECURITY_HOLD_RESOLVED', reason: 'Incidente revisado' }),
+        ])
+        expect(auditMetadata()).toEqual({ actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET), recoveryDestination: 'STORED' })
       })
-      expect(fake.state.userUpdateManyCalls).toBe(1)
-      expect(findUser(TARGET).securityHoldAt).toBeNull()
-      expect(store().adminAuditLogs).toEqual([
-        expect.objectContaining({
-          actorUserId: OWNER,
-          targetUserId: TARGET,
-          action: 'SECURITY_HOLD_RESOLVED',
-          reason: 'Incidente revisado',
-          metadata: JSON.stringify({ actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET) }),
-        }),
-      ])
-    })
 
-    it.each([
-      ['exactamente 3 caracteres', 'abc'],
-      ['exactamente 500 caracteres', 'a'.repeat(500)],
-    ])('acepta un motivo de %s', async (_label, reason) => {
-      const response = await action('resolve-security-hold', TARGET, { reason })
+      it('borra los tokens de recuperación pendientes y conserva los usados y los de otras cuentas', async () => {
+        await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
 
-      expect(response.statusCode).toBe(200)
-      expect(store().adminAuditLogs[0].reason).toBe(reason)
-    })
-
-    it('no modifica la suspensión administrativa', async () => {
-      findUser(TARGET).adminSuspendedAt = SUSPENSION_DATE
-      findUser(TARGET).adminSuspensionReason = 'Motivo anterior'
-
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-
-      expect(response.statusCode).toBe(200)
-      expect(findUser(TARGET).securityHoldAt).toBeNull()
-      expect(findUser(TARGET).adminSuspendedAt).toEqual(SUSPENSION_DATE)
-      expect(findUser(TARGET).adminSuspensionReason).toBe('Motivo anterior')
-    })
-
-    it('no modifica sesiones, tokens ni otros datos de la cuenta', async () => {
-      const before = structuredClone(store())
-
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-
-      expect(response.statusCode).toBe(200)
-      expect(store()).toEqual({
-        ...before,
-        users: before.users.map(item => (item.id === TARGET ? { ...item, securityHoldAt: null } : item)),
-        adminAuditLogs: store().adminAuditLogs,
+        expect(idsOf(store().passwordResetTokens, TARGET)).toEqual([...recoveryTokens().map(token => token.id), 'prt-target-used'].sort())
+        expect(idsOf(store().passwordResetTokens, USER)).toEqual(['prt-user'])
       })
-      expect(store().adminAuditLogs).toHaveLength(1)
+
+      it('sin destino guardado ni indicado responde 400 sin modificar la cuenta ni los tokens', async () => {
+        findUser(TARGET).securityRecoveryEmail = null
+        const before = structuredClone(store())
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toEqual({ message: MISSING_DESTINATION_MESSAGE })
+        expect(fake.state.userUpdateManyCalls).toBe(0)
+        expect(store()).toEqual(before)
+        // Nunca se recurre a User.email.
+        expect(mail.calls).toEqual([])
+      })
+
+      it('acepta un destino indicado por el OWNER si no hay ninguno guardado (OWNER_PROVIDED)', async () => {
+        findUser(TARGET).securityRecoveryEmail = null
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Titular verificado', recoveryEmail: '  Titular@EstateForge.TEST ' })
+
+        expect(response.statusCode).toBe(200)
+        expect(findUser(TARGET).securityRecoveryEmail).toBe('titular@estateforge.test')
+        expect(findUser(TARGET).email).toBe(emailOf(TARGET))
+        expect(recoveryTokens()).toEqual([expect.objectContaining({ deliverTo: 'titular@estateforge.test' })])
+        expect(mail.calls[0].args.to).toBe('titular@estateforge.test')
+        expect(auditMetadata().recoveryDestination).toBe('OWNER_PROVIDED')
+      })
+
+      it('registra la corrección del destino guardado (OWNER_CORRECTED)', async () => {
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Titular verificado', recoveryEmail: 'corregido@estateforge.test' })
+
+        expect(response.statusCode).toBe(200)
+        expect(findUser(TARGET).securityRecoveryEmail).toBe('corregido@estateforge.test')
+        expect(findUser(TARGET).email).toBe(emailOf(TARGET))
+        expect(recoveryTokens()).toEqual([expect.objectContaining({ deliverTo: 'corregido@estateforge.test' })])
+        expect(mail.calls[0].args.to).toBe('corregido@estateforge.test')
+        expect(auditMetadata()).toEqual({ actorEmail: emailOf(OWNER), targetEmail: emailOf(TARGET), recoveryDestination: 'OWNER_CORRECTED' })
+      })
+
+      it('indicar el mismo destino guardado, con otro formato, cuenta como destino guardado', async () => {
+        await action('resolve-security-hold', TARGET, { reason: 'Titular verificado', recoveryEmail: ' Anterior@EstateForge.test' })
+
+        expect(auditMetadata().recoveryDestination).toBe('STORED')
+        expect(recoveryTokens()).toEqual([expect.objectContaining({ deliverTo: STORED_DESTINATION })])
+      })
+
+      it.each([
+        ['sin formato de email', 'no-es-un-email'],
+        ['de más de 254 caracteres', `${'a'.repeat(250)}@x.test`],
+        ['que no es texto', 123],
+      ])('rechaza un recoveryEmail %s (400) sin cambios', async (_label, recoveryEmail) => {
+        const before = structuredClone(store())
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo válido', recoveryEmail })
+
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toEqual({ message: 'El email de recuperación no es válido.' })
+        expect(store()).toEqual(before)
+        expect(mail.calls).toEqual([])
+      })
+
+      it('la auditoría no guarda la dirección de destino, el token ni el enlace', async () => {
+        await action('resolve-security-hold', TARGET, { reason: 'Titular verificado', recoveryEmail: 'corregido@estateforge.test' })
+
+        const raw = JSON.stringify(store().adminAuditLogs)
+        expect(raw).not.toContain('corregido@estateforge.test')
+        expect(raw).not.toContain(STORED_DESTINATION)
+        expect(raw).not.toContain(sentToken())
+        expect(raw).not.toContain('recuperar-cuenta')
+      })
+
+      it.each([
+        ['la creación del token', () => { fake.state.failResetTokenCreate = true }],
+        ['la auditoría', () => { fake.state.failAuditCreate = true }],
+      ])('si falla %s no queda ningún cambio parcial ni se envía el correo', async (_label, inject) => {
+        inject()
+        const before = structuredClone(store())
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo válido' })
+
+        expect(response.statusCode).toBe(500)
+        expect(store()).toEqual(before)
+        expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
+        expect(findUser(TARGET).passwordResetRequiredAt).toBeNull()
+        expect(mail.calls).toEqual([])
+      })
+
+      it('la escritura falla dentro de la transacción, no con el cliente exterior', async () => {
+        fake.state.failAuditCreate = true
+
+        await action('resolve-security-hold', TARGET, { reason: 'Motivo válido' })
+
+        expect(fake.state.auditFailureInsideTransaction).toBe(true)
+      })
+
+      it.each([
+        ['exactamente 3 caracteres', 'abc'],
+        ['exactamente 500 caracteres', 'a'.repeat(500)],
+      ])('acepta un motivo de %s', async (_label, reason) => {
+        const response = await action('resolve-security-hold', TARGET, { reason })
+
+        expect(response.statusCode).toBe(200)
+        expect(store().adminAuditLogs[0].reason).toBe(reason)
+      })
     })
 
-    it('devuelve 409 sin escribir nada si la cuenta no está protegida', async () => {
-      findUser(TARGET).securityHoldAt = null
-      const before = structuredClone(store())
+    describe('estados', () => {
+      it('una cuenta suspendida sigue suspendida y queda además en recuperación obligatoria', async () => {
+        findUser(TARGET).adminSuspendedAt = SUSPENSION_DATE
+        findUser(TARGET).adminSuspensionReason = 'Motivo anterior'
 
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo válido' })
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
 
-      expect(response.statusCode).toBe(409)
-      expect(response.json()).toEqual({ message: NOT_HELD_MESSAGE })
-      expect(fake.state.userUpdateManyCalls).toBe(0)
-      expect(store()).toEqual(before)
+        expect(response.statusCode).toBe(200)
+        expect(findUser(TARGET)).toMatchObject({
+          securityHoldAt: null,
+          adminSuspendedAt: SUSPENSION_DATE,
+          adminSuspensionReason: 'Motivo anterior',
+          passwordResetRequiredAt: expect.any(Date),
+        })
+      })
+
+      it('no modifica sesiones, verificaciones, tokens de incidente ni otras cuentas', async () => {
+        const before = structuredClone(store())
+
+        await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(store().sessions).toEqual(before.sessions)
+        expect(store().emailChangeVerifications).toEqual(before.emailChangeVerifications)
+        expect(store().securityIncidentTokens).toEqual(before.securityIncidentTokens)
+        expect(store().users.filter(item => item.id !== TARGET)).toEqual(before.users.filter(item => item.id !== TARGET))
+        // En la cuenta solo cambian la protección, la obligación y el destino.
+        const { securityHoldAt: _hold, passwordResetRequiredAt: _required, ...unchanged } = before.users.find(item => item.id === TARGET)!
+        expect(findUser(TARGET)).toEqual({ ...unchanged, securityHoldAt: null, passwordResetRequiredAt: expect.any(Date) })
+      })
+
+      it('retira una protección anterior a la migración (versión 0) sin cambiar el contador', async () => {
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(response.statusCode).toBe(200)
+        expect(findUser(TARGET).securityHoldVersion).toBe(0)
+        expect(recoveryTokens()[0].securityHoldVersion).toBe(0)
+      })
+
+      it('con versión distinta de 0 no cambia el contador y liga el token a esa versión', async () => {
+        findUser(TARGET).securityHoldVersion = 3
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(response.statusCode).toBe(200)
+        expect(findUser(TARGET).securityHoldVersion).toBe(3)
+        expect(recoveryTokens()).toEqual([expect.objectContaining({ securityHoldVersion: 3 })])
+      })
     })
 
-    it('devuelve 409 sin auditoría si otra petición retira la protección antes de la escritura condicional', async () => {
-      fake.state.beforeUserUpdateMany = () => {
+    describe('concurrencia', () => {
+      function expectNothingIssued() {
+        expect(recoveryTokens()).toEqual([])
+        expect(store().adminAuditLogs).toEqual([])
+        expect(findUser(TARGET).passwordResetRequiredAt).toBeNull()
+        expect(mail.calls).toEqual([])
+      }
+
+      it('devuelve 409 sin escribir nada si la cuenta no está protegida', async () => {
         findUser(TARGET).securityHoldAt = null
-      }
-      const before = structuredClone(store())
+        const before = structuredClone(store())
 
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo válido' })
 
-      expect(response.statusCode).toBe(409)
-      expect(response.json()).toEqual({ message: NOT_HELD_MESSAGE })
-      expect(fake.state.userUpdateManyCalls).toBe(1)
-      expect(store().adminAuditLogs).toEqual([])
-      // El único cambio es el de la otra petición.
-      expect(store()).toEqual({
-        ...before,
-        users: before.users.map(item => (item.id === TARGET ? { ...item, securityHoldAt: null } : item)),
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({ message: NOT_HELD_MESSAGE })
+        expect(fake.state.userUpdateManyCalls).toBe(0)
+        expect(store()).toEqual(before)
+        expect(mail.calls).toEqual([])
+      })
+
+      it('devuelve 409 sin cambios si otra petición retira la protección antes de la escritura condicional', async () => {
+        fake.state.beforeUserUpdateMany = () => {
+          findUser(TARGET).securityHoldAt = null
+        }
+        const before = structuredClone(store())
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({ message: NOT_HELD_MESSAGE })
+        expect(fake.state.userUpdateManyCalls).toBe(1)
+        expectNothingIssued()
+        // El único cambio es el de la otra petición; los tokens pendientes siguen.
+        expect(store()).toEqual({
+          ...before,
+          users: before.users.map(item => (item.id === TARGET ? { ...item, securityHoldAt: null } : item)),
+        })
+      })
+
+      it('no resuelve ni emite un token para la versión antigua si llega otro incidente entre la lectura y la escritura', async () => {
+        const newHold = new Date(HOLD_DATE.getTime() + 1)
+        fake.state.beforeUserUpdateMany = () => {
+          // Nuevo incidente, como lo registra reportSecurityIncident: nueva fecha, versión + 1
+          // y el destino del nuevo token.
+          findUser(TARGET).securityHoldAt = newHold
+          findUser(TARGET).securityHoldVersion += 1
+          findUser(TARGET).securityRecoveryEmail = 'nuevo-incidente@estateforge.test'
+        }
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
+        expect(findUser(TARGET)).toMatchObject({
+          securityHoldAt: newHold,
+          securityHoldVersion: 1,
+          securityRecoveryEmail: 'nuevo-incidente@estateforge.test',
+        })
+        expectNothingIssued()
+      })
+
+      it('no retira un incidente nuevo con la misma fecha si su versión es distinta', async () => {
+        fake.state.beforeUserUpdateMany = () => {
+          // Mismo milisegundo, otro incidente: solo la versión los distingue.
+          findUser(TARGET).securityHoldVersion += 1
+        }
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
+        expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
+        expect(findUser(TARGET).securityHoldVersion).toBe(1)
+        expectNothingIssued()
+      })
+
+      it('no aplica una retirada antigua si entre medias se retiró la protección y llegó otro incidente', async () => {
+        fake.state.beforeUserUpdateMany = () => {
+          // Otra persona retiró la protección (versión 0) y después se registró otro incidente.
+          findUser(TARGET).securityHoldAt = new Date(HOLD_DATE.getTime())
+          findUser(TARGET).securityHoldVersion = 1
+        }
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Retirada antigua' })
+
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
+        expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
+        expectNothingIssued()
+      })
+
+      it('con la misma versión, la retirada no depende de la fecha guardada', async () => {
+        fake.state.beforeUserUpdateMany = () => {
+          // La fecha leída puede no coincidir textualmente con la guardada; la versión sí.
+          findUser(TARGET).securityHoldAt = new Date(HOLD_DATE.getTime() + 5)
+        }
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(response.statusCode).toBe(200)
+        expect(findUser(TARGET).securityHoldAt).toBeNull()
+        expect(store().adminAuditLogs).toEqual([expect.objectContaining({ action: 'SECURITY_HOLD_RESOLVED' })])
+      })
+
+      it('envía a Prisma la condición por protección activa y versión leída', async () => {
+        findUser(TARGET).securityHoldVersion = 3
+
+        await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(fake.state.lastUserUpdateManyWhere).toEqual({
+          id: TARGET,
+          securityHoldAt: { not: null },
+          securityHoldVersion: 3,
+        })
+      })
+
+      it('dos retiradas seguidas de la misma protección solo emiten un token, una auditoría y un correo', async () => {
+        const first = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+        const second = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(first.statusCode).toBe(200)
+        expect(second.statusCode).toBe(409)
+        expect(second.json()).toEqual({ message: NOT_HELD_MESSAGE })
+        expect(recoveryTokens()).toHaveLength(1)
+        expect(store().adminAuditLogs).toHaveLength(1)
+        expect(mail.calls).toHaveLength(1)
       })
     })
 
-    it('no retira una protección nueva que aparece entre la lectura y la escritura', async () => {
-      const newHold = new Date(HOLD_DATE.getTime() + 1)
-      fake.state.beforeUserUpdateMany = () => {
-        // Nuevo incidente, como lo registra reportSecurityIncident: nueva fecha y versión + 1.
-        findUser(TARGET).securityHoldAt = newHold
-        findUser(TARGET).securityHoldVersion += 1
-      }
-      const before = structuredClone(store())
+    describe('correo de recuperación obligatoria', () => {
+      it('se envía después del commit, al destino, con el enlace propio de la recuperación obligatoria', async () => {
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
 
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
+        expect(mail.calls).toHaveLength(1)
+        expect(mail.calls[0].transactionActive).toBe(false)
+        expect(mail.calls[0].args.to).toBe(STORED_DESTINATION)
+        expect(mail.calls[0].args.to).not.toBe(emailOf(TARGET))
+        const url = new URL(mail.calls[0].args.recoveryUrl)
+        expect(url.pathname).toBe('/recuperar-cuenta')
+        expect(sentToken()).toMatch(/^[a-f0-9]{64}$/)
+        expect(mail.calls[0].args.expiresAt).toEqual(recoveryTokens()[0].expiresAt)
+        // Ni el token ni el enlace salen en la respuesta.
+        expect(response.body).not.toContain(sentToken())
+        expect(response.body).not.toContain('recuperar-cuenta')
+      })
 
-      expect(response.statusCode).toBe(409)
-      expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
-      expect(fake.state.userUpdateManyCalls).toBe(1)
-      expect(findUser(TARGET).securityHoldAt).toEqual(newHold)
-      expect(store().adminAuditLogs).toEqual([])
-      // El único cambio es el del nuevo incidente.
-      expect(store()).toEqual({
-        ...before,
-        users: before.users.map(item => (item.id === TARGET ? { ...item, securityHoldAt: newHold, securityHoldVersion: 1 } : item)),
+      it('si falla el envío mantiene la obligación, el destino, el token y la auditoría', async () => {
+        mail.fail = true
+
+        const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toEqual({ success: true, recoveryEmailSent: false, message: FAILED_MESSAGE })
+        expect(response.body).not.toContain(sentToken())
+        expect(findUser(TARGET)).toMatchObject({
+          securityHoldAt: null,
+          passwordResetRequiredAt: expect.any(Date),
+          securityRecoveryEmail: STORED_DESTINATION,
+        })
+        expect(recoveryTokens()).toEqual([expect.objectContaining({ tokenHash: sha256(sentToken()), usedAt: null })])
+        expect(store().adminAuditLogs).toHaveLength(1)
+      })
+
+      it('el log del fallo no incluye el token, el enlace ni el destino', async () => {
+        const lines: string[] = []
+        const logged = Fastify({ logger: { level: 'error', stream: { write: (line: string) => { lines.push(line) } } } })
+        logged.decorateRequest('userId', null)
+        await logged.register(rateLimit, { global: false })
+        await logged.register(adminRoutes)
+        await logged.ready()
+        mail.fail = true
+        try {
+          const response = await logged.inject({
+            method: 'POST',
+            url: `/api/admin/users/${TARGET}/resolve-security-hold`,
+            headers: asOwner,
+            payload: { reason: 'Incidente revisado' },
+          })
+          expect(response.statusCode).toBe(200)
+        } finally {
+          await logged.close()
+        }
+
+        const output = lines.join('\n')
+        expect(output).toContain('No se pudo enviar el enlace de recuperación obligatoria')
+        expect(output).toContain(TARGET)
+        expect(output).not.toContain(sentToken())
+        expect(output).not.toContain('recuperar-cuenta')
+        expect(output).not.toContain(STORED_DESTINATION)
       })
     })
 
-    it('no retira un incidente nuevo con la misma fecha si su versión es distinta', async () => {
-      fake.state.beforeUserUpdateMany = () => {
-        // Mismo milisegundo, otro incidente: solo la versión los distingue.
-        findUser(TARGET).securityHoldVersion += 1
-      }
-
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo perdedor' })
-
-      expect(response.statusCode).toBe(409)
-      expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
-      expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
-      expect(findUser(TARGET).securityHoldVersion).toBe(1)
-      expect(store().adminAuditLogs).toEqual([])
-    })
-
-    it('no aplica una retirada antigua si entre medias se retiró la protección y llegó otro incidente', async () => {
-      fake.state.beforeUserUpdateMany = () => {
-        // Otra persona retiró la protección (versión 0) y después se registró otro incidente.
-        findUser(TARGET).securityHoldAt = new Date(HOLD_DATE.getTime())
-        findUser(TARGET).securityHoldVersion = 1
-      }
-
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Retirada antigua' })
-
-      expect(response.statusCode).toBe(409)
-      expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
-      expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
-      expect(findUser(TARGET).securityHoldVersion).toBe(1)
-      expect(store().adminAuditLogs).toEqual([])
-    })
-
-    it('con la misma versión, la retirada no depende de la fecha guardada', async () => {
-      fake.state.beforeUserUpdateMany = () => {
-        // La fecha leída puede no coincidir textualmente con la guardada; la versión sí.
-        findUser(TARGET).securityHoldAt = new Date(HOLD_DATE.getTime() + 5)
-      }
-
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-
-      expect(response.statusCode).toBe(200)
-      expect(findUser(TARGET).securityHoldAt).toBeNull()
-      expect(store().adminAuditLogs).toEqual([expect.objectContaining({ action: 'SECURITY_HOLD_RESOLVED' })])
-    })
-
-    it('envía a Prisma la condición por protección activa y versión leída', async () => {
-      findUser(TARGET).securityHoldVersion = 3
-
-      await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-
-      expect(fake.state.lastUserUpdateManyWhere).toEqual({
-        id: TARGET,
-        securityHoldAt: { not: null },
-        securityHoldVersion: 3,
-      })
-    })
-
-    it('retira una protección anterior a la migración (versión 0) sin cambiar el contador', async () => {
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-
-      expect(response.statusCode).toBe(200)
-      expect(findUser(TARGET).securityHoldAt).toBeNull()
-      expect(findUser(TARGET).securityHoldVersion).toBe(0)
-      expect(store().adminAuditLogs).toHaveLength(1)
-    })
-
-    it('retira una protección con versión distinta de 0 sin cambiar el contador', async () => {
-      findUser(TARGET).securityHoldVersion = 3
-
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-
-      expect(response.statusCode).toBe(200)
-      expect(findUser(TARGET).securityHoldAt).toBeNull()
-      expect(findUser(TARGET).securityHoldVersion).toBe(3)
-    })
-
-    it('dos retiradas seguidas de la misma protección solo registran una auditoría', async () => {
-      const first = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-      const second = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
-
-      expect(first.statusCode).toBe(200)
-      expect(second.statusCode).toBe(409)
-      expect(second.json()).toEqual({ message: NOT_HELD_MESSAGE })
-      expect(store().adminAuditLogs).toHaveLength(1)
-    })
-
-    it('revierte todos los cambios si falla la auditoría dentro de la transacción', async () => {
-      fake.state.failAuditCreate = true
-      const before = structuredClone(store())
-
-      const response = await action('resolve-security-hold', TARGET, { reason: 'Motivo válido' })
-
-      expect(response.statusCode).toBe(500)
-      expect(fake.state.auditFailureInsideTransaction).toBe(true)
-      expect(store()).toEqual(before)
-      expect(findUser(TARGET).securityHoldAt).toEqual(HOLD_DATE)
-    })
-
-    it('la acción queda disponible en el filtro de auditoría', async () => {
+    it('la acción queda disponible en el filtro de auditoría con el origen del destino', async () => {
       await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
       await action('revoke-sessions', USER, { reason: 'Otra acción' })
 
@@ -1242,9 +1513,370 @@ describe('Admin routes', () => {
       expect(fake.state.lastAuditFindMany?.where).toEqual({ action: 'SECURITY_HOLD_RESOLVED' })
       expect(fake.state.lastAuditCount?.where).toEqual({ action: 'SECURITY_HOLD_RESOLVED' })
       expect(response.json().logs).toEqual([
-        expect.objectContaining({ action: 'SECURITY_HOLD_RESOLVED', targetUserId: TARGET, targetEmail: emailOf(TARGET) }),
+        expect.objectContaining({
+          action: 'SECURITY_HOLD_RESOLVED',
+          targetUserId: TARGET,
+          targetEmail: emailOf(TARGET),
+          recoveryDestination: 'STORED',
+        }),
       ])
       expect(response.json().pagination.total).toBe(1)
+    })
+  })
+
+  // ----------------------------------------------------------
+  // GESTIÓN DE UNA RECUPERACIÓN PENDIENTE (E2.5f)
+  // ----------------------------------------------------------
+
+  describe('corrección del destino y reenvío del enlace (E2.5f)', () => {
+    const NOT_REQUIRED = 'La cuenta no tiene una recuperación obligatoria pendiente.'
+    const HELD = 'La cuenta tiene una protección por incidente activa. Retírala primero; la retirada envía un enlace nuevo.'
+    const SUSPENDED = 'La cuenta está suspendida administrativamente. Retira la suspensión antes de gestionar su recuperación.'
+    const CHANGED = 'La recuperación de la cuenta ha cambiado durante la operación. Revisa la cuenta antes de volver a intentarlo.'
+    const STORED = 'anterior@estateforge.test'
+    const NEW = 'nuevo-destino@estateforge.test'
+    const PENDING_SINCE = new Date('2026-11-02T12:00:00.000Z')
+    type RecoveryRoute = 'recovery-destination' | 'resend-recovery'
+    const ROUTES: RecoveryRoute[] = ['recovery-destination', 'resend-recovery']
+
+    // Destino que deja cada ruta tras completarse.
+    const destinationAfter = (route: RecoveryRoute) => (route === 'recovery-destination' ? NEW : STORED)
+
+    beforeEach(() => {
+      // Cuenta en recuperación obligatoria tras retirar la protección de la versión 2.
+      Object.assign(findUser(TARGET), { passwordResetRequiredAt: PENDING_SINCE, securityRecoveryEmail: STORED, securityHoldVersion: 2 })
+      store().passwordResetTokens = [
+        { id: 'rec-old', userId: TARGET, usedAt: null, purpose: 'SECURITY_RECOVERY', deliverTo: STORED, securityHoldVersion: 2 },
+        { id: 'rec-used', userId: TARGET, usedAt: USED_DATE, purpose: 'SECURITY_RECOVERY', deliverTo: STORED, securityHoldVersion: 1 },
+        { id: 'self-pending', userId: TARGET, usedAt: null, purpose: 'SELF_SERVICE' },
+        { id: 'rec-user', userId: USER, usedAt: null, purpose: 'SECURITY_RECOVERY', deliverTo: 'otro@estateforge.test', securityHoldVersion: 1 },
+      ]
+    })
+
+    function call(route: RecoveryRoute, extra: Record<string, unknown> = {}) {
+      const payload = route === 'recovery-destination'
+        ? { reason: 'Titular verificado', recoveryEmail: NEW, ...extra }
+        : { reason: 'Titular verificado', ...extra }
+      return action(route, TARGET, payload)
+    }
+
+    function newTokens() {
+      return store().passwordResetTokens.filter(token => token.id.startsWith('prt-new-'))
+    }
+
+    function sentToken() {
+      expect(mail.calls).toHaveLength(1)
+      return new URL(mail.calls[0].args.recoveryUrl).searchParams.get('token')!
+    }
+
+    function expectNothingIssued(before: Store) {
+      expect(store()).toEqual(before)
+      expect(mail.calls).toEqual([])
+    }
+
+    describe.each(ROUTES)('%s', route => {
+      it('sustituye el enlace: invalida los SECURITY_RECOVERY no usados de la cuenta y crea uno con la versión actual', async () => {
+        const before = structuredClone(store())
+
+        const response = await call(route)
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toMatchObject({ success: true, recoveryEmailSent: true })
+        const target = findUser(TARGET)
+        const original = before.users.find(item => item.id === TARGET)!
+        // Solo cambia el destino (y solo en la corrección): ni versión, ni email, ni estados.
+        expect(target).toEqual({ ...original, securityRecoveryEmail: destinationAfter(route) })
+        expect(fake.state.lastUserUpdateManyData).toEqual({ securityRecoveryEmail: destinationAfter(route) })
+        expect(fake.state.lastUserUpdateManyWhere).toEqual({
+          id: TARGET, passwordResetRequiredAt: { not: null }, securityHoldAt: null, adminSuspendedAt: null,
+          securityHoldVersion: 2, securityRecoveryEmail: STORED,
+        })
+        // Se borra el pendiente obligatorio; se conservan el usado, el de autoservicio y el de otra cuenta.
+        expect(store().passwordResetTokens.map(token => token.id).sort()).toEqual(['prt-new-4', 'rec-used', 'rec-user', 'self-pending'])
+        expect(newTokens()).toEqual([{
+          id: 'prt-new-4', userId: TARGET, usedAt: null, tokenHash: createHash('sha256').update(sentToken()).digest('hex'),
+          expiresAt: expect.any(Date), purpose: 'SECURITY_RECOVERY', deliverTo: destinationAfter(route), securityHoldVersion: 2,
+        }])
+        expect(mail.calls[0]).toMatchObject({ transactionActive: false, args: { to: destinationAfter(route) } })
+        expect(new URL(mail.calls[0].args.recoveryUrl).pathname).toBe('/recuperar-cuenta')
+      })
+
+      it('registra su acción de auditoría sin destino, token ni enlace', async () => {
+        await call(route)
+
+        expect(store().adminAuditLogs).toEqual([
+          expect.objectContaining({
+            actorUserId: OWNER,
+            targetUserId: TARGET,
+            action: route === 'recovery-destination' ? 'SECURITY_RECOVERY_DESTINATION_CHANGED' : 'SECURITY_RECOVERY_LINK_RESENT',
+            reason: 'Titular verificado',
+          }),
+        ])
+        expect(JSON.parse(store().adminAuditLogs[0].metadata!)).toEqual({
+          actorEmail: emailOf(OWNER),
+          targetEmail: emailOf(TARGET),
+          ...(route === 'recovery-destination' && { recoveryDestination: 'OWNER_CORRECTED' }),
+        })
+        const raw = JSON.stringify(store().adminAuditLogs)
+        for (const secret of [STORED, NEW, sentToken(), 'recuperar-cuenta']) expect(raw).not.toContain(secret)
+      })
+
+      it('la respuesta no incluye destino, token ni enlace', async () => {
+        const response = await call(route)
+
+        for (const secret of [STORED, NEW, sentToken(), 'recuperar-cuenta']) expect(response.body).not.toContain(secret)
+      })
+
+      it.each([
+        ['protección activa', { securityHoldAt: HOLD_DATE }, HELD],
+        ['suspensión administrativa', { adminSuspendedAt: SUSPENSION_DATE }, SUSPENDED],
+        ['sin recuperación pendiente', { passwordResetRequiredAt: null }, NOT_REQUIRED],
+        ['protección y suspensión (prevalece la protección)', { securityHoldAt: HOLD_DATE, adminSuspendedAt: SUSPENSION_DATE }, HELD],
+      ])('con %s responde 409 sin cambios', async (_label, state, message) => {
+        Object.assign(findUser(TARGET), state)
+        const before = structuredClone(store())
+
+        const response = await call(route)
+
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({ message })
+        expect(fake.state.userUpdateManyCalls).toBe(0)
+        expectNothingIssued(before)
+      })
+
+      it('responde 409 si el destino es el email de otra cuenta, sin cambios', async () => {
+        findUser(USER).email = destinationAfter(route)
+        const before = structuredClone(store())
+
+        const response = await call(route)
+
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({
+          message: route === 'recovery-destination'
+            ? 'Ese email pertenece a otra cuenta.'
+            : 'El destino de recuperación guardado pertenece a otra cuenta. Corrige el destino antes de reenviar.',
+        })
+        expectNothingIssued(before)
+      })
+
+      it('permite un destino que otra cuenta tiene como securityRecoveryEmail', async () => {
+        findUser(USER).securityRecoveryEmail = destinationAfter(route)
+
+        const response = await call(route)
+
+        expect(response.statusCode).toBe(200)
+        expect(newTokens()).toEqual([expect.objectContaining({ deliverTo: destinationAfter(route) })])
+      })
+
+      it.each([
+        ['otra corrección del destino', { securityRecoveryEmail: 'corregido-antes@estateforge.test' }, CHANGED],
+        ['la finalización de la recuperación', { passwordResetRequiredAt: null, securityRecoveryEmail: null }, NOT_REQUIRED],
+        ['un incidente nuevo', { securityHoldAt: HOLD_DATE, securityHoldVersion: 3 }, HELD],
+        ['una suspensión', { adminSuspendedAt: SUSPENSION_DATE }, SUSPENDED],
+      ])('si entre la lectura y la escritura llega %s, responde 409 sin emitir nada', async (_label, change, message) => {
+        fake.state.beforeUserUpdateMany = () => {
+          Object.assign(findUser(TARGET), change)
+        }
+
+        const response = await call(route)
+
+        expect(response.statusCode).toBe(409)
+        expect(response.json()).toEqual({ message })
+        expect(fake.state.userUpdateManyCalls).toBe(1)
+        expect(store().passwordResetTokens.map(token => token.id).sort()).toEqual(['rec-old', 'rec-used', 'rec-user', 'self-pending'])
+        expect(store().adminAuditLogs).toEqual([])
+        expect(mail.calls).toEqual([])
+      })
+
+      it.each([
+        ['la creación del token', () => { fake.state.failResetTokenCreate = true }],
+        ['la auditoría', () => { fake.state.failAuditCreate = true }],
+      ])('si falla %s, la transacción no deja cambios ni envía correo', async (_label, inject) => {
+        inject()
+        const before = structuredClone(store())
+
+        const response = await call(route)
+
+        expect(response.statusCode).toBe(500)
+        expectNothingIssued(before)
+      })
+
+      it('si falla el envío, conserva el token y la obligación, y un reenvío posterior funciona', async () => {
+        mail.fail = true
+
+        const failed = await call(route)
+
+        expect(failed.statusCode).toBe(200)
+        expect(failed.json()).toMatchObject({ success: true, recoveryEmailSent: false })
+        expect(findUser(TARGET).passwordResetRequiredAt).toEqual(PENDING_SINCE)
+        expect(newTokens()).toEqual([expect.objectContaining({ usedAt: null, deliverTo: destinationAfter(route) })])
+
+        mail.fail = false
+        mail.calls = []
+        const retried = await action('resend-recovery', TARGET, { reason: 'Reintento del envío' })
+
+        expect(retried.statusCode).toBe(200)
+        expect(retried.json()).toMatchObject({ success: true, recoveryEmailSent: true })
+        // El token del envío fallido se sustituye por el nuevo.
+        expect(newTokens()).toHaveLength(1)
+        expect(newTokens()[0].tokenHash).toBe(createHash('sha256').update(sentToken()).digest('hex'))
+      })
+    })
+
+    describe('recovery-destination', () => {
+      it.each([
+        ['idéntico', STORED],
+        ['igual tras normalizar', '  Anterior@EstateForge.TEST '],
+      ])('con un destino %s al guardado es idempotente: 200 sin token, correo ni auditoría', async (_label, recoveryEmail) => {
+        const before = structuredClone(store())
+
+        const response = await call('recovery-destination', { recoveryEmail })
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toEqual({
+          success: true,
+          changed: false,
+          recoveryEmailSent: false,
+          message: 'El destino indicado ya es el destino de recuperación de la cuenta. No se ha enviado ningún enlace; usa el reenvío si necesitas uno nuevo.',
+        })
+        expect(fake.state.userUpdateManyCalls).toBe(0)
+        expectNothingIssued(before)
+      })
+
+      it('responde changed:true con el mensaje del cambio y normaliza el destino', async () => {
+        const response = await call('recovery-destination', { recoveryEmail: '  Nuevo-Destino@EstateForge.TEST ' })
+
+        expect(response.json()).toEqual({
+          success: true,
+          changed: true,
+          recoveryEmailSent: true,
+          message: 'Destino de recuperación actualizado. Se ha enviado un enlace nuevo; los enlaces anteriores ya no son válidos.',
+        })
+        expect(findUser(TARGET).securityRecoveryEmail).toBe(NEW)
+      })
+
+      it('sin destino previo registra OWNER_PROVIDED', async () => {
+        findUser(TARGET).securityRecoveryEmail = null
+
+        const response = await call('recovery-destination')
+
+        expect(response.statusCode).toBe(200)
+        expect(fake.state.lastUserUpdateManyWhere).toMatchObject({ securityRecoveryEmail: null })
+        expect(JSON.parse(store().adminAuditLogs[0].metadata!).recoveryDestination).toBe('OWNER_PROVIDED')
+      })
+
+      it('admite como destino el propio email de la cuenta', async () => {
+        const response = await call('recovery-destination', { recoveryEmail: emailOf(TARGET) })
+
+        expect(response.statusCode).toBe(200)
+        expect(findUser(TARGET).securityRecoveryEmail).toBe(emailOf(TARGET))
+        expect(findUser(TARGET).email).toBe(emailOf(TARGET))
+      })
+
+      it.each([
+        ['sin recoveryEmail', { reason: 'Titular verificado' }],
+        ['con formato no válido', { reason: 'Titular verificado', recoveryEmail: 'no-es-un-email' }],
+        ['de más de 254 caracteres', { reason: 'Titular verificado', recoveryEmail: `${'a'.repeat(250)}@x.test` }],
+        ['que no es texto', { reason: 'Titular verificado', recoveryEmail: 42 }],
+      ])('rechaza un email %s (400) sin cambios', async (_label, payload) => {
+        const before = structuredClone(store())
+
+        const response = await action('recovery-destination', TARGET, payload)
+
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toEqual({ message: 'El email de recuperación no es válido.' })
+        expectNothingIssued(before)
+      })
+
+      it('con motivo y email no válidos informa primero del motivo', async () => {
+        const response = await action('recovery-destination', TARGET, { reason: 'ab', recoveryEmail: 'no-es-un-email' })
+
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toEqual({ message: 'Indica un motivo de entre 3 y 500 caracteres.' })
+      })
+
+      it('si falla el envío responde el mensaje de destino actualizado sin enlace', async () => {
+        mail.fail = true
+
+        const response = await call('recovery-destination')
+
+        expect(response.json()).toEqual({
+          success: true,
+          changed: true,
+          recoveryEmailSent: false,
+          message: 'Destino de recuperación actualizado, pero no se pudo enviar el enlace nuevo. Los enlaces anteriores ya no son válidos; puedes reenviarlo.',
+        })
+      })
+    })
+
+    describe('resend-recovery', () => {
+      it('sin destino guardado responde 400 y no usa User.email', async () => {
+        findUser(TARGET).securityRecoveryEmail = null
+        const before = structuredClone(store())
+
+        const response = await call('resend-recovery')
+
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toEqual({ message: 'La cuenta no tiene un destino de recuperación guardado. Corrige el destino antes de reenviar.' })
+        expectNothingIssued(before)
+      })
+
+      it('responde con los mensajes del reenvío', async () => {
+        const sent = await call('resend-recovery')
+        mail.fail = true
+        const failed = await call('resend-recovery')
+
+        expect(sent.json()).toEqual({ success: true, recoveryEmailSent: true, message: 'Se ha enviado un enlace de recuperación nuevo; los enlaces anteriores ya no son válidos.' })
+        expect(failed.json()).toEqual({
+          success: true,
+          recoveryEmailSent: false,
+          message: 'No se pudo enviar el enlace de recuperación. Los enlaces anteriores ya no son válidos; vuelve a intentarlo más tarde.',
+        })
+      })
+
+      it('dos reenvíos seguidos dejan un solo enlace utilizable: el último', async () => {
+        await call('resend-recovery')
+        const first = sentToken()
+        mail.calls = []
+        await call('resend-recovery')
+        const second = sentToken()
+
+        const pending = store().passwordResetTokens.filter(token => token.userId === TARGET && token.usedAt === null && token.purpose === 'SECURITY_RECOVERY')
+        expect(pending.map(token => token.tokenHash)).toEqual([createHash('sha256').update(second).digest('hex')])
+        expect(first).not.toBe(second)
+        expect(store().adminAuditLogs.map(log => log.action)).toEqual(['SECURITY_RECOVERY_LINK_RESENT', 'SECURITY_RECOVERY_LINK_RESENT'])
+      })
+
+      it('el log de un fallo de envío no incluye destino, token ni enlace', async () => {
+        const lines: string[] = []
+        const logged = Fastify({ logger: { level: 'error', stream: { write: (line: string) => { lines.push(line) } } } })
+        logged.decorateRequest('userId', null)
+        await logged.register(rateLimit, { global: false })
+        await logged.register(adminRoutes)
+        await logged.ready()
+        mail.fail = true
+        try {
+          const response = await logged.inject({ method: 'POST', url: `/api/admin/users/${TARGET}/resend-recovery`, headers: asOwner, payload: { reason: 'Reintento' } })
+          expect(response.statusCode).toBe(200)
+        } finally {
+          await logged.close()
+        }
+
+        const output = lines.join('\n')
+        expect(output).toContain('No se pudo enviar el enlace de recuperación obligatoria')
+        expect(output).toContain(TARGET)
+        for (const secret of [STORED, sentToken(), 'recuperar-cuenta']) expect(output).not.toContain(secret)
+      })
+    })
+
+    it.each(['SECURITY_RECOVERY_DESTINATION_CHANGED', 'SECURITY_RECOVERY_LINK_RESENT'])('el filtro de auditoría admite %s', async auditAction => {
+      await call(auditAction === 'SECURITY_RECOVERY_LINK_RESENT' ? 'resend-recovery' : 'recovery-destination')
+
+      const response = await app.inject({ method: 'GET', url: `/api/admin/audit?action=${auditAction}`, headers: asOwner })
+
+      expect(response.statusCode).toBe(200)
+      expect(fake.state.lastAuditFindMany?.where).toEqual({ action: auditAction })
+      expect(response.json().logs).toEqual([expect.objectContaining({ action: auditAction, targetUserId: TARGET })])
     })
   })
 
@@ -1391,6 +2023,7 @@ describe('Admin routes', () => {
         targetEmailAtAction: null,
         targetFound: true,
         revokedCount: null,
+        recoveryDestination: null,
       })
     })
 
@@ -1420,6 +2053,17 @@ describe('Admin routes', () => {
         targetFound: false,
         actorEmail: emailOf(OWNER),
         actorFound: true,
+      })
+    })
+
+    it('un registro sin actor (solicitud no autenticada) se lista con actorFound null y la cuenta afectada resuelta', async () => {
+      store().adminAuditLogs.push(auditLog('a-1', { actorUserId: null, action: 'SECURITY_RECOVERY_LINK_REQUESTED', reason: null }))
+
+      const [log] = await getLogs()
+
+      expect(log).toMatchObject({
+        actorUserId: null, actorEmail: null, actorEmailAtAction: null, actorFound: null,
+        targetUserId: TARGET, targetEmail: emailOf(TARGET), targetFound: true,
       })
     })
 

@@ -20,9 +20,20 @@ export interface EmailChangeNoticeEmail {
   incidentReportUrl?: string
 }
 
+// Recuperación obligatoria tras un incidente (E2): va al destino autorizado por un OWNER.
+export interface SecurityRecoveryEmail {
+  to: string
+  recoveryUrl: string
+  expiresAt: Date
+}
+
 export interface EmailService {
   sendPasswordResetEmail(
     email: PasswordResetEmail,
+  ): Promise<void>
+
+  sendSecurityRecoveryEmail(
+    email: SecurityRecoveryEmail,
   ): Promise<void>
 
   sendEmailChangeCodeEmail(
@@ -169,6 +180,56 @@ export class SMTPEmailService implements EmailService {
             Si no has solicitado este cambio,
             puedes ignorar este mensaje.
           </p>
+        </div>
+      `,
+    })
+  }
+
+  async sendSecurityRecoveryEmail(
+    email: SecurityRecoveryEmail,
+  ): Promise<void> {
+    const transporter = createTransporter()
+    const fromAddress = getFromAddress()
+    const expiration = formatExpiration(email.expiresAt)
+    const supportEmail = process.env.SUPPORT_EMAIL?.trim()
+    const supportHtml = supportEmail ? `<p>Soporte: <a href="mailto:${escapeHtml(supportEmail)}">${escapeHtml(supportEmail)}</a></p>` : ''
+    const supportText = supportEmail ? `\nContacto de soporte: ${supportEmail}` : ''
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: email.to,
+      subject:
+        'EstateForge — Establece una contraseña nueva',
+      text: [
+        'El equipo de EstateForge ha revisado el incidente de seguridad de tu cuenta.',
+        '',
+        'Para volver a acceder debes establecer una contraseña nueva desde este enlace:',
+        email.recoveryUrl,
+        '',
+        `Este enlace caduca el ${expiration}. Hasta que establezcas la contraseña nueva no podrás iniciar sesión.`,
+        '',
+        'Si no esperabas este mensaje, no uses el enlace y contacta con soporte.',
+        supportText,
+      ].join('\n'),
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
+          <h2>EstateForge</h2>
+          <p>El equipo de EstateForge ha revisado el incidente de seguridad de tu cuenta.</p>
+          <p>Para volver a acceder debes establecer una contraseña nueva.</p>
+          <p>
+            <a
+              href="${escapeHtml(email.recoveryUrl)}"
+              style="display:inline-block;padding:10px 16px;background:#111827;color:#ffffff;text-decoration:none;border-radius:8px;"
+            >
+              Establecer contraseña nueva
+            </a>
+          </p>
+          <p>
+            Este enlace caduca el <strong>${expiration}</strong>.
+            Hasta que establezcas la contraseña nueva no podrás iniciar sesión.
+          </p>
+          <p>Si no esperabas este mensaje, no uses el enlace y contacta con soporte.</p>
+          ${supportHtml}
         </div>
       `,
     })

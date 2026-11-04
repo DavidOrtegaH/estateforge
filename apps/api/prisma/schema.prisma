@@ -17,6 +17,10 @@ model User {
   updatedAt           DateTime            @updatedAt
   securityHoldAt      DateTime?
   securityHoldVersion Int                 @default(0)
+  // Recuperación obligatoria tras un incidente (E2). NULL = flujo normal / sin destino conocido.
+  // securityRecoveryEmail es el destino propuesto; solo queda autorizado cuando lo confirma un OWNER.
+  passwordResetRequiredAt DateTime?
+  securityRecoveryEmail   String?
   adminSuspendedAt    DateTime?
   adminSuspensionReason String?
   role                String              @default("USER")
@@ -48,6 +52,12 @@ model PasswordResetToken {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+  // 'SELF_SERVICE' (flujo normal) o 'SECURITY_RECOVERY' (obligatorio tras un incidente, E2).
+  // Un token obligatorio lleva deliverTo y securityHoldVersion; uno normal los deja a NULL.
+  // La emisión de un token normal no debe eliminar un token obligatorio pendiente.
+  purpose             String  @default("SELF_SERVICE")
+  deliverTo           String?
+  securityHoldVersion Int?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -81,6 +91,9 @@ model SecurityIncidentToken {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime @default(now())
+  // Email al que se envió el enlace de incidente. Es un dato del incidente, no una
+  // autorización: el destino de la recuperación lo confirma un OWNER (E2).
+  notifiedEmail String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -155,7 +168,8 @@ model Generation {
 
 model AdminAuditLog {
   id          String   @id @default(cuid())
-  actorUserId String
+  // NULL: acción sin un actor autenticado (p. ej., la solicitud pública de un enlace de recuperación).
+  actorUserId String?
   targetUserId String?
   action      String
   reason      String?
