@@ -11,6 +11,7 @@ import { auditEmptyMessage, runActionThenRefresh, settleLatest, startLatestIndic
 import { useModalDialog } from '@/hooks/useModalDialog'
 import { lastPageIfBeyondEnd, reachablePages } from '@/lib/pagination'
 import { PageJump } from '@/components/ui/PageJump'
+import { holdScrollAnchor, isLatestResponse, restoreScrollAnchor, takeScrollAnchor, type PendingScrollAnchor } from '@/lib/scrollAnchor'
 
 const REASON_MIN = 3
 const REASON_MAX = 500
@@ -169,6 +170,15 @@ export default function AdminPage() {
   const usersRequest = useRef(0)
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
   const [auditPage, setAuditPage] = useState(1)
+  // Barras de paginación de usuarios y de auditoría. Al cambiar de página, la barra usada se
+  // mantiene en el mismo sitio de la ventana aunque la página nueva sea más alta o más baja.
+  // Cada listado tiene su propia ancla, ligada a la petición cuya respuesta se va a mostrar.
+  const usersPager = useRef<HTMLDivElement>(null)
+  const auditPager = useRef<HTMLDivElement>(null)
+  const usersPagerAnchor = useRef<PendingScrollAnchor | null>(null)
+  const auditPagerAnchor = useRef<PendingScrollAnchor | null>(null)
+  // Petición (usersRequest o auditRequest) que produjo cada respuesta: ordena las anclas.
+  const responseRequest = useRef(new WeakMap<AdminUsersResponse | AdminAuditResponse, number>())
   const [auditFilters, setAuditFilters] = useState<AuditFilters>(NO_AUDIT_FILTERS)
   // Identifica la última petición de auditoría; las respuestas anteriores se descartan.
   const auditRequest = useRef(0)
@@ -208,11 +218,18 @@ export default function AdminPage() {
     setErrors(current => withScopeError(current, scope, message))
   }
 
+  // Una respuesta solo se escribe en el estado si sigue siendo la de la última petición de su
+  // listado al escribirla (no solo al llegar): el estado recibe versiones crecientes.
+  const latestUsers = (response: AdminUsersResponse) => isLatestResponse(responseRequest.current, response, usersRequest.current)
+  const latestAudit = (response: AdminAuditResponse) => isLatestResponse(responseRequest.current, response, auditRequest.current)
+
   // Devuelve null si mientras tanto se lanzó otra petición de usuarios (también si falla).
   async function loadUsers(query: { search: string; page: number }) {
     const requestId = ++usersRequest.current
     const result = await settleLatest(getAdminUsers(query), () => requestId === usersRequest.current)
-    return result.current ? result.value : null
+    if (!result.current) return null
+    responseRequest.current.set(result.value, requestId)
+    return result.value
   }
 
   // Igual que loadUsers: devuelve null si mientras tanto se lanzó otra petición de auditoría.
@@ -221,7 +238,9 @@ export default function AdminPage() {
     setAuditLoading(true)
     try {
       const result = await settleLatest(getAdminAudit(page, auditQuery(filters)), () => requestId === auditRequest.current)
-      return result.current ? result.value : null
+      if (!result.current) return null
+      responseRequest.current.set(result.value, requestId)
+      return result.value
     } finally {
       // Solo la petición vigente termina la carga; una sustituida no la toca.
       if (requestId === auditRequest.current) setAuditLoading(false)
@@ -241,12 +260,14 @@ export default function AdminPage() {
       loadAudit(nextAuditPage, filters),
     ])
     setOverview(stats)
-    if (auditResult) showAudit(auditResult, filters)
-    if (!users) return
+    // Mientras se esperaba a las tres peticiones pudo empezar otra (p. ej., un cambio de página):
+    // entonces estas respuestas ya no son las últimas y no se escriben.
+    if (auditResult && latestAudit(auditResult)) showAudit(auditResult, filters)
+    if (!users || !latestUsers(users)) return
     // Si la página actual ha quedado vacía, se carga la última página con resultados.
     if (users.users.length === 0 && users.pagination.page > 1) {
       const lastPage = await loadUsers({ search: appliedSearch, page: Math.max(1, users.pagination.pages) })
-      if (lastPage) setData(lastPage)
+      if (lastPage && latestUsers(lastPage)) setData(lastPage)
       return
     }
     setData(users)
@@ -269,11 +290,14 @@ export default function AdminPage() {
         ])
         if (active) {
           setOverview(stats)
-          if (auditResult.current) {
+          if (auditResult.current) responseRequest.current.set(auditResult.value, auditRequestId)
+          if (users.current) responseRequest.current.set(users.value, requestId)
+          // Como en refresh: solo si siguen siendo las últimas tras esperar a las tres peticiones.
+          if (auditResult.current && latestAudit(auditResult.value)) {
             setAudit(auditResult.value); setAuditPage(1)
             setShownAuditFilters(NO_AUDIT_FILTERS)
           }
-          if (users.current) setData(users.value)
+          if (users.current && latestUsers(users.value)) setData(users.value)
         }
       } catch (e) { if (active) setErrors(current => withScopeError(current, 'load', e instanceof Error ? e.message : 'Error al cargar el panel.')) }
       finally { if (active) setLoading(false) }
@@ -290,11 +314,24 @@ export default function AdminPage() {
     const submittedSearch = search
     try {
       const users = await loadUsers({ search: submittedSearch, page: 1 })
-      if (users) { setData(users); setAppliedSearch(submittedSearch) }
+      if (users && latestUsers(users)) { setData(users); setAppliedSearch(submittedSearch) }
     }
     catch (e) { setError('users', e instanceof Error ? e.message : 'Error de búsqueda.') }
     finally { finishSearching() }
   }
+
+  // Tras mostrar la página nueva y antes de pintarla, se compensa lo que se haya movido su barra.
+  // Cada efecto depende solo de su listado. Una actualización anterior a la navegación conserva
+  // el ancla; una posterior (búsqueda, filtro, recarga u otra página) la descarta sin restaurarla.
+  function shownRequest(response: AdminUsersResponse | AdminAuditResponse | null) {
+    return response ? responseRequest.current.get(response) ?? null : null
+  }
+  useLayoutEffect(() => {
+    restoreScrollAnchor(takeScrollAnchor(usersPagerAnchor, shownRequest(data)), window)
+  }, [data])
+  useLayoutEffect(() => {
+    restoreScrollAnchor(takeScrollAnchor(auditPagerAnchor, shownRequest(audit)), window)
+  }, [audit])
 
   async function changeUsersPage(page: number) {
     if (!data || page < 1 || page > reachablePages(data.pagination.pages, ADMIN_USERS_MAX_PAGE) || page === data.pagination.page) return
@@ -305,7 +342,11 @@ export default function AdminPage() {
       // La página pedida ha quedado vacía (se borraron cuentas): se muestra la última con resultados.
       const last = lastPageIfBeyondEnd(users.users.length, users.pagination.page, users.pagination.pages)
       const shown = last === null ? users : await loadUsers({ search: appliedSearch, page: last })
-      if (shown) setData(shown)
+      if (!shown || !latestUsers(shown)) return
+      // Solo la respuesta vigente llega aquí: una obsoleta no deja ancla pendiente.
+      const request = responseRequest.current.get(shown)
+      if (request !== undefined) holdScrollAnchor(usersPagerAnchor, usersPager.current, request)
+      setData(shown)
     } catch (e) { setError('users', e instanceof Error ? e.message : 'No se pudo cargar la página de usuarios.') }
     finally { finishChangingPage() }
   }
@@ -396,7 +437,10 @@ export default function AdminPage() {
       // Igual que en usuarios: una página que ya no existe se sustituye por la última.
       const last = lastPageIfBeyondEnd(result.logs.length, result.pagination.page, result.pagination.pages)
       const shown = last === null ? result : await loadAudit(last, filters)
-      if (shown) showAudit(shown, filters)
+      if (!shown || !latestAudit(shown)) return
+      const request = responseRequest.current.get(shown)
+      if (request !== undefined) holdScrollAnchor(auditPagerAnchor, auditPager.current, request)
+      showAudit(shown, filters)
     } catch (e) { setError('audit', e instanceof Error ? e.message : 'No se pudo cargar la auditoría.') }
   }
 
@@ -405,7 +449,7 @@ export default function AdminPage() {
     setAuditFilters(filters); setError('audit', null)
     try {
       const result = await loadAudit(1, filters)
-      if (result) showAudit(result, filters)
+      if (result && latestAudit(result)) showAudit(result, filters)
     } catch (e) {
       // Los controles vuelven a los filtros de los registros que siguen en pantalla. Solo la
       // petición vigente llega aquí, así que esos filtros no han cambiado desde que empezó.
@@ -478,7 +522,7 @@ export default function AdminPage() {
           </li>)}</ul>
           {!loading && !searching && data?.users.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No se han encontrado cuentas.</p>}
         </div>
-        {data && <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+        {data && <div ref={usersPager} className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">{data.pagination.total} cuentas en total · Página {data.pagination.page} de {Math.max(1, data.pagination.pages)}</p>
           <div className="flex flex-wrap items-center gap-2"><PageJump currentPage={data.pagination.page} totalPages={Math.max(1, data.pagination.pages)} onJump={page => void changeUsersPage(page)} disabled={loading || searching || changingUsersPage} label="Ir a la página de usuarios" maxPage={ADMIN_USERS_MAX_PAGE} /><button type="button" aria-label="Página anterior de usuarios" onClick={() => void changeUsersPage(data.pagination.page - 1)} disabled={loading || searching || changingUsersPage || data.pagination.page <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" aria-label="Página siguiente de usuarios" onClick={() => void changeUsersPage(data.pagination.page + 1)} disabled={loading || searching || changingUsersPage || data.pagination.page >= reachablePages(data.pagination.pages, ADMIN_USERS_MAX_PAGE)} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>
         </div>}
@@ -506,7 +550,7 @@ export default function AdminPage() {
               <div><dt className="text-muted-foreground">Motivo</dt><dd className="mt-1">{log.reason ? <AuditReason reason={log.reason} /> : '—'}</dd></div>
             </dl>
           </li> })}</ul>
-          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div ref={auditPager} className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">{audit.pagination.total} acciones · Página {audit.pagination.page} de {Math.max(1, audit.pagination.pages)}</p>
             <div className="flex flex-wrap items-center gap-2"><PageJump currentPage={auditPage} totalPages={Math.max(1, audit.pagination.pages)} onJump={page => void changeAuditPage(page)} disabled={auditLoading} label="Ir a la página de auditoría" maxPage={ADMIN_AUDIT_MAX_PAGE} /><button type="button" onClick={() => void changeAuditPage(auditPage - 1)} disabled={auditLoading || auditPage <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" onClick={() => void changeAuditPage(auditPage + 1)} disabled={auditLoading || auditPage >= reachablePages(audit.pagination.pages, ADMIN_AUDIT_MAX_PAGE)} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>
           </div>
