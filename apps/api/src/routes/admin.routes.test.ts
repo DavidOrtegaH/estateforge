@@ -107,7 +107,12 @@ const fake = vi.hoisted(() => {
     lastUserUpdateManyData: null as Partial<UserRecord> | null,
     // Últimos argumentos de paginación recibidos por los findMany.
     lastUserFindMany: null as FindManyArgs | null,
+    // orderBy del último user.findMany, aparte para no alterar las comprobaciones de lastUserFindMany.
+    lastUserOrderBy: null as OrderBy | null,
     lastAuditFindMany: null as FindManyArgs | null,
+    // orderBy y número de consultas de datos de adminAuditLog.findMany (el count va aparte).
+    lastAuditOrderBy: null as OrderBy | null,
+    auditFindManyCalls: 0,
     lastAuditCount: null as { where?: Where } | null,
     userFindManyCalls: 0,
     // Se ejecuta antes de cada user.findUnique con el id buscado.
@@ -275,12 +280,19 @@ const fake = vi.hoisted(() => {
       },
 
       // El recuento de inmuebles por usuario no se modela: se devuelve 0.
-      findMany(args: FindManyArgs) {
+      // Con orderBy se aplica tal cual (con su desempate); sin él, el orden por createdAt de page().
+      findMany(args: FindManyArgs & { orderBy?: OrderBy }) {
         return deferred(() => {
           state.userFindManyCalls += 1
           state.lastUserFindMany = { where: args.where, skip: args.skip, take: args.take }
+          state.lastUserOrderBy = args.orderBy ?? null
           const users = state.store.users.filter(user => matches(user, args.where))
-          return page(users, args).map(user => ({ ...user, _count: { properties: 0 } }))
+          const rows = args.orderBy
+            ? (args.skip === undefined || args.take === undefined
+              ? sortBy(users, args.orderBy)
+              : sortBy(users, args.orderBy).slice(args.skip, args.skip + args.take))
+            : page(users, args)
+          return rows.map(user => ({ ...user, _count: { properties: 0 } }))
         })
       },
 
@@ -340,7 +352,9 @@ const fake = vi.hoisted(() => {
         if (!args.orderBy) throw new Error('adminAuditLog.findMany sin orderBy no soportado por el falso')
         const orderBy = args.orderBy
         return deferred(() => {
+          state.auditFindManyCalls += 1
           state.lastAuditFindMany = { where: args.where, skip: args.skip, take: args.take }
+          state.lastAuditOrderBy = orderBy
           const sorted = sortBy(state.store.adminAuditLogs.filter(log => matches(log, args.where)), orderBy)
           return args.skip === undefined || args.take === undefined ? sorted : sorted.slice(args.skip, args.skip + args.take)
         })
@@ -549,9 +563,12 @@ describe('Admin routes', () => {
     fake.state.lastUserUpdateManyWhere = null
     fake.state.lastUserUpdateManyData = null
     fake.state.lastUserFindMany = null
+    fake.state.lastUserOrderBy = null
     fake.state.userFindManyCalls = 0
     fake.state.beforeUserFindUnique = null
     fake.state.lastAuditFindMany = null
+    fake.state.lastAuditOrderBy = null
+    fake.state.auditFindManyCalls = 0
     fake.state.lastAuditCount = null
     fake.state.sessionTokens = new Map([
       ['owner-token', OWNER],
@@ -1951,6 +1968,83 @@ describe('Admin routes', () => {
       expect(fake.state.lastUserFindMany).toEqual({ where: {}, skip: 20, take: 20 })
     })
 
+    // Salto directo a una página: el servidor calcula el desplazamiento en una sola consulta,
+    // sin recorrer las páginas anteriores.
+    it('users con page=1250 hace una sola consulta con el desplazamiento de esa página', async () => {
+      const response = await getUsers('?page=1250')
+
+      expect(response.statusCode).toBe(200)
+      expect(fake.state.userFindManyCalls).toBe(1)
+      expect(fake.state.lastUserFindMany).toEqual({ where: {}, skip: 1249 * 20, take: 20 })
+      expect(response.json().pagination).toEqual({ page: 1250, pageSize: 20, total: 5, pages: 1 })
+      // Una página que ya no existe llega vacía, no como error: la web carga entonces la última.
+      expect(response.json().users).toEqual([])
+    })
+
+    // Página 1250 real: 25 000 cuentas en el falso (más las 5 iniciales), en memoria y sin base de datos.
+    it('users con page=1250 devuelve las cuentas de esa página con una sola consulta y orden estable', async () => {
+      const base = new Date('2026-01-01T00:00:00.000Z').getTime()
+      // Tres cuentas por segundo: hay fechas repetidas y el orden depende del desempate por id.
+      for (let index = 0; index < 25000; index += 1) {
+        store().users.push(user(`bulk-${String(index).padStart(5, '0')}`, 'USER', { createdAt: new Date(base + Math.floor(index / 3) * 1000) }))
+      }
+      const total = store().users.length
+      // Orden esperado calculado aparte del falso: fecha de alta descendente y, si coincide, id descendente.
+      const expected = [...store().users]
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+        .slice(24980, 25000)
+        .map(item => item.id)
+
+      const response = await getUsers('?page=1250')
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().pagination).toEqual({ page: 1250, pageSize: 20, total, pages: Math.ceil(total / 20) })
+      expect(response.json().pagination.pages).toBeGreaterThanOrEqual(1250)
+      expect(response.json().users.map((item: { id: string }) => item.id)).toEqual(expected)
+      expect(expected).toHaveLength(20)
+      // Una sola consulta, directamente con el desplazamiento de la página: no se recorren las anteriores.
+      expect(fake.state.userFindManyCalls).toBe(1)
+      expect(fake.state.lastUserFindMany).toEqual({ where: {}, skip: 24980, take: 20 })
+      expect(fake.state.lastUserOrderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
+
+      // Repetir la petición devuelve exactamente lo mismo.
+      const again = await getUsers('?page=1250')
+      expect(again.json().users.map((item: { id: string }) => item.id)).toEqual(expected)
+    })
+
+    it('users con page=1250 conserva la búsqueda', async () => {
+      await getUsers(`?search=target&page=1250`)
+
+      expect(fake.state.userFindManyCalls).toBe(1)
+      expect(fake.state.lastUserFindMany).toEqual({ where: { email: { contains: 'target' } }, skip: 1249 * 20, take: 20 })
+    })
+
+    it('users ordena por fecha de alta y desempata por id', async () => {
+      await getUsers('')
+
+      expect(fake.state.lastUserOrderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
+    })
+
+    it('users con fechas de alta iguales reparte las cuentas entre páginas sin repetir ni perder ninguna', async () => {
+      // 45 cuentas más las 5 iniciales, todas con la misma fecha de alta: 3 páginas de 20.
+      for (let index = 0; index < 45; index += 1) {
+        store().users.push(user(`tie-${String(index).padStart(2, '0')}`, 'USER'))
+      }
+      const total = store().users.length
+      const ids: string[] = []
+      for (const pageNumber of [3, 1, 2]) {
+        const response = await getUsers(`?page=${pageNumber}`)
+        expect(response.json().pagination).toEqual({ page: pageNumber, pageSize: 20, total, pages: 3 })
+        ids.push(...response.json().users.map((item: { id: string }) => item.id))
+      }
+
+      expect(ids).toHaveLength(total)
+      expect(new Set(ids).size).toBe(total)
+      // El mismo orden se repite en cada consulta: la primera página no cambia al volver a pedirla.
+      const first = (await getUsers('?page=1')).json().users.map((item: { id: string }) => item.id)
+      expect(first).toEqual(store().users.map(item => item.id).sort().reverse().slice(0, 20))
+    })
+
     it.each([
       ['', 1],
       ['2', 2],
@@ -1963,6 +2057,81 @@ describe('Admin routes', () => {
       expect(response.statusCode).toBe(200)
       expect(fake.state.lastAuditFindMany).toEqual({ where: {}, skip: (expected - 1) * 10, take: 10 })
       expect(response.json().pagination.page).toBe(expected)
+    })
+
+    // Página 1250 real de auditoría: 25 000 registros en el falso, la mitad con la acción filtrada.
+    it('audit con page=1250 devuelve los registros filtrados de esa página con una sola consulta y orden estable', async () => {
+      const base = new Date('2026-01-01T00:00:00.000Z').getTime()
+      for (let index = 0; index < 25000; index += 1) {
+        store().adminAuditLogs.push({
+          id: `log-${String(index).padStart(5, '0')}`,
+          actorUserId: OWNER,
+          targetUserId: TARGET,
+          action: index % 2 === 0 ? 'ACCOUNT_SUSPENDED' : 'ACCOUNT_UNSUSPENDED',
+          reason: 'motivo',
+          metadata: null,
+          // Cuatro registros por segundo: fechas repetidas que desempata el id.
+          createdAt: new Date(base + Math.floor(index / 4) * 1000),
+        })
+      }
+      const filtered = store().adminAuditLogs.filter(log => log.action === 'ACCOUNT_SUSPENDED')
+      const expected = [...filtered]
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+        .slice(12490, 12500)
+        .map(log => log.id)
+
+      const response = await getAudit(`?page=1250&action=ACCOUNT_SUSPENDED&targetUserId=${TARGET}`)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().pagination).toEqual({ page: 1250, pageSize: 10, total: 12500, pages: 1250 })
+      expect(response.json().logs.map((log: { id: string }) => log.id)).toEqual(expected)
+      expect(expected).toHaveLength(10)
+      expect(fake.state.lastAuditFindMany).toEqual({
+        where: { action: 'ACCOUNT_SUSPENDED', targetUserId: TARGET },
+        skip: 12490,
+        take: 10,
+      })
+      // Una sola consulta de datos, con el orden real de la ruta; el recuento es una consulta aparte.
+      expect(fake.state.auditFindManyCalls).toBe(1)
+      expect(fake.state.lastAuditOrderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
+      expect(fake.state.lastAuditCount?.where).toEqual({ action: 'ACCOUNT_SUSPENDED', targetUserId: TARGET })
+    })
+
+    it('audit con fechas iguales reparte los registros entre páginas sin repetir ni perder ninguno', async () => {
+      // 25 registros con la misma fecha, insertados en orden ascendente: 3 páginas de 10.
+      const sameDate = new Date('2026-10-01T00:00:00.000Z')
+      for (let index = 0; index < 25; index += 1) {
+        store().adminAuditLogs.push({
+          id: `same-${String(index).padStart(2, '0')}`, actorUserId: OWNER, targetUserId: TARGET,
+          action: 'SESSIONS_REVOKED', reason: null, metadata: null, createdAt: sameDate,
+        })
+      }
+      const ids: string[] = []
+      for (const pageNumber of [2, 3, 1]) {
+        const response = await getAudit(`?page=${pageNumber}`)
+        expect(response.json().pagination).toEqual({ page: pageNumber, pageSize: 10, total: 25, pages: 3 })
+        ids[pageNumber - 1] = response.json().logs.map((log: { id: string }) => log.id).join(',')
+      }
+      const all = ids.join(',').split(',')
+
+      expect(all).toHaveLength(25)
+      expect(new Set(all).size).toBe(25)
+      // Orden por id descendente, igual en todas las consultas.
+      expect(all).toEqual(store().adminAuditLogs.map(log => log.id).sort().reverse())
+    })
+
+    it('audit con page=1250 conserva los filtros y calcula el desplazamiento en una sola consulta', async () => {
+      const response = await getAudit(`?page=1250&action=ACCOUNT_SUSPENDED&targetUserId=${TARGET}`)
+
+      expect(response.statusCode).toBe(200)
+      expect(fake.state.lastAuditFindMany).toEqual({
+        where: { action: 'ACCOUNT_SUSPENDED', targetUserId: TARGET },
+        skip: 1249 * 10,
+        take: 10,
+      })
+      expect(fake.state.lastAuditCount?.where).toEqual({ action: 'ACCOUNT_SUSPENDED', targetUserId: TARGET })
+      expect(response.json().pagination.page).toBe(1250)
+      expect(response.json().logs).toEqual([])
     })
 
     it('audit devuelve los registros más recientes primero', async () => {

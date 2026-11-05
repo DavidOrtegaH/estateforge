@@ -67,6 +67,11 @@ export function getAdminOverview(): Promise<AdminOverview> {
   return requestJson<AdminOverview>('/api/admin/overview')
 }
 
+// Páginas máximas que admite la API (pageQuery en admin.routes.ts): una página mayor se acota
+// a ese máximo en el servidor, así que la web no ofrece ir más allá.
+export const ADMIN_USERS_MAX_PAGE = 10000
+export const ADMIN_AUDIT_MAX_PAGE = 100000
+
 // Sin argumentos pide la primera página sin filtro, como la carga inicial del panel.
 export function getAdminUsers(query?: { search: string; page: number }): Promise<AdminUsersResponse> {
   const path = query

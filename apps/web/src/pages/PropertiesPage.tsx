@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useModalDialog } from '@/hooks/useModalDialog'
+import { PageJump } from '@/components/ui/PageJump'
+import { clampPage, pageSlice, totalPagesFor } from '@/lib/pagination'
 
 import {
   deleteProperties,
@@ -746,17 +748,9 @@ function PropertiesPage() {
     })
   }, [properties, searchTerm, sortOption, filters])
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredAndSortedProperties.length / itemsPerPage),
-  )
+  const totalPages = totalPagesFor(filteredAndSortedProperties.length, itemsPerPage)
 
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentProperties = filteredAndSortedProperties.slice(
-    indexOfFirstItem,
-    indexOfLastItem,
-  )
+  const currentProperties = pageSlice(filteredAndSortedProperties, currentPage, itemsPerPage)
 
   useEffect(() => {
     setCurrentPage((previousPage) => Math.min(previousPage, totalPages))
@@ -826,6 +820,11 @@ function PropertiesPage() {
     if (currentPage > 1) {
       setCurrentPage((previous) => previous - 1)
     }
+  }
+
+  // Salto directo: PageJump solo entrega páginas válidas; se acota por si el total cambió.
+  const handleJumpToPage = (page: number) => {
+    setCurrentPage(clampPage(page, totalPages))
   }
 
   // ==========================================================
@@ -1308,7 +1307,7 @@ function PropertiesPage() {
             {/* PAGINACIÓN */}
 
             {totalPages > 1 && currentProperties.length > 0 && (
-              <div className="mt-8 flex items-center justify-between gap-4 border-t pt-5">
+              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-5">
                 <button
                   type="button"
                   onClick={handlePrevPage}
@@ -1318,10 +1317,13 @@ function PropertiesPage() {
                   Anterior
                 </button>
 
-                <span className="text-sm text-muted-foreground">
-                  Página <span className="font-semibold">{currentPage}</span> de{' '}
-                  <span className="font-semibold">{totalPages}</span>
-                </span>
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                  <span className="text-sm text-muted-foreground">
+                    Página <span className="font-semibold">{currentPage}</span> de{' '}
+                    <span className="font-semibold">{totalPages}</span>
+                  </span>
+                  <PageJump currentPage={currentPage} totalPages={totalPages} onJump={handleJumpToPage} disabled={deleting} label="Ir a la página de inmuebles" />
+                </div>
 
                 <button
                   type="button"

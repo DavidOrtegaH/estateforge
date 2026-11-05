@@ -74,6 +74,15 @@ describe('adminService', () => {
     expect(fetchMock).toHaveBeenCalledWith(`${API_URL}/api/admin/users?search=&page=1`, expect.anything())
   })
 
+  it('salta directamente a la página 1250 con una sola petición y conserva la búsqueda', async () => {
+    const fetchMock = stubFetch(jsonResponse({ users: [], pagination }))
+
+    await getAdminUsers({ search: 'target', page: 1250 })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(`${API_URL}/api/admin/users?search=target&page=1250`, expect.anything())
+  })
+
   it('pide el detalle de la cuenta con el id codificado, la cookie de sesión y sin Content-Type', async () => {
     const detail = {
       id: 'user/1', email: 'a@x.test', role: 'USER', createdAt: '2026-09-01T00:00:00.000Z',
@@ -187,6 +196,18 @@ describe('adminService', () => {
       expect.objectContaining({ credentials: 'include' }),
     )
     expect(lastInit(fetchMock).headers).toEqual({})
+  })
+
+  it('salta directamente a la página 1250 de la auditoría con una sola petición y los filtros', async () => {
+    const fetchMock = stubFetch(jsonResponse({ logs: [], pagination }))
+
+    await getAdminAudit(1250, { action: 'ACCOUNT_SUSPENDED', targetUserId: 'user-1' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_URL}/api/admin/audit?page=1250&action=ACCOUNT_SUSPENDED&targetUserId=user-1`,
+      expect.anything(),
+    )
   })
 
   it('no envía un identificador de cuenta vacío', async () => {

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  changeRecoveryDestination, getAdminAudit, getAdminOverview, getAdminUserDetail, getAdminUsers, resendRecoveryLink, resolveSecurityHold, runAdminUserAction,
+  ADMIN_AUDIT_MAX_PAGE, ADMIN_USERS_MAX_PAGE, changeRecoveryDestination, getAdminAudit, getAdminOverview, getAdminUserDetail, getAdminUsers, resendRecoveryLink, resolveSecurityHold, runAdminUserAction,
   type AdminAuditAction, type AdminAuditLog, type AdminAuditResponse, type AdminOverview, type AdminPanelAction, type AdminRecoveryResult, type AdminUser, type AdminUserDetail, type AdminUsersResponse,
 } from '@/services/adminService'
 import { actionNotice, adminActionErrorMessage, recoveryEmailError, recoveryEmailField, recoveryEmailToSend, RECOVERY_EMAIL_MAX, showsRecoveryDestination, tryStartOnce, type ActionNotice } from '@/lib/adminRecovery'
@@ -9,6 +9,8 @@ import { userActionsAvailability } from '@/lib/adminUserActions'
 import { accountStatuses } from '@/lib/adminAccountStatus'
 import { auditEmptyMessage, runActionThenRefresh, settleLatest, startLatestIndicator, visibleErrors, withScopeError, type AdminErrorScope, type AdminErrors } from '@/lib/adminPageState'
 import { useModalDialog } from '@/hooks/useModalDialog'
+import { lastPageIfBeyondEnd, reachablePages } from '@/lib/pagination'
+import { PageJump } from '@/components/ui/PageJump'
 
 const REASON_MIN = 3
 const REASON_MAX = 500
@@ -295,11 +297,15 @@ export default function AdminPage() {
   }
 
   async function changeUsersPage(page: number) {
-    if (!data || page < 1 || page > data.pagination.pages || page === data.pagination.page) return
+    if (!data || page < 1 || page > reachablePages(data.pagination.pages, ADMIN_USERS_MAX_PAGE) || page === data.pagination.page) return
     const finishChangingPage = startLatestIndicator(usersPageIndicator, setChangingUsersPage); setError('users', null)
     try {
       const users = await loadUsers({ search: appliedSearch, page })
-      if (users) setData(users)
+      if (!users) return
+      // La página pedida ha quedado vacía (se borraron cuentas): se muestra la última con resultados.
+      const last = lastPageIfBeyondEnd(users.users.length, users.pagination.page, users.pagination.pages)
+      const shown = last === null ? users : await loadUsers({ search: appliedSearch, page: last })
+      if (shown) setData(shown)
     } catch (e) { setError('users', e instanceof Error ? e.message : 'No se pudo cargar la página de usuarios.') }
     finally { finishChangingPage() }
   }
@@ -381,12 +387,16 @@ export default function AdminPage() {
   }
 
   async function changeAuditPage(page: number) {
-    if (auditLoading || !audit || page < 1 || page > audit.pagination.pages || page === auditPage) return
+    if (auditLoading || !audit || page < 1 || page > reachablePages(audit.pagination.pages, ADMIN_AUDIT_MAX_PAGE) || page === auditPage) return
     const filters = auditFilters
     try {
       setError('audit', null)
       const result = await loadAudit(page, filters)
-      if (result) showAudit(result, filters)
+      if (!result) return
+      // Igual que en usuarios: una página que ya no existe se sustituye por la última.
+      const last = lastPageIfBeyondEnd(result.logs.length, result.pagination.page, result.pagination.pages)
+      const shown = last === null ? result : await loadAudit(last, filters)
+      if (shown) showAudit(shown, filters)
     } catch (e) { setError('audit', e instanceof Error ? e.message : 'No se pudo cargar la auditoría.') }
   }
 
@@ -470,7 +480,7 @@ export default function AdminPage() {
         </div>
         {data && <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">{data.pagination.total} cuentas en total · Página {data.pagination.page} de {Math.max(1, data.pagination.pages)}</p>
-          <div className="flex items-center gap-2"><button type="button" aria-label="Página anterior de usuarios" onClick={() => void changeUsersPage(data.pagination.page - 1)} disabled={loading || searching || changingUsersPage || data.pagination.page <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" aria-label="Página siguiente de usuarios" onClick={() => void changeUsersPage(data.pagination.page + 1)} disabled={loading || searching || changingUsersPage || data.pagination.page >= data.pagination.pages} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>
+          <div className="flex flex-wrap items-center gap-2"><PageJump currentPage={data.pagination.page} totalPages={Math.max(1, data.pagination.pages)} onJump={page => void changeUsersPage(page)} disabled={loading || searching || changingUsersPage} label="Ir a la página de usuarios" maxPage={ADMIN_USERS_MAX_PAGE} /><button type="button" aria-label="Página anterior de usuarios" onClick={() => void changeUsersPage(data.pagination.page - 1)} disabled={loading || searching || changingUsersPage || data.pagination.page <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" aria-label="Página siguiente de usuarios" onClick={() => void changeUsersPage(data.pagination.page + 1)} disabled={loading || searching || changingUsersPage || data.pagination.page >= reachablePages(data.pagination.pages, ADMIN_USERS_MAX_PAGE)} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>
         </div>}
       </section>
       <section ref={auditSection} className="scroll-mt-6 space-y-4 rounded-xl border bg-card p-5">
@@ -498,7 +508,7 @@ export default function AdminPage() {
           </li> })}</ul>
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">{audit.pagination.total} acciones · Página {audit.pagination.page} de {Math.max(1, audit.pagination.pages)}</p>
-            <div className="flex items-center gap-2"><button type="button" onClick={() => void changeAuditPage(auditPage - 1)} disabled={auditLoading || auditPage <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" onClick={() => void changeAuditPage(auditPage + 1)} disabled={auditLoading || auditPage >= audit.pagination.pages} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>
+            <div className="flex flex-wrap items-center gap-2"><PageJump currentPage={auditPage} totalPages={Math.max(1, audit.pagination.pages)} onJump={page => void changeAuditPage(page)} disabled={auditLoading} label="Ir a la página de auditoría" maxPage={ADMIN_AUDIT_MAX_PAGE} /><button type="button" onClick={() => void changeAuditPage(auditPage - 1)} disabled={auditLoading || auditPage <= 1} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" onClick={() => void changeAuditPage(auditPage + 1)} disabled={auditLoading || auditPage >= reachablePages(audit.pagination.pages, ADMIN_AUDIT_MAX_PAGE)} className="rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40">Siguiente</button></div>
           </div>
         </>}
       </section>

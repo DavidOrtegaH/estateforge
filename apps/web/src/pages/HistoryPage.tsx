@@ -6,6 +6,8 @@ import {
 import { Link } from 'react-router'
 
 import { useModalDialog } from '@/hooks/useModalDialog'
+import { PageJump } from '@/components/ui/PageJump'
+import { clampPage, pageSlice, totalPagesFor } from '@/lib/pagination'
 
 import {
   deleteGenerations,
@@ -709,25 +711,21 @@ function HistoryPage() {
   // PAGINACIÓN
   // ==========================================================
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(
-      processedGenerations.length /
-      itemsPerPage,
-    ),
+  const totalPages = totalPagesFor(
+    processedGenerations.length,
+    itemsPerPage,
   )
 
-  const indexOfLastItem =
-    currentPage * itemsPerPage
+  const currentGenerations = pageSlice(
+    processedGenerations,
+    currentPage,
+    itemsPerPage,
+  )
 
-  const indexOfFirstItem =
-    indexOfLastItem - itemsPerPage
-
-  const currentGenerations =
-    processedGenerations.slice(
-      indexOfFirstItem,
-      indexOfLastItem,
-    )
+  // Salto directo: PageJump solo entrega páginas válidas; se acota por si el total cambió.
+  const handleJumpToPage = (page: number) => {
+    setCurrentPage(clampPage(page, totalPages))
+  }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -1908,7 +1906,7 @@ function HistoryPage() {
               {/* PAGINACIÓN */}
 
               {totalPages > 1 && (
-                <div className="mt-6 flex items-center justify-between border-t pt-4">
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                   <button
                     type="button"
                     onClick={() => {
@@ -1930,16 +1928,25 @@ function HistoryPage() {
                     Anterior
                   </button>
 
-                  <span className="text-sm text-muted-foreground">
-                    Página{' '}
-                    <span className="font-semibold">
-                      {currentPage}
-                    </span>{' '}
-                    de{' '}
-                    <span className="font-semibold">
-                      {totalPages}
+                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                    <span className="text-sm text-muted-foreground">
+                      Página{' '}
+                      <span className="font-semibold">
+                        {currentPage}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-semibold">
+                        {totalPages}
+                      </span>
                     </span>
-                  </span>
+                    <PageJump
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onJump={handleJumpToPage}
+                      disabled={deleting}
+                      label="Ir a la página del historial"
+                    />
+                  </div>
 
                   <button
                     type="button"

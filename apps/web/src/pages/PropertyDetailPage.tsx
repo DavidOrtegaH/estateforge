@@ -2,6 +2,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
+import { PageJump } from '@/components/ui/PageJump'
+import { clampPage, pageSlice, totalPagesFor } from '@/lib/pagination'
+
 import type {
   AIProviderType,
   ListingLanguage,
@@ -1009,28 +1012,16 @@ function PropertyDetailPage() {
   const totalGenerations =
     property.generations.length
 
-  const totalPages =
-    Math.max(
-      1,
-      Math.ceil(
-        totalGenerations /
-        itemsPerPage,
-      ),
-    )
+  const totalPages = totalPagesFor(
+    totalGenerations,
+    itemsPerPage,
+  )
 
-  const indexOfLastItem =
-    currentPage *
-    itemsPerPage
-
-  const indexOfFirstItem =
-    indexOfLastItem -
-    itemsPerPage
-
-  const currentGenerations =
-    property.generations.slice(
-      indexOfFirstItem,
-      indexOfLastItem,
-    )
+  const currentGenerations = pageSlice(
+    property.generations,
+    currentPage,
+    itemsPerPage,
+  )
 
   const handleNextPage = () => {
     if (
@@ -1049,6 +1040,11 @@ function PropertyDetailPage() {
         (prev) => prev - 1,
       )
     }
+  }
+
+  // Salto directo: PageJump solo entrega páginas válidas; se acota por si el total cambió.
+  const handleJumpToPage = (page: number) => {
+    setCurrentPage(clampPage(page, totalPages))
   }
 
   // ==========================================================
@@ -2776,7 +2772,7 @@ function PropertyDetailPage() {
 
             {/* PAGINACIÓN */}
             {totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-between border-t pt-4">
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                 <button
                   type="button"
                   onClick={handlePrevPage}
@@ -2786,16 +2782,24 @@ function PropertyDetailPage() {
                   Anterior
                 </button>
 
-                <span className="text-sm text-muted-foreground">
-                  Página{' '}
-                  <span className="font-semibold">
-                    {currentPage}
-                  </span>{' '}
-                  de{' '}
-                  <span className="font-semibold">
-                    {totalPages}
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                  <span className="text-sm text-muted-foreground">
+                    Página{' '}
+                    <span className="font-semibold">
+                      {currentPage}
+                    </span>{' '}
+                    de{' '}
+                    <span className="font-semibold">
+                      {totalPages}
+                    </span>
                   </span>
-                </span>
+                  <PageJump
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onJump={handleJumpToPage}
+                    label="Ir a la página de generaciones"
+                  />
+                </div>
 
                 <button
                   type="button"

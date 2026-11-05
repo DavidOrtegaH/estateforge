@@ -119,7 +119,8 @@ export async function adminRoutes(app: FastifyInstance) {
           passwordResetRequiredAt: true, securityRecoveryEmail: true,
           _count: { select: { properties: true } },
         },
-        orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize,
+        // Desempate por id: con fechas iguales el orden es estable y ninguna cuenta se repite ni se pierde entre páginas.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize,
       }),
     ])
     return {
