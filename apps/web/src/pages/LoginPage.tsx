@@ -15,11 +15,14 @@ import {
 
 import { PasswordInput } from '@/components/ui/PasswordInput'
 import { isSecurityRecoveryRequiredMessage } from '@/services/authService'
+import { sessionEndedNotice } from '@/lib/sessionAccess'
 
 interface LocationState {
   from?: {
     pathname: string
   }
+  // Motivo con el que la API cerró la sesión (lo pasa ProtectedRoute al redirigir).
+  sessionEndedReason?: string
 }
 
 
@@ -138,6 +141,13 @@ function LoginPage() {
     return <Navigate to={target} replace />
   }
 
+  // Solo hay aviso si se llega desde una ruta privada tras cerrar la API la sesión. El motivo
+  // viaja en el estado del historial, así que se conserva al recargar la página.
+  const sessionNotice = sessionEndedNotice(location.state)
+  const showRecoveryLink = [error, sessionNotice].some(
+    (message) => message !== null && isSecurityRecoveryRequiredMessage(message),
+  )
+
   async function handleSubmit() {
     if (submitting) {
       return
@@ -208,6 +218,16 @@ function LoginPage() {
           </p>
         </div>
 
+        {sessionNotice && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+          >
+            <p className="font-medium">Se ha cerrado tu sesión.</p>
+            <p className="mt-1">{sessionNotice}</p>
+          </div>
+        )}
+
         <form
           onSubmit={(event) => {
             event.preventDefault()
@@ -270,7 +290,7 @@ function LoginPage() {
             </p>
           )}
 
-          {error && isSecurityRecoveryRequiredMessage(error) && (
+          {showRecoveryLink && (
             <p className="text-sm">
               <Link
                 to="/recuperar-cuenta/solicitar"

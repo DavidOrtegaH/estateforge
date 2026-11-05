@@ -1,10 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import {
   getAdminAudit, getAdminOverview, getAdminUserDetail, getAdminUsers, runAdminUserAction,
   type AdminAuditAction, type AdminAuditLog, type AdminAuditResponse, type AdminOverview, type AdminUser, type AdminUserAction, type AdminUserDetail, type AdminUsersResponse,
 } from '@/services/adminService'
 import { AUDIT_ACTIONS, auditActionLabel, describeAuditAccount, describeAuditAction, describeAuditActor, type AuditAccountView } from '@/lib/adminAudit'
 import { userActionsAvailability } from '@/lib/adminUserActions'
+import { accountStatuses } from '@/lib/adminAccountStatus'
+import { auditEmptyMessage, runActionThenRefresh, settleLatest, startLatestIndicator, visibleErrors, withScopeError, type AdminErrorScope, type AdminErrors } from '@/lib/adminPageState'
 import { useModalDialog } from '@/hooks/useModalDialog'
 
 const REASON_MIN = 3
@@ -20,16 +22,9 @@ function auditQuery(filters: AuditFilters) {
   return { action: filters.action === '' ? undefined : filters.action, targetUserId: filters.target?.id }
 }
 
-// Estado resumido de la cuenta: la protección por incidente prevalece sobre la suspensión administrativa.
-function accountStatus(user: Pick<AdminUser, 'securityHoldAt' | 'adminSuspendedAt'>) {
-  if (user.securityHoldAt) return { label: 'Protección por incidente', className: 'font-medium text-red-700' }
-  if (user.adminSuspendedAt) return { label: 'Suspendida por admin', className: 'font-medium text-amber-700' }
-  return { label: 'Normal', className: 'text-green-700' }
-}
-
+// Estado de la cuenta: con protección y suspensión a la vez se muestran las dos etiquetas.
 function AccountStatus({ user }: { user: Pick<AdminUser, 'securityHoldAt' | 'adminSuspendedAt'> }) {
-  const status = accountStatus(user)
-  return <span className={status.className}>{status.label}</span>
+  return <>{accountStatuses(user).map((status, index) => <Fragment key={status.label}>{index > 0 && ' · '}<span className={status.className}>{status.label}</span></Fragment>)}</>
 }
 
 const USER_ACTION_BUTTONS: Record<AdminUserAction, { label: string; tone: string }> = {
@@ -136,11 +131,15 @@ export default function AdminPage() {
   const [search, setSearch] = useState('')
   // Último filtro enviado; search es solo el texto que se está escribiendo.
   const [appliedSearch, setAppliedSearch] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  // Un error por operación: cada una solo crea o borra el suyo.
+  const [errors, setErrors] = useState<AdminErrors>({})
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [changingUsersPage, setChangingUsersPage] = useState(false)
+  // Última búsqueda y último cambio de página iniciados: solo ellos apagan su indicador.
+  const searchIndicator = useRef(0)
+  const usersPageIndicator = useRef(0)
   // Identifica la última petición de usuarios; las respuestas anteriores se descartan.
   const usersRequest = useRef(0)
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
@@ -150,8 +149,9 @@ export default function AdminPage() {
   const auditRequest = useRef(0)
   // Hay una petición de auditoría vigente en curso; mientras tanto no se pagina.
   const [auditLoading, setAuditLoading] = useState(false)
-  // Filtros de los registros que se están mostrando, para volver a ellos si falla un cambio.
-  const shownAuditFilters = useRef<AuditFilters>(NO_AUDIT_FILTERS)
+  // Filtros de los registros que se están mostrando: deciden el mensaje de la lista vacía y
+  // son a los que vuelven los controles si falla un cambio.
+  const [shownAuditFilters, setShownAuditFilters] = useState<AuditFilters>(NO_AUDIT_FILTERS)
   const auditSection = useRef<HTMLElement>(null)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [reason, setReason] = useState('')
@@ -174,16 +174,15 @@ export default function AdminPage() {
     initialFocusRef: detailCloseRef,
   })
 
-  // Devuelve null si mientras tanto se lanzó otra petición de usuarios.
+  function setError(scope: AdminErrorScope, message: string | null) {
+    setErrors(current => withScopeError(current, scope, message))
+  }
+
+  // Devuelve null si mientras tanto se lanzó otra petición de usuarios (también si falla).
   async function loadUsers(query: { search: string; page: number }) {
     const requestId = ++usersRequest.current
-    try {
-      const result = await getAdminUsers(query)
-      return requestId === usersRequest.current ? result : null
-    } catch (e) {
-      if (requestId !== usersRequest.current) return null
-      throw e
-    }
+    const result = await settleLatest(getAdminUsers(query), () => requestId === usersRequest.current)
+    return result.current ? result.value : null
   }
 
   // Igual que loadUsers: devuelve null si mientras tanto se lanzó otra petición de auditoría.
@@ -191,11 +190,8 @@ export default function AdminPage() {
     const requestId = ++auditRequest.current
     setAuditLoading(true)
     try {
-      const result = await getAdminAudit(page, auditQuery(filters))
-      return requestId === auditRequest.current ? result : null
-    } catch (e) {
-      if (requestId !== auditRequest.current) return null
-      throw e
+      const result = await settleLatest(getAdminAudit(page, auditQuery(filters)), () => requestId === auditRequest.current)
+      return result.current ? result.value : null
     } finally {
       // Solo la petición vigente termina la carga; una sustituida no la toca.
       if (requestId === auditRequest.current) setAuditLoading(false)
@@ -204,7 +200,7 @@ export default function AdminPage() {
 
   function showAudit(result: AdminAuditResponse, filters: AuditFilters) {
     setAudit(result); setAuditPage(result.pagination.page)
-    shownAuditFilters.current = filters
+    setShownAuditFilters(filters)
   }
 
   async function refresh(nextAuditPage = auditPage) {
@@ -230,24 +226,26 @@ export default function AdminPage() {
     let active = true
     const auditRequests = auditRequest
     async function load() {
-      setLoading(true); setError(null)
+      setLoading(true); setErrors(current => withScopeError(current, 'load', null))
       const requestId = ++usersRequest.current
       const auditRequestId = ++auditRequests.current
       try {
+        // Si mientras tanto se lanzó otra búsqueda o un cambio de filtros, la respuesta inicial
+        // de usuarios o de auditoría se descarta, también si falla.
         const [stats, users, auditResult] = await Promise.all([
           getAdminOverview(),
-          getAdminUsers(),
-          getAdminAudit(1),
+          settleLatest(getAdminUsers(), () => requestId === usersRequest.current),
+          settleLatest(getAdminAudit(1), () => auditRequestId === auditRequests.current),
         ])
         if (active) {
           setOverview(stats)
-          if (auditRequestId === auditRequests.current) {
-            setAudit(auditResult); setAuditPage(1)
-            shownAuditFilters.current = NO_AUDIT_FILTERS
+          if (auditResult.current) {
+            setAudit(auditResult.value); setAuditPage(1)
+            setShownAuditFilters(NO_AUDIT_FILTERS)
           }
-          if (requestId === usersRequest.current) setData(users)
+          if (users.current) setData(users.value)
         }
-      } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Error al cargar el panel.') }
+      } catch (e) { if (active) setErrors(current => withScopeError(current, 'load', e instanceof Error ? e.message : 'Error al cargar el panel.')) }
       finally { if (active) setLoading(false) }
     }
     void load()
@@ -258,24 +256,24 @@ export default function AdminPage() {
   async function searchUsers(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (searching) return
-    setSearching(true); setError(null)
+    const finishSearching = startLatestIndicator(searchIndicator, setSearching); setError('users', null)
     const submittedSearch = search
     try {
       const users = await loadUsers({ search: submittedSearch, page: 1 })
       if (users) { setData(users); setAppliedSearch(submittedSearch) }
     }
-    catch (e) { setError(e instanceof Error ? e.message : 'Error de búsqueda.') }
-    finally { setSearching(false) }
+    catch (e) { setError('users', e instanceof Error ? e.message : 'Error de búsqueda.') }
+    finally { finishSearching() }
   }
 
   async function changeUsersPage(page: number) {
     if (!data || page < 1 || page > data.pagination.pages || page === data.pagination.page) return
-    setChangingUsersPage(true); setError(null)
+    const finishChangingPage = startLatestIndicator(usersPageIndicator, setChangingUsersPage); setError('users', null)
     try {
       const users = await loadUsers({ search: appliedSearch, page })
       if (users) setData(users)
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo cargar la página de usuarios.') }
-    finally { setChangingUsersPage(false) }
+    } catch (e) { setError('users', e instanceof Error ? e.message : 'No se pudo cargar la página de usuarios.') }
+    finally { finishChangingPage() }
   }
 
   async function openDetail(user: AdminUser) {
@@ -302,7 +300,7 @@ export default function AdminPage() {
     setPendingAction({ user, action })
     setReason('')
     setReasonError(null)
-    setError(null)
+    setError('action', null)
   }
 
   async function submitAction(event: FormEvent<HTMLFormElement>) {
@@ -315,37 +313,41 @@ export default function AdminPage() {
     }
 
     const { user, action } = pendingAction
-    setBusyUserId(user.id); setError(null); setNotice(null)
+    setBusyUserId(user.id); setError('action', null); setError('refresh', null); setNotice(null)
     try {
-      const result = await runAdminUserAction(user.id, action, trimmedReason)
-      setNotice(result.message)
-      setPendingAction(null)
-      setReason('')
-      await refresh(1)
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo completar la acción.') }
-    finally { setBusyUserId(null) }
+      // La acción se ejecuta una sola vez; si después falla el refresco, se avisa de eso y
+      // no de un fallo de la acción.
+      const outcome = await runActionThenRefresh(
+        () => runAdminUserAction(user.id, action, trimmedReason),
+        message => { setNotice(message); setPendingAction(null); setReason('') },
+        () => refresh(1),
+      )
+      if (outcome.kind === 'failed') setError('action', outcome.error)
+      else setError('refresh', outcome.refreshError)
+    } finally { setBusyUserId(null) }
   }
 
   async function changeAuditPage(page: number) {
     if (auditLoading || !audit || page < 1 || page > audit.pagination.pages || page === auditPage) return
     const filters = auditFilters
     try {
-      setError(null)
+      setError('audit', null)
       const result = await loadAudit(page, filters)
       if (result) showAudit(result, filters)
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo cargar la auditoría.') }
+    } catch (e) { setError('audit', e instanceof Error ? e.message : 'No se pudo cargar la auditoría.') }
   }
 
   // Cualquier cambio de filtros vuelve a la página 1.
   async function applyAuditFilters(filters: AuditFilters) {
-    setAuditFilters(filters); setError(null)
+    setAuditFilters(filters); setError('audit', null)
     try {
       const result = await loadAudit(1, filters)
       if (result) showAudit(result, filters)
     } catch (e) {
-      // Los controles vuelven a los filtros de los registros que siguen en pantalla.
-      setAuditFilters(shownAuditFilters.current)
-      setError(e instanceof Error ? e.message : 'No se pudo cargar la auditoría.')
+      // Los controles vuelven a los filtros de los registros que siguen en pantalla. Solo la
+      // petición vigente llega aquí, así que esos filtros no han cambiado desde que empezó.
+      setAuditFilters(shownAuditFilters)
+      setError('audit', e instanceof Error ? e.message : 'No se pudo cargar la auditoría.')
     }
   }
 
@@ -377,7 +379,7 @@ export default function AdminPage() {
   return (
     <main className="mx-auto w-full max-w-7xl space-y-8 p-0 md:p-6 lg:p-10">
       <header><p className="text-sm font-medium text-primary">ESTATEFORGE · CONTROL DEL SAAS</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Administración</h1><p className="mt-2 text-sm text-muted-foreground">Vista general de la plataforma y gestión de cuentas.</p></header>
-      {error && <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
+      {visibleErrors(errors).map(({ scope, message }) => <div key={scope} role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">{message}</div>)}
       {notice && <div role="status" className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-800">{notice}</div>}
       <section className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         {([['Usuarios', overview?.users], ['Inmuebles', overview?.properties], ['Generaciones', overview?.generations], ['Cuentas protegidas', overview?.blockedUsers], ['Suspendidas por admin', overview?.suspendedUsers]] as const).map(([label, value]) => <article key={label} className="rounded-xl border bg-card p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold">{loading ? '—' : value}</p></article>)}
@@ -429,7 +431,7 @@ export default function AdminPage() {
           {auditFilters.target && <p className="flex flex-wrap items-center gap-2 text-sm">Cuenta afectada: <span className="break-all font-medium">{auditFilters.target.label}</span><button type="button" aria-label="Quitar filtro de cuenta afectada" onClick={() => void applyAuditFilters({ ...auditFilters, target: null })} className="text-xs font-semibold text-primary underline">Quitar filtro</button></p>}
           {hasAuditFilters && <button type="button" onClick={() => void applyAuditFilters(NO_AUDIT_FILTERS)} className="rounded-lg border px-3 py-2 text-sm font-medium">Limpiar filtros</button>}
         </div>
-        {!audit || audit.logs.length === 0 ? <p className="text-sm text-muted-foreground">{hasAuditFilters ? 'No hay acciones que coincidan con los filtros.' : 'Todavía no hay acciones administrativas registradas.'}</p> : <>
+        {!audit || audit.logs.length === 0 ? <p className="text-sm text-muted-foreground">{auditEmptyMessage(shownAuditFilters)}</p> : <>
           <div className="hidden overflow-x-auto md:block"><table className="w-full table-fixed text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="w-36 p-3">Acción</th><th className="w-40 p-3">Cuenta afectada</th><th className="w-40 p-3">Operador</th><th className="w-44 p-3">Fecha</th><th className="p-3">Motivo</th></tr></thead><tbody>{audit.logs.map(log => { const row = auditRow(log); return <tr key={log.id} className="border-b align-top last:border-0"><td className="p-3">{row.action}</td><td className="p-3"><AuditAccount view={row.target} filter={row.targetFilter} /></td><td className="p-3"><AuditAccount view={row.actor} /></td><td className="p-3">{row.date}</td><td className="p-3">{log.reason ? <AuditReason reason={log.reason} /> : '—'}</td></tr> })}</tbody></table></div>
           <ul className="space-y-3 md:hidden">{audit.logs.map(log => { const row = auditRow(log); return <li key={log.id} className="rounded-lg border bg-background p-4">
             <p className="wrap-anywhere font-medium">{row.action}</p>

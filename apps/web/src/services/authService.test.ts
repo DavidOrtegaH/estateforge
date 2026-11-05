@@ -9,6 +9,8 @@ import {
   requestSecurityRecoveryLink,
   SecurityRecoveryError,
   SecurityRecoveryRequestError,
+  SessionBlockedError,
+  sessionBlockReason,
 } from './authService'
 
 const RESET_REQUIRED_MESSAGE =
@@ -43,11 +45,87 @@ describe('authService ante un 423', () => {
     await expect(login('titular@estateforge.test', 'contraseña')).rejects.toThrow('Login failed: 423')
   })
 
-  // AuthProvider captura el error y deja al usuario sin sesión.
-  it('getCurrentUser no devuelve un usuario si /me responde 423', async () => {
+  // AuthProvider captura el error y deja al usuario sin sesión; ahora conserva el motivo.
+  it('getCurrentUser no devuelve un usuario si /me responde 423 y conserva el motivo', async () => {
     stubFetch(jsonResponse({ message: RESET_REQUIRED_MESSAGE }, 423))
 
-    await expect(getCurrentUser()).rejects.toThrow('Failed to load session: 423')
+    const error = await getCurrentUser().then(() => null, (reason: unknown) => reason)
+    expect(error).toBeInstanceOf(SessionBlockedError)
+    expect((error as SessionBlockedError).message).toBe(RESET_REQUIRED_MESSAGE)
+    expect((error as SessionBlockedError).reason).toBe('recovery_required')
+  })
+})
+
+const SECURITY_HOLD_MESSAGE =
+  'La cuenta está protegida temporalmente. Contacta con soporte para verificar su titularidad.'
+const ADMIN_SUSPENSION_MESSAGE =
+  'La cuenta está suspendida por el equipo de EstateForge. Contacta con soporte.'
+
+describe('getCurrentUser', () => {
+  it('devuelve el usuario con una sesión válida', async () => {
+    const user = { id: 'u1', email: 'titular@estateforge.test', role: 'USER' }
+    stubFetch(jsonResponse({ user }, 200))
+
+    await expect(getCurrentUser()).resolves.toEqual(user)
+  })
+
+  it('pide /me con las cookies de la sesión', async () => {
+    stubFetch(jsonResponse({ user: { id: 'u1', email: 'a@b.test', role: 'USER' } }, 200))
+
+    await getCurrentUser()
+    expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/auth/me`, { credentials: 'include' })
+  })
+
+  it('devuelve null sin sesión (401), sin tratarlo como un cierre por el estado de la cuenta', async () => {
+    stubFetch(jsonResponse({ message: 'La sesión no es válida o ha expirado.' }, 401))
+
+    await expect(getCurrentUser()).resolves.toBeNull()
+  })
+
+  it.each([
+    [SECURITY_HOLD_MESSAGE, 'security_hold'],
+    [ADMIN_SUSPENSION_MESSAGE, 'admin_suspension'],
+    [RESET_REQUIRED_MESSAGE, 'recovery_required'],
+    ['Otro motivo que la API pudiera dar.', 'unknown'],
+  ] as const)('ante un 423 lanza SessionBlockedError con el texto exacto de la API (%s)', async (message, reason) => {
+    stubFetch(jsonResponse({ message }, 423))
+
+    const error = await getCurrentUser().then(() => null, (failure: unknown) => failure)
+    expect(error).toBeInstanceOf(SessionBlockedError)
+    expect((error as SessionBlockedError).message).toBe(message)
+    expect((error as SessionBlockedError).reason).toBe(reason)
+  })
+
+  it('un 423 sin mensaje se trata como cualquier otro fallo, sin inventar un motivo', async () => {
+    stubFetch(new Response(null, { status: 423 }))
+
+    const error = await getCurrentUser().then(() => null, (failure: unknown) => failure)
+    expect(error).not.toBeInstanceOf(SessionBlockedError)
+    expect((error as Error).message).toBe('Failed to load session: 423')
+  })
+
+  it.each([403, 500, 503])('otros estados (%i) mantienen su error genérico', async (status) => {
+    stubFetch(jsonResponse({ message: 'Detalle interno' }, status))
+
+    const error = await getCurrentUser().then(() => null, (failure: unknown) => failure)
+    expect(error).not.toBeInstanceOf(SessionBlockedError)
+    expect((error as Error).message).toBe(`Failed to load session: ${status}`)
+  })
+
+  it('un fallo de red rechaza como el propio fetch', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+    await expect(getCurrentUser()).rejects.toThrow(TypeError)
+  })
+})
+
+describe('sessionBlockReason', () => {
+  it('clasifica solo los textos exactos de la API', () => {
+    expect(sessionBlockReason(SECURITY_HOLD_MESSAGE)).toBe('security_hold')
+    expect(sessionBlockReason(ADMIN_SUSPENSION_MESSAGE)).toBe('admin_suspension')
+    expect(sessionBlockReason(RESET_REQUIRED_MESSAGE)).toBe('recovery_required')
+    expect(sessionBlockReason(`${SECURITY_HOLD_MESSAGE} `)).toBe('unknown')
+    expect(sessionBlockReason('')).toBe('unknown')
   })
 })
 

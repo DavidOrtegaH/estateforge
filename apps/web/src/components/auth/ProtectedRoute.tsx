@@ -5,12 +5,17 @@ import {
 } from 'react-router'
 
 import { useAuth } from '@/hooks/useAuth'
+import {
+  loginRedirectState,
+  protectedRouteDecision,
+} from '@/lib/sessionAccess'
 
 export function ProtectedRoute() {
-  const { user, loading } = useAuth()
+  const { user, loading, sessionEndedReason } = useAuth()
   const location = useLocation()
+  const decision = protectedRouteDecision({ loading, user, sessionEndedReason })
 
-  if (loading) {
+  if (decision.kind === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">
@@ -20,12 +25,13 @@ export function ProtectedRoute() {
     )
   }
 
-  if (!user) {
+  if (decision.kind === 'redirect') {
+    // El login recibe la ruta de origen y, si la API cerró la sesión, su motivo.
     return (
       <Navigate
         to="/login"
         replace
-        state={{ from: location }}
+        state={loginRedirectState(location, decision.sessionEndedReason)}
       />
     )
   }

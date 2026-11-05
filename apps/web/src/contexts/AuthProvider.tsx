@@ -6,6 +6,7 @@ import {
 
 import * as authService from '@/services/authService'
 import type { AuthUser } from '@/services/authService'
+import { sessionEndedReasonFrom } from '@/lib/sessionAccess'
 
 import { AuthContext } from './authContext'
 
@@ -21,6 +22,9 @@ export function AuthProvider({
 
   const [loading, setLoading] = useState(true)
 
+  const [sessionEndedReason, setSessionEndedReason] =
+    useState<string | null>(null)
+
   useEffect(() => {
     let cancelled = false
 
@@ -32,9 +36,11 @@ export function AuthProvider({
         if (!cancelled) {
           setUser(currentUser)
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setUser(null)
+          // Si la API cerró la sesión por el estado de la cuenta, se conserva su motivo.
+          setSessionEndedReason(sessionEndedReasonFrom(error))
         }
       } finally {
         if (!cancelled) {
@@ -53,6 +59,7 @@ export function AuthProvider({
   const value = {
     user,
     loading,
+    sessionEndedReason,
 
     login: async (
       email: string,
@@ -67,6 +74,7 @@ export function AuthProvider({
         )
 
       setUser(loggedInUser)
+      setSessionEndedReason(null)
     },
 
     register: async (
@@ -82,6 +90,7 @@ export function AuthProvider({
         )
 
       setUser(registeredUser)
+      setSessionEndedReason(null)
     },
 
     logout: async () => {

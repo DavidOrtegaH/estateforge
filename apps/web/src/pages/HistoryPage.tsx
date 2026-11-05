@@ -5,6 +5,8 @@ import {
 } from 'react'
 import { Link } from 'react-router'
 
+import { useModalDialog } from '@/hooks/useModalDialog'
+
 import {
   deleteGenerations,
   getGenerations,
@@ -391,6 +393,13 @@ function HistoryPage() {
 
   const [isFilterOpen, setIsFilterOpen] =
     useState(false)
+
+  // Foco y teclado del panel de filtros: Escape lo cierra (los filtros ya se
+  // aplican al cambiarlos). Sin foco inicial indicado, lo recibe «Cerrar».
+  const filterDialogRef = useModalDialog<HTMLDivElement>({
+    open: isFilterOpen,
+    onClose: () => setIsFilterOpen(false),
+  })
 
   // ==========================================================
   // FILTROS
@@ -1969,6 +1978,8 @@ function HistoryPage() {
       {isFilterOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 p-4 backdrop-blur-sm">
           <div
+            ref={filterDialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="history-filter-title"

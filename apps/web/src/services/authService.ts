@@ -322,6 +322,44 @@ export async function logout(): Promise<void> {
   }
 }
 
+// /me responde 423 cuando la sesión existía pero la cuenta ya no puede usarse: la API borra
+// sus sesiones y explica el motivo en { message }. Son los textos exactos de la API; el de la
+// recuperación pendiente es PASSWORD_RESET_REQUIRED_MESSAGE.
+const SECURITY_HOLD_MESSAGE =
+  'La cuenta está protegida temporalmente. Contacta con soporte para verificar su titularidad.'
+const ADMIN_SUSPENSION_MESSAGE =
+  'La cuenta está suspendida por el equipo de EstateForge. Contacta con soporte.'
+
+export type SessionBlockReason =
+  | 'security_hold'
+  | 'admin_suspension'
+  | 'recovery_required'
+  // Un 423 con otro texto: se conserva el mensaje, pero no se clasifica.
+  | 'unknown'
+
+export function sessionBlockReason(message: string): SessionBlockReason {
+  if (message === SECURITY_HOLD_MESSAGE) return 'security_hold'
+  if (message === ADMIN_SUSPENSION_MESSAGE) return 'admin_suspension'
+  if (isSecurityRecoveryRequiredMessage(message)) return 'recovery_required'
+  return 'unknown'
+}
+
+// La API cerró la sesión por el estado de la cuenta; message es el texto de la API.
+export class SessionBlockedError extends Error {
+  readonly reason: SessionBlockReason
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'SessionBlockedError'
+    this.reason = sessionBlockReason(message)
+  }
+}
+
+/**
+ * Usuario de la sesión actual; null si no hay sesión (401). Si la API cierra la sesión por el
+ * estado de la cuenta (423 con mensaje) lanza SessionBlockedError con ese mensaje; cualquier
+ * otra respuesta lanza un Error y un fallo de red rechaza como el propio fetch.
+ */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const response = await fetch(`${API_URL}/api/auth/me`, {
     credentials: 'include',
@@ -329,6 +367,12 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
   if (response.status === 401) {
     return null
+  }
+
+  if (response.status === 423) {
+    const message = await readMessage(response)
+    // Sin mensaje no hay motivo que mostrar: se trata como cualquier otro fallo.
+    if (message) throw new SessionBlockedError(message)
   }
 
   if (!response.ok) {

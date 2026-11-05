@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
 import { useAuth } from '@/hooks/useAuth'
+import { useModalDialog } from '@/hooks/useModalDialog'
 
 import appIcon from '@/assets/appIcon.svg'
 import appIconWhite from '@/assets/appIconWhite.svg'
@@ -542,22 +543,12 @@ function AppLayout() {
     setIsLogoutDialogOpen(false)
   }
 
-  useEffect(() => {
-    if (!isLogoutDialogOpen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsLogoutDialogOpen(false)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () =>
-      window.removeEventListener('keydown', handleKeyDown)
-  }, [isLogoutDialogOpen])
+  // Foco y teclado del diálogo: Escape lo cierra (cancela). Sin foco inicial
+  // indicado, lo recibe el primer control: «Cancelar».
+  const logoutDialogRef = useModalDialog<HTMLElement>({
+    open: isLogoutDialogOpen,
+    onClose: handleCancelLogout,
+  })
 
   // ============================================================
   // TÍTULO DE LA PESTAÑA
@@ -1140,6 +1131,8 @@ function AppLayout() {
           />
 
           <section
+            ref={logoutDialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="logout-dialog-title"
@@ -1149,6 +1142,7 @@ function AppLayout() {
               'rounded-2xl border border-border',
               'bg-card p-6 shadow-2xl',
               'animate-in fade-in zoom-in-95 duration-200',
+              'motion-reduce:animate-none',
             ].join(' ')}
           >
             <div className="flex items-start gap-4">

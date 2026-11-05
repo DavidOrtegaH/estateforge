@@ -5,6 +5,8 @@ import type { AuthUser } from '@/services/authService'
 export interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
+  // Motivo que dio la API al cerrar la sesión al cargarla (423 de /me); null si no hubo.
+  sessionEndedReason: string | null
   login: (
     email: string,
     password: string,

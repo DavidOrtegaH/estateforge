@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { useModalDialog } from '@/hooks/useModalDialog'
 
 import {
   deleteProperties,
@@ -592,6 +593,13 @@ function PropertiesPage() {
       document.body.style.overflow = ''
     }
   }, [isFilterOpen])
+
+  // Foco y teclado del modal: Escape lo cierra (los filtros ya se aplican al
+  // cambiarlos). Sin foco inicial indicado, lo recibe «Cerrar filtros».
+  const filterDialogRef = useModalDialog<HTMLDivElement>({
+    open: isFilterOpen,
+    onClose: () => setIsFilterOpen(false),
+  })
 
   // ==========================================================
   // PAGINACIÓN
@@ -1336,16 +1344,21 @@ function PropertiesPage() {
       {isFilterOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 backdrop-blur-sm sm:p-5"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="filter-dialog-title"
+          role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               setIsFilterOpen(false)
             }
           }}
         >
-          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl">
+          <div
+            ref={filterDialogRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="filter-dialog-title"
+            className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl"
+          >
             {/* CABECERA */}
 
             <div className="flex items-start justify-between gap-4 border-b px-5 py-5 sm:px-6">

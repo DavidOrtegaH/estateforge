@@ -9,6 +9,7 @@ import {
   MIN_PASSWORD_LENGTH,
 } from '@/lib/passwordPolicy'
 import { useAuth } from '@/hooks/useAuth'
+import { useModalDialog } from '@/hooks/useModalDialog'
 import { requestEmailChange } from '@/services/authService'
 import {
   deleteStoredAIKey,
@@ -99,23 +100,13 @@ function AccountPage() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!isDeleteDialogOpen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !deleteSubmitting) {
-        setIsDeleteDialogOpen(false)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isDeleteDialogOpen, deleteSubmitting])
+  // Foco y teclado del diálogo: Escape no lo cierra mientras se elimina la cuenta.
+  // Sin foco inicial indicado, lo recibe el primer control: el campo de contraseña.
+  const deleteDialogRef = useModalDialog<HTMLDivElement>({
+    open: isDeleteDialogOpen,
+    onClose: () => setIsDeleteDialogOpen(false),
+    canClose: !deleteSubmitting,
+  })
 
   const validationErrors = useMemo(
     () => getPasswordValidationErrors(newPassword),
@@ -991,6 +982,8 @@ async function handleRequestEmailChange() {
           }}
         >
           <div
+            ref={deleteDialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-account-title"
@@ -1051,7 +1044,6 @@ async function handleRequestEmailChange() {
                 disabled={deleteSubmitting}
                 required
                 autoComplete="current-password"
-                autoFocus
                 className="h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition focus:border-destructive focus:ring-2 focus:ring-destructive/20 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Introduce tu contraseña"
                wrapperClassName="mt-2"  visibilityLabel="contraseña" />
