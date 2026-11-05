@@ -2,7 +2,7 @@
 
 Este documento describe cómo una cuenta que sufrió un incidente de seguridad vuelve a ser utilizable: el titular tiene que establecer una contraseña nueva, y el email de la cuenta vuelve a la dirección autorizada. Complementa a [Protección por incidente y su versionado](proteccion-por-incidente.md), que explica cómo se protege una cuenta y cómo se evita retirar una protección más reciente.
 
-> **Estado:** E2.1 a E2.6 están commiteados en la rama `feat/keys` (`1a6e29a`). La página web para pedir un enlace nuevo y la presentación de estas acciones en la auditoría del panel (E4.1 y E4.2) están integradas en la misma rama. Las dos migraciones de E2 están en el repositorio y aplicadas a la base local `apps/api/dev.db`: la de E2.1 (`20261102090000_add_security_recovery_fields`) desde el 2026-11-02 y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) desde el 2026-11-04; cualquier otra base debe migrarse antes de usar este código (ver [Migración](#9-migración)). El panel web todavía no tiene botones para retirar la protección, corregir el destino ni reenviar el enlace (pendiente, fuera de E4): hoy esas acciones solo se hacen llamando a la API.
+> **Estado:** E2.1 a E2.6 están commiteados en la rama `feat/keys` (`d32ff42`; los hashes citados son los posteriores a la reescritura del historial del 2026-11-05). La página web para pedir un enlace nuevo y la presentación de estas acciones en la auditoría del panel (E4.1 y E4.2) están commiteadas en la misma rama (`e9afe29`). El estado de recuperación en la API del panel (R1) y los botones del panel para retirar la protección, corregir el destino y reenviar el enlace (R2) están integrados en la rama, pendientes de commit; ver [Gestión desde el panel de administración](#gestión-desde-el-panel-de-administración-r1-y-r2). Las dos migraciones de E2 están en el repositorio y se aplicaron a la base local de desarrollo (`apps/api/dev.db`, que no se versiona): la de E2.1 (`20261102090000_add_security_recovery_fields`) el 2026-11-02 y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) el 2026-11-04; cualquier otra base debe migrarse antes de usar este código (ver [Migración](#9-migración)).
 
 ## 1. Qué problema resuelve
 
@@ -26,6 +26,8 @@ E2 resuelve ambos: guarda el email al que se avisó del incidente, obliga a esta
 | E2.6 | Solicitud de un enlace nuevo por el propio titular | `apps/api/src/services/security-recovery.service.ts`, `apps/api/src/routes/auth.routes.ts` |
 | E4.1 | Página web `/recuperar-cuenta/solicitar` y enlaces de acceso desde el login y `/recuperar-cuenta` | `apps/web/src/pages/RequestRecoveryLinkPage.tsx`, `apps/web/src/services/authService.ts` |
 | E4.2 | Etiquetas, filtro y origen del destino en la auditoría del panel | `apps/web/src/lib/adminAudit.ts`, `apps/web/src/pages/AdminPage.tsx` |
+| R1 | Estado de recuperación (`passwordResetRequiredAt`) y destino guardado (`securityRecoveryEmail`) en el listado y el detalle de usuarios del panel | `apps/api/src/routes/admin.routes.ts` |
+| R2 | Retirada de la protección, corrección del destino y reenvío del enlace desde el panel | `apps/web/src/pages/AdminPage.tsx`, `apps/web/src/services/adminService.ts`, `apps/web/src/lib/adminUserActions.ts`, `apps/web/src/lib/adminRecovery.ts`, `apps/web/src/lib/adminAccountStatus.ts` |
 
 ### Campos (E2.1)
 
@@ -101,7 +103,7 @@ La retirada exige sesión de un OWNER no protegido (`requireOwner`), no se puede
 
 ### Corrección del destino y reenvío del enlace (E2.5f)
 
-Mientras la recuperación está pendiente, un OWNER puede corregir el destino o enviar un enlace nuevo, sin repetir la retirada. Las dos acciones están en `apps/api/src/routes/admin.routes.ts`, solo por API (no hay pantalla en el panel web), con `requireOwner`, el mismo rate limit que las demás acciones de cuenta (20 por minuto, contador propio de cada ruta) y motivo obligatorio (3 a 500 caracteres).
+Mientras la recuperación está pendiente, un OWNER puede corregir el destino o enviar un enlace nuevo, sin repetir la retirada. Las dos acciones están en `apps/api/src/routes/admin.routes.ts` y, desde R2, también en el panel (ver [Gestión desde el panel de administración](#gestión-desde-el-panel-de-administración-r1-y-r2)), con `requireOwner`, el mismo rate limit que las demás acciones de cuenta (20 por minuto, contador propio de cada ruta) y motivo obligatorio (3 a 500 caracteres).
 
 | | `POST /api/admin/users/:id/recovery-destination` | `POST /api/admin/users/:id/resend-recovery` |
 |---|---|---|
@@ -164,7 +166,39 @@ Una acción que el panel no conozca se muestra con su código tal cual.
 
 Solo `SECURITY_HOLD_RESOLVED` y `SECURITY_RECOVERY_DESTINATION_CHANGED` guardan el origen. Si es `null` (el resto de acciones o retiradas anteriores a E2.4) o un valor desconocido, no se añade nada.
 
-**Qué no muestra:** el origen del destino no es la dirección. La API no devuelve en la auditoría el destino de recuperación, el token ni el enlace, y el panel no los muestra. Las columnas Cuenta afectada y Operador muestran, como antes, el email actual de cada cuenta y, si cambió o la cuenta ya no existe, el registrado al hacer la acción.
+**Qué no muestra:** el origen del destino no es la dirección. La API no devuelve en la auditoría el destino de recuperación, el token ni el enlace, y la auditoría del panel no los muestra. Las columnas Cuenta afectada y Operador muestran, como antes, el email actual de cada cuenta y, si cambió o la cuenta ya no existe, el registrado al hacer la acción. El destino guardado sí se ve en la lista y el detalle de usuarios desde R1 (sección siguiente).
+
+### Gestión desde el panel de administración (R1 y R2)
+
+Un OWNER puede hacer las tres acciones de recuperación desde `/admin`, sin llamar a la API a mano. El panel usa los mismos endpoints (`resolve-security-hold`, `recovery-destination` y `resend-recovery`), así que las reglas, la transacción y las respuestas son las descritas en este documento. El panel solo decide qué botones ofrece y cuándo: la autorización y las comprobaciones de estado las sigue haciendo la API.
+
+**Estado de recuperación (R1).** `GET /api/admin/users` y `GET /api/admin/users/:id` devuelven además `passwordResetRequiredAt` (desde cuándo está pendiente la recuperación, o `null`) y `securityRecoveryEmail` (destino guardado, o `null`). Una recuperación está pendiente cuando `passwordResetRequiredAt` no es nulo. Son los dos únicos endpoints que devuelven el destino, ambos con `requireOwner`; siguen sin devolver contraseñas, tokens ni sus hashes.
+
+**Qué muestra el panel:**
+
+- **Estado:** «Recuperación pendiente» junto a «Protección por incidente» y «Suspendida por admin» cuando concurren; ninguna etiqueta oculta a otra (`apps/web/src/lib/adminAccountStatus.ts`).
+- **Destino de recuperación:** en la tabla y en las tarjetas móviles, cuando existe y hay recuperación pendiente o protección activa. En el detalle de la cuenta, siempre, junto a «Recuperación obligatoria» (fecha desde la que está pendiente, o «No»); sin destino, «Sin destino guardado».
+- El destino es un dato personal: solo aparece en el panel OWNER.
+
+**Acciones y condiciones** (`apps/web/src/lib/adminUserActions.ts`, las mismas condiciones que la API). Ninguna se ofrece para cuentas OWNER, que tampoco se pueden modificar por API (403).
+
+| Botón | Se ofrece cuando | Email en el diálogo |
+|---|---|---|
+| «Retirar protección» | La cuenta tiene protección por incidente, también si está suspendida | Opcional si hay destino guardado (vacío = usar el guardado); obligatorio si no lo hay |
+| «Corregir destino» | Recuperación pendiente, sin protección ni suspensión | Obligatorio |
+| «Reenviar enlace» | Las mismas condiciones que «Corregir destino». Sin destino guardado aparece desactivado, con el mismo motivo que daría la API | No lleva |
+
+Todas abren el diálogo de confirmación del panel y exigen un **motivo de 3 a 500 caracteres**, que se guarda en la auditoría (como suspender, reactivar y cerrar sesiones). Antes de enviar, el panel comprueba el formato del email y el máximo de 254 caracteres; la validación definitiva es la de la API.
+
+**Resultados y errores** (`apps/web/src/lib/adminRecovery.ts`):
+
+- `recoveryEmailSent: true`: aviso de éxito con el mensaje de la API.
+- `recoveryEmailSent: false`: la operación se hizo, pero el enlace no se envió (también cuando la corrección indica el mismo destino, `changed: false`). Se muestra como advertencia, no como éxito; se puede reenviar desde el panel.
+- 409: el mensaje de la API y un aviso de que el estado de la cuenta ha cambiado y hay que actualizar la página antes de volver a intentarlo.
+- 400 y otros errores: el mensaje de la API.
+- El aviso solo aparece con la respuesta del servidor. La acción se ejecuta una sola vez: un doble clic no la repite, y si después falla la actualización de los datos se avisa de eso, no de un fallo de la acción.
+
+**Entrega del correo:** `recoveryEmailSent: true` significa que el servidor SMTP aceptó el mensaje, no que haya llegado al buzón; la entrega depende del proveedor de correo.
 
 ## 5. Ciclo de vida del token `SECURITY_RECOVERY`
 
@@ -291,11 +325,11 @@ Ninguna respuesta incluye el destino, el token ni el enlace. El fallo del envío
 
 ### Qué hacer cuando la recuperación se atasca
 
-La retirada no se puede repetir, porque la protección ya no está activa (409). Desde E2.5f:
+La retirada no se puede repetir, porque la protección ya no está activa (409). Desde E2.5f (y, desde R2, con los botones del panel indicados entre paréntesis):
 
-- **El envío falló** (`recoveryEmailSent: false`) **o el enlace caducó** (1 hora): reenviar con `resend-recovery`.
-- **El destino era incorrecto o está ocupado** por otra cuenta (`email_taken` en la finalización, o 409 en el reenvío): corregirlo con `recovery-destination`, que envía un enlace nuevo.
-- **La cuenta se suspendió** después de la retirada (`suspend` borra el token): retirar la suspensión con `unsuspend` y reenviar.
+- **El envío falló** (`recoveryEmailSent: false`) **o el enlace caducó** (1 hora): reenviar con `resend-recovery` («Reenviar enlace»).
+- **El destino era incorrecto o está ocupado** por otra cuenta (`email_taken` en la finalización, o 409 en el reenvío): corregirlo con `recovery-destination` («Corregir destino»), que envía un enlace nuevo.
+- **La cuenta se suspendió** después de la retirada (`suspend` borra el token): retirar la suspensión con `unsuspend` («Reactivar cuenta») y reenviar.
 - **Llegó un incidente nuevo:** la cuenta vuelve a estar protegida; se usa la retirada, que emite el enlace de la versión nueva.
 
 El titular también puede pedir por sí mismo un enlace nuevo al destino guardado (E2.6, ver sección 4), con un enfriamiento de 15 minutos. Antes de E2.5f, estos casos dejaban la cuenta sin acceso salvo intervención directa en la base de datos:
@@ -330,6 +364,17 @@ Cifras de la última ejecución de cada suite (API 561/561 en 25 ficheros y shar
 | `apps/web/src/services/adminService.test.ts` | 28 | 7 de E4.2: filtro de la auditoría con las acciones de recuperación, combinado con el filtro por cuenta, y la acción codificada en la URL. Las otras 21 son anteriores |
 
 Las cifras de los ficheros de la API incluyen también las pruebas anteriores a E2.
+
+**R1 y R2.** Al integrar R1, la suite de la API pasó con 568/568 pruebas en 25 ficheros; `admin.routes.test.ts` tiene 267, entre ellas las de los dos campos nuevos en el listado y el detalle, la ausencia de contraseñas, tokens y hashes en esas respuestas y el contrato de la paginación. Al integrar R2, la web pasó con 295/295 en 14 ficheros:
+
+| Fichero | Pruebas | Qué cubre de R2 |
+|---|---|---|
+| `apps/web/src/services/adminService.test.ts` | 38 | Rutas y cuerpos de las tres acciones, respuestas con envío correcto, envío fallido y destino sin cambios, y errores 400 y 409 con su estado HTTP |
+| `apps/web/src/lib/adminUserActions.test.ts` | 18 | Disponibilidad de las acciones para cuentas normales, suspendidas, protegidas, con recuperación pendiente (con y sin destino) y OWNER |
+| `apps/web/src/lib/adminAccountStatus.test.ts` | 9 | «Recuperación pendiente» y su coexistencia con la protección y la suspensión |
+| `apps/web/src/lib/adminRecovery.test.ts` | 37 | Validación del email, campo del diálogo, avisos, mensajes de 400 y 409, doble envío y distinción entre fallo de la acción y fallo del refresco |
+
+En esa integración no se ejecutaron `apps/api/src/cors.test.ts` ni `apps/api/src/routes/security.routes.test.ts`, porque al importar `app.ts` cargan `apps/api/.env` (R2 no modifica la API). El renderizado del panel no tiene pruebas automáticas; el ciclo completo (retirada, corrección, reenvío y correo recibido) se comprobó a mano.
 
 **Página `RecoverAccountPage`: no tiene pruebas automáticas** de renderizado ni de interacción. La web no tiene Testing Library ni entorno DOM, y en E2.5d no se añadieron dependencias. La página se ha comprobado con typecheck y build, revisión de código y una prueba manual de una persona a través de un túnel. Las 13 pruebas de `authService.test.ts` cubren el servicio, no la página.
 
@@ -369,5 +414,6 @@ Para aplicar estas migraciones en otra base se siguen los mismos pasos que en el
 
 ## 10. Pendiente
 
-- Botones del panel web para retirar la protección, corregir el destino y reenviar el enlace, y mostrar en el panel que una cuenta tiene la recuperación pendiente (fuera de E4; la API de usuarios del panel no devuelve hoy ese estado).
 - Que la API devuelva un código de error además del mensaje, para que la web no dependa del texto.
+
+Los botones del panel para retirar la protección, corregir el destino y reenviar el enlace, y la indicación de que una cuenta tiene la recuperación pendiente, ya están disponibles (R1 y R2; ver [Gestión desde el panel de administración](#gestión-desde-el-panel-de-administración-r1-y-r2)).

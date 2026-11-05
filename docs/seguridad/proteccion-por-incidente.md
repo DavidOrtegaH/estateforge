@@ -2,7 +2,7 @@
 
 Este documento describe cómo funciona la protección de una cuenta tras un incidente de seguridad, cómo la retira un administrador y cómo se evita retirar por error una protección más reciente. Distingue entre lo que hace el código actual, lo que está demostrado por pruebas y lo que sigue pendiente.
 
-> **Estado:** la retirada administrativa, el bloqueo de suspensión de cuentas protegidas y el contador de versión (V1–V5) están commiteados en la rama `feat/keys` (`6c19574`). La recuperación obligatoria tras la retirada (E2.1–E2.6) está commiteada en la misma rama (`1a6e29a`) y se describe en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). Las migraciones del contador y de E2.1 están aplicadas a la base local `apps/api/dev.db` desde el 2026-11-02, y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) desde el 2026-11-04; cualquier otra base debe migrarse antes de usar este código. Ver [Migración del contador](#7-migración-del-contador).
+> **Estado:** la retirada administrativa, el bloqueo de suspensión de cuentas protegidas y el contador de versión (V1–V5) están commiteados en la rama `feat/keys` (`618ecb0`). La recuperación obligatoria tras la retirada (E2.1–E2.6) está commiteada en la misma rama (`d32ff42`) y se describe en [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). Los hashes citados son los posteriores a la reescritura del historial del 2026-11-05. Desde R2, la retirada también se hace desde el panel de administración (botón «Retirar protección»). Las migraciones del contador y de E2.1 se aplicaron a la base local de desarrollo (`apps/api/dev.db`, que no se versiona) el 2026-11-02, y la del actor opcional de la auditoría (`20261103120000_admin_audit_optional_actor`) el 2026-11-04; cualquier otra base debe migrarse antes de usar este código. Ver [Migración del contador](#7-migración-del-contador).
 
 ## 1. Dos estados independientes
 
@@ -49,7 +49,7 @@ Mientras `securityHoldAt` no es nulo:
 
 ## 4. Retirada administrativa
 
-`POST /api/admin/users/:id/resolve-security-hold`, en `apps/api/src/routes/admin.routes.ts`.
+`POST /api/admin/users/:id/resolve-security-hold`, en `apps/api/src/routes/admin.routes.ts`. En el panel de administración la usa el botón «Retirar protección», que solo aparece en cuentas no propietarias con la protección activa (ver [Gestión desde el panel de administración](recuperacion-obligatoria.md#gestión-desde-el-panel-de-administración-r1-y-r2)).
 
 **Requisitos y respuestas:**
 
@@ -226,11 +226,16 @@ pnpm --filter api test   # suite completa de la API, incluida la integración
 | Retención de conexiones libsql en producción: Prisma conserva hasta 100 transacciones cerradas y cada una retiene su conexión; `close()` de libsql no libera el fichero de inmediato. | Sin resolver; requiere estudio aparte. |
 | La emisión de tokens de incidente no es atómica (sección 3). | Sin resolver. |
 | Fastify limita los parámetros de ruta a 100 caracteres (`maxParamLength` por defecto, no se configura en `apps/api/src/app.ts`), mientras `UserIdParams` admite hasta 128: un identificador de 101 a 128 caracteres recibe 414 del router antes de validarse. | Sin resolver; decidir cuál ajustar. |
-| `apps/api/dev.db` está versionado en Git y contiene datos locales (usuarios, sesiones, auditoría); tras la migración aparece modificado. | Sin decidir cómo gestionarlo; no se recomienda commitear la base. |
+| `apps/api/dev.db` estaba versionado en Git y contenía datos locales (usuarios, sesiones, auditoría). | Resuelto: ya no se versiona (`.gitignore` incluye `apps/api/dev.db*`) y se retiró del historial de todas las ramas. |
 
-## 11. Trabajo pendiente (no disponible todavía)
+## 11. Trabajo pendiente y completado
 
-- **E2 (implementado hasta E2.6, commiteado en `1a6e29a`):** la retirada obliga a establecer una contraseña nueva y envía el enlace a un destino autorizado; un OWNER puede corregir el destino o reenviar el enlace, y el propio titular puede pedir un enlace nuevo al destino guardado; ver [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). La página web de esa solicitud es `/recuperar-cuenta/solicitar` (E4.1).
+**Pendiente:**
+
 - **E3:** procedimiento por línea de comandos para retirar la protección de una cuenta OWNER, que deberá incrementar o respetar la versión.
-- **Panel web:** botón «Retirar protección» (pendiente, fuera de E4). La acción `SECURITY_HOLD_RESOLVED` ya aparece con su etiqueta y en el filtro del historial (E4.2).
-- **F:** accesibilidad de los diálogos del panel y visibilidad del incidente para el usuario.
+
+**Completado:**
+
+- **E2 (E2.1–E2.6, commiteado en `d32ff42`):** la retirada obliga a establecer una contraseña nueva y envía el enlace a un destino autorizado; un OWNER puede corregir el destino o reenviar el enlace, y el propio titular puede pedir un enlace nuevo al destino guardado; ver [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). La página web de esa solicitud es `/recuperar-cuenta/solicitar` (E4.1).
+- **Panel web (R1 y R2, integrados, pendientes de commit):** botones «Retirar protección», «Corregir destino» y «Reenviar enlace», y estado «Recuperación pendiente» con el destino guardado. La acción `SECURITY_HOLD_RESOLVED` aparece con su etiqueta y en el filtro del historial desde E4.2.
+- **F (F1a, F1b y F2):** diálogos del panel y de la aplicación accesibles con teclado, y aviso en el login cuando la API cierra una sesión abierta por protección, suspensión o recuperación pendiente, con el motivo que devuelve la API.

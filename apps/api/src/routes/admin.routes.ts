@@ -115,6 +115,8 @@ export async function adminRoutes(app: FastifyInstance) {
         select: {
           id: true, email: true, role: true, createdAt: true,
           securityHoldAt: true, adminSuspendedAt: true, adminSuspensionReason: true,
+          // Estado de la recuperación obligatoria (R1): pendiente desde y destino guardado.
+          passwordResetRequiredAt: true, securityRecoveryEmail: true,
           _count: { select: { properties: true } },
         },
         orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize,
@@ -125,6 +127,7 @@ export async function adminRoutes(app: FastifyInstance) {
         id: user.id, email: user.email, role: user.role, createdAt: user.createdAt,
         securityHoldAt: user.securityHoldAt, adminSuspendedAt: user.adminSuspendedAt,
         adminSuspensionReason: user.adminSuspensionReason, properties: user._count.properties,
+        passwordResetRequiredAt: user.passwordResetRequiredAt, securityRecoveryEmail: user.securityRecoveryEmail,
       })),
       pagination: { page, pageSize, total, pages: Math.ceil(total / pageSize) },
     }
@@ -140,6 +143,7 @@ export async function adminRoutes(app: FastifyInstance) {
       select: {
         id: true, email: true, role: true, createdAt: true,
         securityHoldAt: true, adminSuspendedAt: true, adminSuspensionReason: true,
+        passwordResetRequiredAt: true, securityRecoveryEmail: true,
         _count: { select: { properties: true, sessions: { where: { expiresAt: { gt: now } } } } },
       },
     })
@@ -148,6 +152,7 @@ export async function adminRoutes(app: FastifyInstance) {
       id: user.id, email: user.email, role: user.role, createdAt: user.createdAt,
       securityHoldAt: user.securityHoldAt, adminSuspendedAt: user.adminSuspendedAt,
       adminSuspensionReason: user.adminSuspensionReason,
+      passwordResetRequiredAt: user.passwordResetRequiredAt, securityRecoveryEmail: user.securityRecoveryEmail,
       properties: user._count.properties, activeSessions: user._count.sessions,
     }
   })

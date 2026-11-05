@@ -2399,6 +2399,8 @@ describe('Admin routes', () => {
         securityHoldAt: null,
         adminSuspendedAt: null,
         adminSuspensionReason: null,
+        passwordResetRequiredAt: null,
+        securityRecoveryEmail: null,
         properties: 3,
         activeSessions: 2,
       })
@@ -2515,6 +2517,114 @@ describe('Admin routes', () => {
       await getDetail(TARGET)
 
       expect(store()).toEqual(before)
+    })
+  })
+
+  // ----------------------------------------------------------
+  // ESTADO DE RECUPERACIÓN EN USUARIOS Y DETALLE (R1)
+  // ----------------------------------------------------------
+
+  describe('estado de recuperación en el listado y el detalle (R1)', () => {
+    const STORED_DESTINATION = 'anterior@estateforge.test'
+    // Campos exactos del contrato administrativo de cada cuenta.
+    const LIST_FIELDS = [
+      'adminSuspendedAt', 'adminSuspensionReason', 'createdAt', 'email', 'id', 'passwordResetRequiredAt',
+      'properties', 'role', 'securityHoldAt', 'securityRecoveryEmail',
+    ]
+    const DETAIL_FIELDS = [...LIST_FIELDS, 'activeSessions'].sort()
+
+    function getUsers() {
+      return app.inject({ method: 'GET', url: '/api/admin/users', headers: asOwner })
+    }
+
+    function getDetail(id: string) {
+      return app.inject({ method: 'GET', url: `/api/admin/users/${id}`, headers: asOwner })
+    }
+
+    function listed(body: { users: { id: string }[] }, id: string) {
+      const found = body.users.find(item => item.id === id)
+      if (!found) throw new Error(`Cuenta no listada: ${id}`)
+      return found as Record<string, unknown>
+    }
+
+    // Retira la protección con el destino guardado, como en los tests de resolve-security-hold.
+    async function resolveHold() {
+      findUser(TARGET).securityHoldAt = HOLD_DATE
+      findUser(TARGET).securityRecoveryEmail = STORED_DESTINATION
+      const response = await action('resolve-security-hold', TARGET, { reason: 'Incidente revisado' })
+      expect(response.statusCode).toBe(200)
+    }
+
+    it('en el listado, una cuenta normal devuelve los dos campos a null', async () => {
+      const response = await getUsers()
+
+      expect(response.statusCode).toBe(200)
+      for (const id of [TARGET, USER, OWNER]) {
+        expect(listed(response.json(), id)).toMatchObject({ passwordResetRequiredAt: null, securityRecoveryEmail: null })
+      }
+    })
+
+    it('en el detalle, una cuenta normal devuelve los dos campos a null', async () => {
+      const response = await getDetail(USER)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({ passwordResetRequiredAt: null, securityRecoveryEmail: null })
+    })
+
+    it('un destino guardado sin recuperación pendiente se devuelve tal cual, con passwordResetRequiredAt a null', async () => {
+      findUser(TARGET).securityRecoveryEmail = STORED_DESTINATION
+
+      expect(listed((await getUsers()).json(), TARGET)).toMatchObject({ passwordResetRequiredAt: null, securityRecoveryEmail: STORED_DESTINATION })
+      expect((await getDetail(TARGET)).json()).toMatchObject({ passwordResetRequiredAt: null, securityRecoveryEmail: STORED_DESTINATION })
+    })
+
+    it('tras retirar la protección, el listado muestra la recuperación pendiente y su destino', async () => {
+      await resolveHold()
+      const pendingSince = findUser(TARGET).passwordResetRequiredAt!.toISOString()
+
+      const target = listed((await getUsers()).json(), TARGET)
+
+      expect(target).toMatchObject({ securityHoldAt: null, passwordResetRequiredAt: pendingSince, securityRecoveryEmail: STORED_DESTINATION })
+      expect(listed((await getUsers()).json(), USER)).toMatchObject({ passwordResetRequiredAt: null, securityRecoveryEmail: null })
+    })
+
+    it('tras retirar la protección, el detalle muestra los dos campos', async () => {
+      await resolveHold()
+      const pendingSince = findUser(TARGET).passwordResetRequiredAt!.toISOString()
+
+      const response = await getDetail(TARGET)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({ securityHoldAt: null, passwordResetRequiredAt: pendingSince, securityRecoveryEmail: STORED_DESTINATION })
+    })
+
+    it('no expone contraseñas, tokens ni sus hashes, ni campos fuera del contrato', async () => {
+      const SECRET_PASSWORD_HASH = 'hash-de-contrasena-que-no-debe-salir'
+      Object.assign(findUser(TARGET), { password: SECRET_PASSWORD_HASH })
+      await resolveHold()
+      const sentRecoveryToken = new URL(mail.calls[0].args.recoveryUrl).searchParams.get('token')!
+      const tokenHashes = store().passwordResetTokens.flatMap(token => (token.tokenHash ? [token.tokenHash] : []))
+      expect(tokenHashes.length).toBeGreaterThan(0)
+
+      const list = await getUsers()
+      const detail = await getDetail(TARGET)
+
+      for (const body of [list.body, detail.body]) {
+        for (const secret of [SECRET_PASSWORD_HASH, sentRecoveryToken, ...tokenHashes]) expect(body).not.toContain(secret)
+        expect(body).not.toMatch(/"(password|tokenHash|token|securityHoldVersion)"\s*:/)
+      }
+      for (const item of list.json().users) expect(Object.keys(item).sort()).toEqual(LIST_FIELDS)
+      expect(Object.keys(detail.json()).sort()).toEqual(DETAIL_FIELDS)
+    })
+
+    it('el contrato de la paginación no cambia', async () => {
+      await resolveHold()
+
+      const body = (await getUsers()).json()
+
+      expect(Object.keys(body).sort()).toEqual(['pagination', 'users'])
+      expect(body.pagination).toEqual({ page: 1, pageSize: 20, total: 5, pages: 1 })
+      expect(body.users).toHaveLength(5)
     })
   })
 

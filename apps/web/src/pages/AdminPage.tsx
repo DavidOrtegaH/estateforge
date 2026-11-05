@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  getAdminAudit, getAdminOverview, getAdminUserDetail, getAdminUsers, runAdminUserAction,
-  type AdminAuditAction, type AdminAuditLog, type AdminAuditResponse, type AdminOverview, type AdminUser, type AdminUserAction, type AdminUserDetail, type AdminUsersResponse,
+  changeRecoveryDestination, getAdminAudit, getAdminOverview, getAdminUserDetail, getAdminUsers, resendRecoveryLink, resolveSecurityHold, runAdminUserAction,
+  type AdminAuditAction, type AdminAuditLog, type AdminAuditResponse, type AdminOverview, type AdminPanelAction, type AdminRecoveryResult, type AdminUser, type AdminUserDetail, type AdminUsersResponse,
 } from '@/services/adminService'
+import { actionNotice, adminActionErrorMessage, recoveryEmailError, recoveryEmailField, recoveryEmailToSend, RECOVERY_EMAIL_MAX, showsRecoveryDestination, tryStartOnce, type ActionNotice } from '@/lib/adminRecovery'
 import { AUDIT_ACTIONS, auditActionLabel, describeAuditAccount, describeAuditAction, describeAuditActor, type AuditAccountView } from '@/lib/adminAudit'
 import { userActionsAvailability } from '@/lib/adminUserActions'
 import { accountStatuses } from '@/lib/adminAccountStatus'
@@ -12,7 +13,7 @@ import { useModalDialog } from '@/hooks/useModalDialog'
 const REASON_MIN = 3
 const REASON_MAX = 500
 
-type PendingAction = { user: AdminUser; action: AdminUserAction }
+type PendingAction = { user: AdminUser; action: AdminPanelAction }
 type DetailView = { userId: string; email: string; data: AdminUserDetail | null; error: string | null }
 type AuditFilters = { action: AdminAuditAction | ''; target: { id: string; label: string } | null }
 
@@ -22,15 +23,24 @@ function auditQuery(filters: AuditFilters) {
   return { action: filters.action === '' ? undefined : filters.action, targetUserId: filters.target?.id }
 }
 
-// Estado de la cuenta: con protección y suspensión a la vez se muestran las dos etiquetas.
-function AccountStatus({ user }: { user: Pick<AdminUser, 'securityHoldAt' | 'adminSuspendedAt'> }) {
+// Estado de la cuenta: si concurren varios estados (protección, suspensión, recuperación) se muestran todos.
+function AccountStatus({ user }: { user: Pick<AdminUser, 'securityHoldAt' | 'adminSuspendedAt' | 'passwordResetRequiredAt'> }) {
   return <>{accountStatuses(user).map((status, index) => <Fragment key={status.label}>{index > 0 && ' · '}<span className={status.className}>{status.label}</span></Fragment>)}</>
 }
 
-const USER_ACTION_BUTTONS: Record<AdminUserAction, { label: string; tone: string }> = {
+// Destino de la recuperación: dato personal, solo en el panel OWNER y cuando es pertinente.
+function RecoveryDestination({ user, className }: { user: Pick<AdminUser, 'securityHoldAt' | 'passwordResetRequiredAt' | 'securityRecoveryEmail'>; className: string }) {
+  if (!showsRecoveryDestination(user)) return null
+  return <p className={className}>Destino de recuperación: <span className="break-all">{user.securityRecoveryEmail}</span></p>
+}
+
+const USER_ACTION_BUTTONS: Record<AdminPanelAction, { label: string; tone: string }> = {
   unsuspend: { label: 'Reactivar cuenta', tone: 'text-primary' },
   suspend: { label: 'Suspender cuenta', tone: 'text-red-700' },
   'revoke-sessions': { label: 'Cerrar sesiones', tone: 'text-muted-foreground' },
+  'resolve-security-hold': { label: 'Retirar protección', tone: 'text-primary' },
+  'recovery-destination': { label: 'Corregir destino', tone: 'text-primary' },
+  'resend-recovery': { label: 'Reenviar enlace', tone: 'text-primary' },
 }
 
 // Acciones de una cuenta. Tabla (escritorio) y tarjetas (móvil) usan la misma disponibilidad;
@@ -40,7 +50,7 @@ function UserActions({ user, busyUserId, variant, onDetail, onAction }: {
   busyUserId: string | null
   variant: 'table' | 'card'
   onDetail: () => void
-  onAction: (action: AdminUserAction) => void
+  onAction: (action: AdminPanelAction) => void
 }) {
   const availability = userActionsAvailability(user, busyUserId)
   if (variant === 'table') {
@@ -112,15 +122,27 @@ function AuditReason({ reason }: { reason: string }) {
   return <details className="max-w-xl" open={open} onToggle={event => setOpen(event.currentTarget.open)}><summary className="cursor-pointer text-sm">{text}</summary></details>
 }
 
-function actionTitle(action: AdminUserAction) {
+function actionTitle(action: AdminPanelAction) {
   if (action === 'suspend') return 'Suspender cuenta'
   if (action === 'unsuspend') return 'Reactivar cuenta'
+  if (action === 'resolve-security-hold') return 'Retirar la protección por incidente'
+  if (action === 'recovery-destination') return 'Corregir el destino de recuperación'
+  if (action === 'resend-recovery') return 'Reenviar el enlace de recuperación'
   return 'Cerrar todas las sesiones'
 }
 
-function actionDescription(action: AdminUserAction, email: string) {
+function actionDescription(action: AdminPanelAction, user: AdminUser) {
+  const { email } = user
+  const destination = user.securityRecoveryEmail
   if (action === 'suspend') return `La cuenta ${email} quedará suspendida y se cerrarán sus sesiones.`
   if (action === 'unsuspend') return `Se retirará la suspensión administrativa de ${email}. Una protección por incidente de seguridad seguirá activa.`
+  if (action === 'resolve-security-hold') {
+    return `Se retirará la protección de ${email} y la cuenta quedará en recuperación obligatoria: no podrá acceder hasta establecer una contraseña nueva con el enlace que se enviará ${destination ? `al destino guardado (${destination}) o al email que indiques` : 'al email que indiques'}.`
+  }
+  if (action === 'recovery-destination') {
+    return `Se cambiará el destino de recuperación de ${email}${destination ? ` (ahora ${destination})` : ''} y se enviará un enlace nuevo; los anteriores dejarán de ser válidos.`
+  }
+  if (action === 'resend-recovery') return `Se enviará un enlace de recuperación nuevo a ${destination ?? 'el destino guardado'}; los anteriores dejarán de ser válidos.`
   return `Se cerrarán todas las sesiones activas de ${email}.`
 }
 
@@ -133,7 +155,8 @@ export default function AdminPage() {
   const [appliedSearch, setAppliedSearch] = useState('')
   // Un error por operación: cada una solo crea o borra el suyo.
   const [errors, setErrors] = useState<AdminErrors>({})
-  const [notice, setNotice] = useState<string | null>(null)
+  // Aviso tras una acción completada: éxito, o advertencia si el enlace de recuperación no se envió.
+  const [notice, setNotice] = useState<ActionNotice | null>(null)
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [changingUsersPage, setChangingUsersPage] = useState(false)
@@ -156,6 +179,11 @@ export default function AdminPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string | null>(null)
+  // Email de recuperación del diálogo (retirar la protección o corregir el destino).
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [recoveryEmailMessage, setRecoveryEmailMessage] = useState<string | null>(null)
+  // Hay un envío de acción en curso: impide un segundo envío antes de volver a renderizar.
+  const actionInFlight = useRef(false)
   const [detail, setDetail] = useState<DetailView | null>(null)
   // Identifica la última petición de detalle; las respuestas anteriores se descartan.
   const detailRequest = useRef(0)
@@ -296,35 +324,60 @@ export default function AdminPage() {
     setDetail(null)
   }
 
-  function openAction(user: AdminUser, action: AdminUserAction) {
+  function openAction(user: AdminUser, action: AdminPanelAction) {
     setPendingAction({ user, action })
     setReason('')
     setReasonError(null)
+    setRecoveryEmail('')
+    setRecoveryEmailMessage(null)
     setError('action', null)
+  }
+
+  // Llama a la API de la acción. Las de recuperación devuelven además si se envió el enlace.
+  function performAction(user: AdminUser, action: AdminPanelAction, reasonText: string, email: string | undefined): Promise<{ message: string } | AdminRecoveryResult> {
+    if (action === 'resolve-security-hold') return resolveSecurityHold(user.id, reasonText, email)
+    if (action === 'recovery-destination') return changeRecoveryDestination(user.id, reasonText, email ?? '')
+    if (action === 'resend-recovery') return resendRecoveryLink(user.id, reasonText)
+    return runAdminUserAction(user.id, action, reasonText)
   }
 
   async function submitAction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!pendingAction || busyUserId) return
     const trimmedReason = reason.trim()
-    if (trimmedReason.length < REASON_MIN || trimmedReason.length > REASON_MAX) {
-      setReasonError(`Escribe un motivo de entre ${REASON_MIN} y ${REASON_MAX} caracteres.`)
-      return
-    }
+    const emailField = recoveryEmailField(pendingAction.action, pendingAction.user)
+    const emailMessage = recoveryEmailError(emailField, recoveryEmail)
+    const reasonInvalid = trimmedReason.length < REASON_MIN || trimmedReason.length > REASON_MAX
+    if (reasonInvalid) setReasonError(`Escribe un motivo de entre ${REASON_MIN} y ${REASON_MAX} caracteres.`)
+    setRecoveryEmailMessage(emailMessage)
+    if (reasonInvalid || emailMessage) return
+    // Un segundo envío (doble clic antes de desactivar el botón) no repite la acción.
+    const release = tryStartOnce(actionInFlight)
+    if (!release) return
 
     const { user, action } = pendingAction
+    const email = recoveryEmailToSend(emailField, recoveryEmail)
     setBusyUserId(user.id); setError('action', null); setError('refresh', null); setNotice(null)
     try {
       // La acción se ejecuta una sola vez; si después falla el refresco, se avisa de eso y
-      // no de un fallo de la acción.
+      // no de un fallo de la acción. El aviso solo aparece con la respuesta del servidor.
+      // Respuesta de la acción, para saber en el aviso si se envió el enlace.
+      const response: { result: { message: string; recoveryEmailSent?: boolean } | null } = { result: null }
       const outcome = await runActionThenRefresh(
-        () => runAdminUserAction(user.id, action, trimmedReason),
-        message => { setNotice(message); setPendingAction(null); setReason('') },
+        async () => {
+          try {
+            response.result = await performAction(user, action, trimmedReason, email)
+            return response.result
+          } catch (e) {
+            throw new Error(adminActionErrorMessage(e))
+          }
+        },
+        message => { setNotice(actionNotice(response.result ?? { message })); setPendingAction(null); setReason(''); setRecoveryEmail('') },
         () => refresh(1),
       )
       if (outcome.kind === 'failed') setError('action', outcome.error)
       else setError('refresh', outcome.refreshError)
-    } finally { setBusyUserId(null) }
+    } finally { setBusyUserId(null); release() }
   }
 
   async function changeAuditPage(page: number) {
@@ -380,7 +433,7 @@ export default function AdminPage() {
     <main className="mx-auto w-full max-w-7xl space-y-8 p-0 md:p-6 lg:p-10">
       <header><p className="text-sm font-medium text-primary">ESTATEFORGE · CONTROL DEL SAAS</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Administración</h1><p className="mt-2 text-sm text-muted-foreground">Vista general de la plataforma y gestión de cuentas.</p></header>
       {visibleErrors(errors).map(({ scope, message }) => <div key={scope} role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">{message}</div>)}
-      {notice && <div role="status" className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-800">{notice}</div>}
+      {notice && <div role="status" className={notice.tone === 'warning' ? 'rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900' : 'rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-800'}>{notice.message}</div>}
       <section className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         {([['Usuarios', overview?.users], ['Inmuebles', overview?.properties], ['Generaciones', overview?.generations], ['Cuentas protegidas', overview?.blockedUsers], ['Suspendidas por admin', overview?.suspendedUsers]] as const).map(([label, value]) => <article key={label} className="rounded-xl border bg-card p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold">{loading ? '—' : value}</p></article>)}
       </section>
@@ -397,7 +450,7 @@ export default function AdminPage() {
           <div className="hidden md:block"><table className="w-full text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-3">Cuenta</th><th className="p-3">Rol</th><th className="p-3">Inmuebles</th><th className="p-3">Alta</th><th className="p-3">Estado</th><th className="p-3">Acciones</th></tr></thead><tbody>{data?.users.map(user => <tr key={user.id} className="border-b align-top last:border-0">
             <td className="p-3"><div className="font-medium">{user.email}</div><div className="max-w-52 truncate text-xs text-muted-foreground">{user.id}</div></td>
             <td className="p-3">{user.role === 'OWNER' ? 'Propietario' : 'Usuario'}</td><td className="p-3">{user.properties}</td><td className="p-3 whitespace-nowrap">{new Date(user.createdAt).toLocaleDateString('es-ES')}</td>
-            <td className="p-3"><div><AccountStatus user={user} /></div>{user.adminSuspensionReason && <p className="mt-1 max-w-56 whitespace-pre-wrap wrap-break-word text-xs text-muted-foreground">Motivo: {user.adminSuspensionReason}</p>}</td>
+            <td className="p-3"><div><AccountStatus user={user} /></div>{user.adminSuspensionReason && <p className="mt-1 max-w-56 whitespace-pre-wrap wrap-break-word text-xs text-muted-foreground">Motivo: {user.adminSuspensionReason}</p>}<RecoveryDestination user={user} className="mt-1 max-w-56 text-xs text-muted-foreground" /></td>
             <td className="p-3"><UserActions variant="table" user={user} busyUserId={busyUserId} onDetail={() => void openDetail(user)} onAction={action => openAction(user, action)} /></td>
           </tr>)}</tbody></table></div>
           <ul className="space-y-3 md:hidden">{data?.users.map(user => <li key={user.id} className="rounded-lg border bg-background p-4">
@@ -406,6 +459,7 @@ export default function AdminPage() {
             <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
               <dt className="text-muted-foreground">Estado</dt><dd><AccountStatus user={user} /></dd>
               {user.adminSuspensionReason && <><dt className="text-muted-foreground">Motivo</dt><dd className="whitespace-pre-wrap wrap-anywhere">{user.adminSuspensionReason}</dd></>}
+              {showsRecoveryDestination(user) && <><dt className="text-muted-foreground">Destino</dt><dd className="wrap-anywhere">{user.securityRecoveryEmail}</dd></>}
               <dt className="text-muted-foreground">Rol</dt><dd>{user.role === 'OWNER' ? 'Propietario' : 'Usuario'}</dd>
               <dt className="text-muted-foreground">Inmuebles</dt><dd>{user.properties}</dd>
               <dt className="text-muted-foreground">Alta</dt><dd>{new Date(user.createdAt).toLocaleDateString('es-ES')}</dd>
@@ -452,12 +506,22 @@ export default function AdminPage() {
       {pendingAction && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" onMouseDown={event => { if (event.target === event.currentTarget && !busyUserId) setPendingAction(null) }}>
         <section ref={actionDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="admin-action-title" aria-describedby="admin-action-description" className="my-auto w-full max-w-lg rounded-xl border bg-card p-6 shadow-xl">
           <h2 id="admin-action-title" className="text-xl font-semibold">{actionTitle(pendingAction.action)}</h2>
-          <p id="admin-action-description" className="mt-2 text-sm text-muted-foreground">{actionDescription(pendingAction.action, pendingAction.user.email)}</p>
-          <form onSubmit={submitAction} className="mt-5 space-y-3">
+          <p id="admin-action-description" className="mt-2 text-sm text-muted-foreground">{actionDescription(pendingAction.action, pendingAction.user)}</p>
+          <form onSubmit={submitAction} noValidate className="mt-5 space-y-3">
             <label htmlFor="admin-action-reason" className="block text-sm font-medium">Motivo <span className="text-muted-foreground">(obligatorio)</span></label>
             <textarea id="admin-action-reason" ref={actionReasonRef} rows={4} maxLength={REASON_MAX} value={reason} onChange={event => { setReason(event.target.value); if (reasonError) setReasonError(null) }} aria-invalid={!!reasonError} aria-describedby="admin-action-reason-help admin-action-reason-error" placeholder="Explica brevemente por qué realizas esta acción…" className={`w-full resize-y rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary ${reasonError ? 'border-red-500 focus-visible:ring-red-400' : ''}`} />
             <div className="flex items-start justify-between gap-3"><p id="admin-action-reason-help" className="text-xs text-muted-foreground">Entre {REASON_MIN} y {REASON_MAX} caracteres. Se guardará en la auditoría.</p><p className="shrink-0 text-xs tabular-nums text-muted-foreground">{reason.trim().length}/{REASON_MAX}</p></div>
             {reasonError && <p id="admin-action-reason-error" role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{reasonError}</p>}
+            {(() => {
+              const field = recoveryEmailField(pendingAction.action, pendingAction.user)
+              if (field === 'none') return null
+              return <>
+                <label htmlFor="admin-action-recovery-email" className="block text-sm font-medium">Email de recuperación <span className="text-muted-foreground">({field === 'required' ? 'obligatorio' : 'opcional'})</span></label>
+                <input id="admin-action-recovery-email" type="email" inputMode="email" autoComplete="off" maxLength={RECOVERY_EMAIL_MAX} aria-required={field === 'required'} value={recoveryEmail} onChange={event => { setRecoveryEmail(event.target.value); if (recoveryEmailMessage) setRecoveryEmailMessage(null) }} aria-invalid={!!recoveryEmailMessage} aria-describedby="admin-action-recovery-email-help admin-action-recovery-email-error" placeholder={field === 'optional' && pendingAction.user.securityRecoveryEmail ? pendingAction.user.securityRecoveryEmail : 'nombre@ejemplo.com'} className={`w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary ${recoveryEmailMessage ? 'border-red-500 focus-visible:ring-red-400' : ''}`} />
+                <p id="admin-action-recovery-email-help" className="text-xs text-muted-foreground">{field === 'optional' ? 'Déjalo vacío para usar el destino guardado.' : 'El enlace de recuperación se enviará a este email.'}</p>
+                {recoveryEmailMessage && <p id="admin-action-recovery-email-error" role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{recoveryEmailMessage}</p>}
+              </>
+            })()}
             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end"><button type="button" disabled={!!busyUserId} onClick={() => setPendingAction(null)} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">Cancelar</button><button type="submit" disabled={!!busyUserId} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-wait disabled:opacity-60">{busyUserId ? 'Procesando…' : 'Confirmar acción'}</button></div>
           </form>
         </section>
@@ -479,6 +543,8 @@ export default function AdminPage() {
               <dt className="text-muted-foreground">Estado</dt><dd><AccountStatus user={detail.data} /></dd>
               <dt className="text-muted-foreground">Protección por incidente</dt><dd>{detail.data.securityHoldAt ? `Activa desde ${formatDateTime(detail.data.securityHoldAt)}` : 'No'}</dd>
               <dt className="text-muted-foreground">Suspensión administrativa</dt><dd>{detail.data.adminSuspendedAt ? `Activa desde ${formatDateTime(detail.data.adminSuspendedAt)}` : 'No'}</dd>
+              <dt className="text-muted-foreground">Recuperación obligatoria</dt><dd>{detail.data.passwordResetRequiredAt ? `Pendiente desde ${formatDateTime(detail.data.passwordResetRequiredAt)}` : 'No'}</dd>
+              <dt className="text-muted-foreground">Destino de recuperación</dt><dd className="break-all">{detail.data.securityRecoveryEmail ?? 'Sin destino guardado'}</dd>
               {detail.data.adminSuspensionReason !== null && <><dt className="text-muted-foreground">Motivo de la suspensión</dt><dd className="whitespace-pre-wrap wrap-break-word">{detail.data.adminSuspensionReason}</dd></>}
             </dl>}
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => showAccountHistory({ id: detail.userId, label: detail.email })} className="rounded-lg border px-4 py-2 text-sm font-medium">Ver su historial de auditoría</button><button type="button" ref={detailCloseRef} onClick={closeDetail} className="rounded-lg border px-4 py-2 text-sm font-medium">Cerrar</button></div>

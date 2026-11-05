@@ -2,10 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { API_URL } from '@/lib/api'
 import {
+  AdminApiError,
+  changeRecoveryDestination,
   getAdminAudit,
   getAdminOverview,
   getAdminUserDetail,
   getAdminUsers,
+  resendRecoveryLink,
+  resolveSecurityHold,
   runAdminUserAction,
   type AdminAuditAction,
 } from './adminService'
@@ -243,5 +247,88 @@ describe('adminService', () => {
     stubFetch(new Response(null, { status: 500 }))
 
     await expect(getAdminOverview()).rejects.toThrow('No se pudo completar la operación (500).')
+  })
+
+  it('los errores conservan el estado HTTP sin cambiar su mensaje', async () => {
+    stubFetch(jsonResponse({ message: 'La cuenta ya está suspendida administrativamente.' }, 409))
+
+    const error = await runAdminUserAction('user-1', 'suspend', 'Motivo válido').then(() => null, (failure: unknown) => failure)
+    expect(error).toBeInstanceOf(AdminApiError)
+    expect(error).toBeInstanceOf(Error)
+    expect((error as AdminApiError).status).toBe(409)
+    expect((error as AdminApiError).message).toBe('La cuenta ya está suspendida administrativamente.')
+  })
+})
+
+describe('adminService: recuperación de cuentas (R2)', () => {
+  const sent = { success: true, recoveryEmailSent: true, message: 'Protección por incidente retirada. Se ha enviado el enlace de recuperación obligatoria.' }
+  const jsonPost = (body: unknown) => ({ credentials: 'include', method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
+
+  it('retira la protección con el destino guardado: solo envía el motivo', async () => {
+    const fetchMock = stubFetch(jsonResponse(sent))
+
+    await expect(resolveSecurityHold('user/1', 'Incidente revisado')).resolves.toEqual(sent)
+    expect(fetchMock).toHaveBeenCalledWith(`${API_URL}/api/admin/users/user%2F1/resolve-security-hold`, jsonPost({ reason: 'Incidente revisado' }))
+  })
+
+  it('retira la protección con un destino indicado: envía motivo y recoveryEmail', async () => {
+    const fetchMock = stubFetch(jsonResponse(sent))
+
+    await resolveSecurityHold('user-1', 'Incidente revisado', 'nuevo@estateforge.test')
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_URL}/api/admin/users/user-1/resolve-security-hold`,
+      jsonPost({ reason: 'Incidente revisado', recoveryEmail: 'nuevo@estateforge.test' }),
+    )
+  })
+
+  it('corrige el destino: envía motivo y recoveryEmail y devuelve changed', async () => {
+    const result = { success: true, changed: true, recoveryEmailSent: true, message: 'Destino de recuperación actualizado.' }
+    const fetchMock = stubFetch(jsonResponse(result))
+
+    await expect(changeRecoveryDestination('user/1', 'Destino erróneo', 'otro@estateforge.test')).resolves.toEqual(result)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_URL}/api/admin/users/user%2F1/recovery-destination`,
+      jsonPost({ reason: 'Destino erróneo', recoveryEmail: 'otro@estateforge.test' }),
+    )
+  })
+
+  it('corregir al mismo destino devuelve changed false y recoveryEmailSent false tal cual', async () => {
+    const result = { success: true, changed: false, recoveryEmailSent: false, message: 'El destino indicado ya es el destino de recuperación de la cuenta.' }
+    stubFetch(jsonResponse(result))
+
+    await expect(changeRecoveryDestination('user-1', 'Sin cambios', 'mismo@estateforge.test')).resolves.toEqual(result)
+  })
+
+  it('reenvía el enlace: solo envía el motivo', async () => {
+    const fetchMock = stubFetch(jsonResponse({ success: true, recoveryEmailSent: true, message: 'Se ha enviado un enlace de recuperación nuevo.' }))
+
+    await resendRecoveryLink('user/1', 'El titular no recibió el correo')
+    expect(fetchMock).toHaveBeenCalledWith(`${API_URL}/api/admin/users/user%2F1/resend-recovery`, jsonPost({ reason: 'El titular no recibió el correo' }))
+  })
+
+  it('un envío fallido se devuelve como respuesta correcta con recoveryEmailSent false', async () => {
+    const failed = { success: true, recoveryEmailSent: false, message: 'No se pudo enviar el enlace de recuperación.' }
+    stubFetch(jsonResponse(failed))
+
+    await expect(resendRecoveryLink('user-1', 'Reintento')).resolves.toEqual(failed)
+  })
+
+  it.each([
+    [409, 'La cuenta tiene una protección por incidente activa. Retírala primero; la retirada envía un enlace nuevo.'],
+    [400, 'La cuenta no tiene un destino de recuperación guardado. Corrige el destino antes de reenviar.'],
+  ])('un %i lanza AdminApiError con su estado y el mensaje de la API', async (status, message) => {
+    stubFetch(jsonResponse({ message }, status))
+
+    const error = await resendRecoveryLink('user-1', 'Reintento').then(() => null, (failure: unknown) => failure)
+    expect(error).toBeInstanceOf(AdminApiError)
+    expect((error as AdminApiError).status).toBe(status)
+    expect((error as AdminApiError).message).toBe(message)
+  })
+
+  it('retirar la protección sin destino guardado (400) conserva el mensaje de la API', async () => {
+    const message = 'La cuenta no tiene un destino de recuperación guardado. Indica el email al que enviar el enlace de recuperación obligatoria.'
+    stubFetch(jsonResponse({ message }, 400))
+
+    await expect(resolveSecurityHold('user-1', 'Incidente revisado')).rejects.toThrow(message)
   })
 })
