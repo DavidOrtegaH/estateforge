@@ -105,7 +105,7 @@ Desde la raíz:
 | `pnpm --filter web build` | Build de producción de la web (`tsc -b && vite build`, en `apps/web/dist`) |
 | `pnpm --filter api build` | Compila la API con `tsc` |
 
-El `package.json` raíz también define `build`, `lint` y `preview` con los mismos comandos que la web, pero en la raíz no hay configuración de TypeScript ni de Vite; para compilar o previsualizar la web usa los comandos con `--filter web`.
+El `package.json` raíz también define `build` (`tsc -b && vite build`) y `preview` (`vite preview`), los mismos comandos que la web, pero en la raíz no hay `tsconfig` ni configuración de Vite (están en `apps/web`); para compilar o previsualizar la web usa los comandos con `--filter web`. El `lint` de la raíz ejecuta solo `oxlint`, sin TypeScript ni Vite, pero en la raíz no hay `.oxlintrc.json`: la configuración de Oxlint del proyecto es `apps/web/.oxlintrc.json`, así que para el lint de la web con esa configuración usa `pnpm --filter web lint`.
 
 ### Tests
 

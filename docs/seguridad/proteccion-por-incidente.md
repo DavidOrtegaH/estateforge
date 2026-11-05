@@ -237,5 +237,5 @@ pnpm --filter api test   # suite completa de la API, incluida la integración
 **Completado:**
 
 - **E2 (E2.1–E2.6, commiteado en `d32ff42`):** la retirada obliga a establecer una contraseña nueva y envía el enlace a un destino autorizado; un OWNER puede corregir el destino o reenviar el enlace, y el propio titular puede pedir un enlace nuevo al destino guardado; ver [Recuperación obligatoria tras un incidente](recuperacion-obligatoria.md). La página web de esa solicitud es `/recuperar-cuenta/solicitar` (E4.1).
-- **Panel web (R1 y R2, integrados, pendientes de commit):** botones «Retirar protección», «Corregir destino» y «Reenviar enlace», y estado «Recuperación pendiente» con el destino guardado. La acción `SECURITY_HOLD_RESOLVED` aparece con su etiqueta y en el filtro del historial desde E4.2.
+- **Panel web (R1 y R2, commiteados en `c05ed36`):** botones «Retirar protección», «Corregir destino» y «Reenviar enlace», y estado «Recuperación pendiente» con el destino guardado. La acción `SECURITY_HOLD_RESOLVED` aparece con su etiqueta y en el filtro del historial desde E4.2.
 - **F (F1a, F1b y F2):** diálogos del panel y de la aplicación accesibles con teclado, y aviso en el login cuando la API cierra una sesión abierta por protección, suspensión o recuperación pendiente, con el motivo que devuelve la API.
