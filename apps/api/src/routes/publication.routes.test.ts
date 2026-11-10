@@ -123,3 +123,25 @@ describe('sin publicación automática', () => {
     }
   })
 })
+
+describe('conflicto de escritura frente a base no disponible (DA-37)', () => {
+  const known = (code: string, message: string) => Object.assign(new Error(message), { name: 'PrismaClientKnownRequestError', code, meta: {} })
+
+  it.each([
+    ['unicidad (P2002)', known('P2002', 'Unique constraint failed')],
+    ['conflicto de escritura (P2034)', known('P2034', 'write conflict')],
+    ['transacción caducada esperando un bloqueo (P2028)', known('P2028', 'Transaction API error: Transaction already closed: the timeout for this transaction was 5000 ms')],
+  ])('%s: 409', async (_label, error) => {
+    const { isWriteConflict } = await import('./publication.routes.js')
+    expect(isWriteConflict(error)).toBe(true)
+  })
+
+  it.each([
+    ['sin conexión dentro de maxWait (P2028)', known('P2028', 'Transaction API error: Unable to start a transaction in the given time.')],
+    ['límite de conexiones (P2037)', known('P2037', 'Too many database connections opened')],
+    ['pool agotado', new Error('timeout exceeded when trying to connect')],
+  ])('%s: no es un conflicto, llega al manejador global (503)', async (_label, error) => {
+    const { isWriteConflict } = await import('./publication.routes.js')
+    expect(isWriteConflict(error)).toBe(false)
+  })
+})

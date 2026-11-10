@@ -15,6 +15,7 @@ import {
 } from '@estateforge/shared'
 
 import { prisma } from '../db/prisma.js'
+import { isDatabaseUnavailableError } from '../db/availability.js'
 
 import type { Prisma } from '../generated/prisma/client.js'
 
@@ -253,11 +254,15 @@ function saveChecklist(
 }
 
 // Colisión con otra escritura: la base la ha rechazado y no se ha guardado nada.
-function isWriteConflict(error: unknown): boolean {
+export function isWriteConflict(error: unknown): boolean {
+  // Base no disponible (por ejemplo, P2028 «Unable to start a transaction in the given time», sin
+  // conexión dentro de maxWait): no es un conflicto, la responde el manejador global con 503 (DA-37).
+  if (isDatabaseUnavailableError(error)) return false
+
   const code = (error as { code?: unknown } | null)
     ?.code
 
-  // Unicidad, conflicto o interbloqueo de PostgreSQL, y espera agotada de una transacción.
+  // Unicidad, conflicto o interbloqueo de PostgreSQL, y transacción caducada esperando un bloqueo.
   return code === 'P2002' || code === 'P2034' || code === 'P2028'
 }
 
