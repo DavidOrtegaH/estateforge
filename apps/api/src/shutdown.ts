@@ -36,6 +36,10 @@ interface ShutdownOptions {
   // Plazos del cierre; las pruebas los acortan.
   timeoutMs?: number
   drainMs?: number
+  // Recursos que se cierran al final, cuando ya no queda trabajo ni envíos (DA-38): el pool de
+  // PostgreSQL. No se cierran en un hook onClose porque app.close() no espera al trabajo de las
+  // peticiones cuyo cliente se fue ni a los envíos en segundo plano, que aún usan la base.
+  closeResources?: () => Promise<void>
 }
 
 export interface ShutdownTracking {
@@ -70,6 +74,7 @@ export function registerGracefulShutdown(app: FastifyInstance, options: Shutdown
   const processExit = options.exit ?? ((code: number) => process.exit(code))
   const timeoutMs = options.timeoutMs ?? SHUTDOWN_TIMEOUT_MS
   const drainMs = options.drainMs ?? SHUTDOWN_DRAIN_MS
+  const closeResources = options.closeResources ?? (async () => {})
   let closing = false
   let exited = false
   let requestsCut = false
@@ -148,14 +153,26 @@ export function registerGracefulShutdown(app: FastifyInstance, options: Shutdown
       clearTimeout(workPoll)
     }
 
+    // Cierra los recursos y sale. Con trabajo pendiente también se cierran: lo que quede fallará sin
+    // reconectar, y la salida ya es 1. El plazo total sigue vigente durante el cierre.
+    const closeAndExit = (code: number) => {
+      closeResources().then(
+        () => exit(code),
+        (error: unknown) => {
+          app.log.error({ ...safeErrorFields(error) }, 'No se pudieron cerrar las conexiones a la base de datos')
+          exit(1)
+        },
+      )
+    }
+
     const finish = () => {
       const pending = pendingFields()
       if (pending.pendingDeliveries > 0 || pending.activeWork > 0 || requestsCut) {
         app.log.error({ reason: 'incomplete', requestsCut, ...pending }, 'Cierre incompleto')
-        exit(1)
+        closeAndExit(1)
         return
       }
-      exit(0)
+      closeAndExit(0)
     }
 
     const waitForRemainingWork = () => {
@@ -172,7 +189,7 @@ export function registerGracefulShutdown(app: FastifyInstance, options: Shutdown
       (error: unknown) => {
         // Campos cerrados: el error de un hook de cierre no tiene un contenido controlado.
         app.log.error({ ...safeErrorFields(error), ...pendingFields() }, 'Falló el cierre ordenado')
-        exit(1)
+        closeAndExit(1)
       },
     )
   }

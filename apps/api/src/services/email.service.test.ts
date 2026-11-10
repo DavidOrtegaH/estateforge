@@ -99,6 +99,9 @@ describe('SMTPEmailService', () => {
         },
         disableFileAccess: true,
         disableUrlAccess: true,
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 30_000,
       })
 
       expect(

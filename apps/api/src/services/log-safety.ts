@@ -45,9 +45,9 @@ const SAFE_ERROR_CODES: ReadonlySet<string> = new Set([
   'ESTREAM', 'EAUTH', 'ENOAUTH', 'EOAUTH2', 'EMAXLIMIT', 'EMAXRECIPIENTS', 'ESENDMAIL', 'ESES', 'ECONFIG',
   'EPROXY', 'EFILEACCESS', 'EURLACCESS', 'EFETCH',
   // Prisma 7.9.1 (códigos literales del runtime de @prisma/client).
-  'P1000', 'P1001', 'P1003', 'P1008', 'P1009', 'P1010', 'P1011', 'P1017', 'P1018',
+  'P1000', 'P1001', 'P1002', 'P1003', 'P1008', 'P1009', 'P1010', 'P1011', 'P1017', 'P1018',
   'P2000', 'P2002', 'P2003', 'P2007', 'P2009', 'P2010', 'P2011', 'P2012', 'P2014', 'P2017', 'P2018', 'P2020',
-  'P2021', 'P2022', 'P2023', 'P2025', 'P2028', 'P2029', 'P2030', 'P2034', 'P2036', 'P2037', 'P2038', 'P2039',
+  'P2021', 'P2022', 'P2023', 'P2024', 'P2025', 'P2028', 'P2029', 'P2030', 'P2034', 'P2036', 'P2037', 'P2038', 'P2039',
   'P6000', 'P6001',
   // Node: new URL() al construir los enlaces.
   'ERR_INVALID_URL',
@@ -84,12 +84,25 @@ export function safeErrorFields(error: unknown): SafeErrorFields {
  * del servidor, el mensaje puede haberse aceptado o no: ni enviado ni fallido, sino no confirmado.
  */
 export function deliveryStateFields(error: unknown): DeliveryStateFields {
-  if (!error || typeof error !== 'object') return {}
-  const { code, responseCode } = error as { code?: unknown; responseCode?: unknown }
-  if (typeof code === 'string' && CONNECTION_LOST_CODES.has(code) && validSmtpResponseCode(responseCode) === undefined) {
-    return { deliveryState: 'unconfirmed' }
-  }
-  return {}
+  return isDeliveryUnconfirmed(error) ? { deliveryState: 'unconfirmed' } : {}
+}
+
+// Mensajes de nodemailer 10.0.12 para un fallo anterior al saludo del servidor: no se transmitió nada.
+const BEFORE_GREETING_MESSAGES: ReadonlySet<string> = new Set(['Connection timeout', 'Greeting never received'])
+
+/**
+ * true si no se sabe si el mensaje se aceptó: la conexión se perdió sin respuesta del servidor
+ * después de establecerse. Cualquier otro fallo es conocido: el servidor rechazó el mensaje (hay
+ * código de respuesta), la conexión TCP no llegó a establecerse (nodemailer conserva el error del
+ * socket, con `syscall: 'connect'`), no hubo saludo, o el envío falló antes de la red (DA-39).
+ */
+export function isDeliveryUnconfirmed(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const { code, responseCode, syscall, message } = error as { code?: unknown; responseCode?: unknown; syscall?: unknown; message?: unknown }
+  if (typeof code !== 'string' || !CONNECTION_LOST_CODES.has(code)) return false
+  if (validSmtpResponseCode(responseCode) !== undefined) return false
+  if (syscall === 'connect') return false
+  return !(typeof message === 'string' && BEFORE_GREETING_MESSAGES.has(message))
 }
 
 export function safeDeliveryErrorFields(error: unknown): SafeErrorFields & DeliveryStateFields {

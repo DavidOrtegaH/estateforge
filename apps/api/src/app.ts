@@ -20,6 +20,13 @@ import { aiKeyRoutes } from './routes/ai-key.routes.js'
 import { adminRoutes } from './routes/admin.routes.js'
 
 import { trackRequestWork } from './request-work.js'
+import {
+  DATABASE_UNAVAILABLE_BODY,
+  DATABASE_UNAVAILABLE_RETRY_AFTER_S,
+  DATABASE_UNAVAILABLE_STATUS,
+  databaseUnavailableKind,
+} from './db/availability.js'
+import { safeErrorFields } from './services/log-safety.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -128,7 +135,7 @@ export async function buildApp() {
   app.setErrorHandler(
     (
       error: FastifyError,
-      _request,
+      request,
       reply,
     ) => {
       // --------------------------------------------------------
@@ -190,6 +197,37 @@ export async function buildApp() {
                   error.message,
               })
         }
+      }
+
+      // --------------------------------------------------------
+      // Base de datos no disponible (DA-37)
+      // --------------------------------------------------------
+      //
+      // Pool agotado, límite de conexiones, servidor caído o
+      // reiniciándose: la petición es válida y se puede repetir.
+      // Solo campos cerrados en el log: el mensaje de Prisma o de
+      // pg puede incluir el host, el SQL o la fila rechazada.
+      //
+
+      const unavailable =
+        databaseUnavailableKind(error)
+
+      if (unavailable) {
+        request.log.warn(
+          {
+            dbUnavailable: unavailable,
+            ...safeErrorFields(error),
+          },
+          'Base de datos no disponible',
+        )
+
+        return reply
+          .code(DATABASE_UNAVAILABLE_STATUS)
+          .header(
+            'Retry-After',
+            String(DATABASE_UNAVAILABLE_RETRY_AFTER_S),
+          )
+          .send(DATABASE_UNAVAILABLE_BODY)
       }
 
       // --------------------------------------------------------

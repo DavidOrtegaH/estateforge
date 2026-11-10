@@ -6,6 +6,7 @@ import { emailService } from './email.service.js'
 import { safeDeliveryErrorFields, safeErrorName } from './log-safety.js'
 import { createPasswordResetToken, getPasswordResetExpiry, hashPasswordResetToken } from './password-reset.service.js'
 import { createDeliveryTracker, type DeliveryWaitResult } from './pending-deliveries.js'
+import { revokeAfterFailedDelivery } from './undelivered-link.js'
 
 // Enlaces de recuperación obligatoria (E2): creación del token, envío y solicitud del titular (E2.6).
 
@@ -36,8 +37,9 @@ export function newRecoveryToken(userId: string, deliverTo: string, securityHold
   }
 }
 
-// Envía el enlace después del commit; devuelve si se pudo enviar. Un fallo no deshace nada:
-// la obligación y el token se mantienen para poder reenviarlo.
+// Envía el enlace después del commit; devuelve si se pudo enviar. Si consta que no salió, se anula
+// ese token (DA-39): la obligación se mantiene y se puede pedir o reenviar otro enlace al momento.
+// Si el envío no está confirmado, el token se conserva, porque el correo pudo llegar.
 export async function sendRecoveryLink(
   log: FastifyBaseLogger,
   targetUserId: string,
@@ -51,6 +53,7 @@ export async function sendRecoveryLink(
   } catch (error) {
     // Sin el error completo: podría incluir el destinatario o el contenido del mensaje.
     log.error({ flow: 'security_recovery', targetUserId, ...safeDeliveryErrorFields(error) }, 'No se pudo enviar el enlace de recuperación obligatoria')
+    await revokeAfterFailedDelivery(log, 'security_recovery', targetUserId, link.token, error)
     return false
   }
 }

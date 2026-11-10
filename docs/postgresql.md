@@ -67,7 +67,10 @@ La respuesta no incluye detalles: el motivo se registra en el log, sin datos de 
 
 - **Un pool por proceso.** Se ha comprobado con 400 peticiones en 40 hilos: todas respondieron y nunca hubo más de 10 conexiones.
 - **Conexiones cortadas por el servidor** (reinicio o `pg_terminate_backend`): el pool las sustituye y la API se recupera sola.
-- **Base saturada.** Si PostgreSQL rechaza conexiones (por ejemplo, por el límite del rol), las peticiones afectadas responden 500 genérico, sin SQL ni datos de conexión. El proceso no cae y se recupera en cuanto hay conexiones. El error no se distingue como 503 porque el manejador de errores está en `app.ts`, protegido por la evidencia de N-1 a N-8.
+- **Base no disponible (DA-37).** Si el pool no consigue conexión a tiempo, PostgreSQL rechaza conexiones (límite del rol o `max_connections`), el servidor está caído, se está reiniciando o corta la conexión, la petición responde **503** con `Retry-After: 5` y `{"code":"SERVICE_UNAVAILABLE","message":"El servicio no está disponible temporalmente. Inténtalo de nuevo en unos segundos."}`. Sin SQL, sin host, sin rol y sin el mensaje del driver. El log registra solo `dbUnavailable` (clase), `errorName` y `errorCode`. El proceso no cae y se recupera solo en cuanto hay conexiones. No hay identificador de correlación público: los logs de Fastify ya llevan `reqId`.
+- **Lo que no es disponibilidad** sigue igual: una violación de unicidad, de `CHECK` o de clave foránea, un conflicto de escritura (409 donde la ruta lo trata), una validación (400) o un error de programación (500 genérico).
+- La clasificación (`src/db/availability.ts`) reconoce solo formas comprobadas con PostgreSQL 17.11, Prisma 7.9.1, `@prisma/adapter-pg` 7.9.1 y `pg-pool` 3.14. Al actualizar cualquiera, repite `availability.integration.test.ts`: si cambia una forma, el error vuelve a ser un 500, nunca un 503 indebido.
+- **Pool propio.** El pool de `pg` lo crea la aplicación y se lo pasa al adaptador. `closeDatabase()` lo cierra una sola vez; después, cualquier consulta falla (503) en lugar de abrir conexiones nuevas.
 
 ## Despliegue
 
@@ -78,7 +81,7 @@ La respuesta no incluye detalles: el motivo se registra en el log, sin datos de 
 
 ## Cierre ordenado
 
-Ante la primera señal, la API deja de aceptar peticiones, espera hasta 6 s a las que están en curso y cierra el pool de PostgreSQL. Una segunda señal fuerza la salida con código 1.
+Ante la primera señal, la API deja de aceptar peticiones, espera hasta 6 s a las que están en curso, después al trabajo que siga en marcha y a los envíos de correo, y **solo entonces** cierra el pool de PostgreSQL (DA-38). Antes se cerraba en un hook `onClose`, que se ejecuta sin esperar a ese trabajo: una consulta posterior abría un pool nuevo que nadie cerraba. Una segunda señal fuerza la salida con código 1.
 
 Comprobado en Windows con un Ctrl+C real de consola, que Node recibe como `SIGINT`:
 

@@ -166,13 +166,13 @@ describe('dos instancias de la API con pools distintos', () => {
     vi.resetModules()
 
     const { generationRoutes } = await import('../routes/generation.routes.js')
-    const { prisma } = await import('../db/prisma.js')
+    const { closeDatabase } = await import('../db/prisma.js')
     const app = Fastify()
 
     await app.register(generationRoutes)
     await app.ready()
     apps.push(app)
-    disconnect.push(() => prisma.$disconnect())
+    disconnect.push(() => closeDatabase())
 
     return app
   }

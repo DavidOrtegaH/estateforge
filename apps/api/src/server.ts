@@ -1,5 +1,5 @@
 import { buildApp } from './app.js'
-import { prisma } from './db/prisma.js'
+import { closeDatabase } from './db/prisma.js'
 import { readinessRoutes } from './routes/readiness.routes.js'
 import { readServerAddress } from './server-config.js'
 import { registerGracefulShutdown } from './shutdown.js'
@@ -8,16 +8,13 @@ const start = async () => {
   const address = readServerAddress(process.env)
   const app = await buildApp()
 
-  // Disponibilidad con PostgreSQL. Se registra aquí, no en buildApp, para no alterar app.ts.
+  // Disponibilidad con PostgreSQL. Se registra con el proceso, no en buildApp: las pruebas que
+  // construyen la app no tienen base de datos.
   await app.register(readinessRoutes)
 
-  // El pool se cierra con la aplicación, dentro del cierre ordenado.
-  app.addHook('onClose', async () => {
-    await prisma.$disconnect()
-  })
-
-  // Cierre ordenado: espera a los enlaces de recuperación que se envían en segundo plano (E2.6).
-  registerGracefulShutdown(app)
+  // Cierre ordenado: espera a las peticiones, a su trabajo y a los envíos en segundo plano, y solo
+  // después cierra el pool de PostgreSQL (DA-38).
+  registerGracefulShutdown(app, { closeResources: closeDatabase })
 
   try {
     await app.listen(address)

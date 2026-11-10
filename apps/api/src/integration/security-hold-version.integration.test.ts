@@ -111,17 +111,25 @@ const mail = vi.hoisted(() => ({
   // Avisos de cambio de email y su fallo simulado (corrección F0-002).
   noticeCalls: [] as { to: string; stage: string; incidentReportUrl?: string }[],
   noticeFail: false,
+  // Conexión perdida a mitad del envío, sin respuesta del servidor: el correo pudo llegar (DA-39).
+  unconfirmed: false,
+  resetUnconfirmed: false,
 }))
+
+// Forma de nodemailer 10.0.12 para una conexión cerrada sin respuesta durante el envío.
+const lostConnection = () => Object.assign(new Error('Connection closed unexpectedly'), { code: 'ECONNECTION', command: 'CONN' })
 
 vi.mock('../services/email.service.js', () => ({
   emailService: {
     sendSecurityRecoveryEmail: async (args: { to: string; recoveryUrl: string; expiresAt: Date }) => {
       mail.calls.push({ args, transactionLog: [...transactions.log] })
       if (mail.fail) throw new Error('Fallo SMTP simulado')
+      if (mail.unconfirmed) throw lostConnection()
     },
     sendPasswordResetEmail: async (args: { to: string; resetUrl: string }) => {
       mail.resetCalls.push({ to: args.to, resetUrl: args.resetUrl })
       if (mail.resetFail) throw new Error('Fallo SMTP simulado')
+      if (mail.resetUnconfirmed) throw lostConnection()
     },
     sendEmailChangeNoticeEmail: async (args: { to: string; stage: string; incidentReportUrl?: string }) => {
       mail.noticeCalls.push({ to: args.to, stage: args.stage, incidentReportUrl: args.incidentReportUrl })
@@ -146,6 +154,7 @@ type ResetDeliveryModule = typeof import('../services/password-reset-delivery.se
 let testDatabase: TestDatabase | undefined
 let loaded: {
   prisma: PrismaModule['prisma']
+  closeDatabase: PrismaModule['closeDatabase']
   incidents: IncidentModule
   sessions: SessionModule
   adminRoutes: AdminRoutesModule['adminRoutes']
@@ -174,6 +183,7 @@ beforeAll(async () => {
 
   loaded = {
     prisma: (await import('../db/prisma.js')).prisma,
+    closeDatabase: (await import('../db/prisma.js')).closeDatabase,
     incidents: await import('../services/security-incident.service.js'),
     sessions: await import('../services/session.service.js'),
     adminRoutes: (await import('../routes/admin.routes.js')).adminRoutes,
@@ -189,7 +199,7 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     await app?.close()
-    await loaded?.prisma.$disconnect()
+    await loaded?.closeDatabase()
   } finally {
     app = undefined
     loaded = undefined
@@ -277,6 +287,8 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
     mail.resetFail = false
     mail.noticeCalls.length = 0
     mail.noticeFail = false
+    mail.unconfirmed = false
+    mail.resetUnconfirmed = false
   })
 
   afterEach(async () => {
@@ -662,7 +674,7 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
       expect(mail.calls).toEqual([])
     })
 
-    it('d. si falla el envío, la obligación, el destino y el token permanecen', async () => {
+    it('d. si consta que el envío falló, la obligación y el destino permanecen y el token no entregado se anula (DA-39)', async () => {
       await reportNewIncident(target.id)
       mail.fail = true
 
@@ -675,8 +687,18 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
         passwordResetRequiredAt: expect.any(Date),
         securityRecoveryEmail: 'anterior@estateforge.test',
       })
-      expect(await recoveryTokens(target.id)).toEqual([expect.objectContaining({ usedAt: null, deliverTo: 'anterior@estateforge.test' })])
+      expect(await recoveryTokens(target.id)).toEqual([])
       expect(await db().adminAuditLog.count()).toBe(1)
+    })
+
+    it('d2. si el envío no está confirmado, el token se conserva: el correo pudo llegar', async () => {
+      await reportNewIncident(target.id)
+      mail.unconfirmed = true
+
+      const response = await resolveHold(target.id)
+
+      expect(response.json()).toMatchObject({ success: true, recoveryEmailSent: false })
+      expect(await recoveryTokens(target.id)).toEqual([expect.objectContaining({ usedAt: null, deliverTo: 'anterior@estateforge.test' })])
     })
 
     it('e. una cuenta suspendida sigue suspendida y queda en recuperación obligatoria', async () => {
@@ -1213,7 +1235,7 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
       expect(await consume(firstToken)).toBe('completed')
     })
 
-    it('j. si falla el envío, se conservan la obligación y el token, y un reenvío posterior funciona', async () => {
+    it('j. si consta que el envío falló, se conserva la obligación, se anula el token no entregado y un reenvío posterior funciona', async () => {
       await pendingRecovery()
       mail.fail = true
 
@@ -1222,7 +1244,7 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
       expect(failed.statusCode).toBe(200)
       expect(failed.json()).toMatchObject({ success: true, recoveryEmailSent: false })
       expect((await account()).passwordResetRequiredAt).toBeInstanceOf(Date)
-      expect(await pendingRecoveryTokens()).toEqual([expect.objectContaining({ tokenHash: hashOf(lastSentToken()) })])
+      expect(await pendingRecoveryTokens()).toEqual([])
 
       mail.fail = false
       expect((await adminAction('resend-recovery', {})).json()).toMatchObject({ recoveryEmailSent: true })
@@ -1465,7 +1487,7 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
       expect(await consume(firstToken)).toBe('completed')
     })
 
-    it('j. si falla el envío, el token y la obligación se conservan y otra solicitud tras el enfriamiento funciona', async () => {
+    it('j. si consta que el envío falló, se anula el token, la obligación se conserva y otra solicitud inmediata funciona (DA-39)', async () => {
       await pendingRecovery()
       await passCooldown()
       mail.fail = true
@@ -1473,14 +1495,30 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
       expect((await requestLink(target.email)).json()).toEqual(GENERIC)
 
       const failedToken = lastSentToken()
-      expect(await pendingRecoveryTokens()).toEqual([expect.objectContaining({ tokenHash: hashOf(failedToken) })])
+      expect(await pendingRecoveryTokens()).toEqual([])
       expect((await account()).passwordResetRequiredAt).toBeInstanceOf(Date)
 
+      // Sin esperar al enfriamiento: un correo que no salió no lo reserva.
       mail.fail = false
-      await passCooldown()
       expect((await requestLink(target.email)).json()).toEqual(GENERIC)
       expect(lastSentToken()).not.toBe(failedToken)
       expect(await consume(lastSentToken())).toBe('completed')
+    })
+
+    it('j2. si el envío no está confirmado, el token y el enfriamiento se conservan', async () => {
+      await pendingRecovery()
+      await passCooldown()
+      mail.unconfirmed = true
+
+      expect((await requestLink(target.email)).json()).toEqual(GENERIC)
+      const keptToken = lastSentToken()
+      expect(await pendingRecoveryTokens()).toEqual([expect.objectContaining({ tokenHash: hashOf(keptToken) })])
+
+      mail.unconfirmed = false
+      const mailsBefore = mail.calls.length
+      expect((await requestLink(target.email)).json()).toEqual(GENERIC)
+      expect(mail.calls.length).toBe(mailsBefore)
+      expect(await consume(keptToken)).toBe('completed')
     })
 
     it('k. el enfriamiento no bloquea al OWNER: reenvía aunque el titular acabe de pedir un enlace', async () => {
@@ -2220,10 +2258,12 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
         }
 
         it.each([
-          ['el SMTP acepta el envío', false],
-          ['el SMTP falla', true],
-        ] as const)('D3.a cuenta elegible y %s: respuesta genérica idéntica y un token válido emitido', async (_label, smtpFails) => {
-          mail.resetFail = smtpFails
+          ['el SMTP acepta el envío', 'ok', 1],
+          ['consta que el SMTP falló', 'failed', 0],
+          ['el envío no está confirmado', 'unconfirmed', 1],
+        ] as const)('D3.a cuenta elegible y %s: respuesta genérica idéntica; token activo solo si el correo pudo llegar (DA-39)', async (_label, outcome, activeTokens) => {
+          mail.resetFail = outcome === 'failed'
+          mail.resetUnconfirmed = outcome === 'unconfirmed'
           const user = await createUser('USER')
 
           const response = await forgot(user.email)
@@ -2231,11 +2271,13 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
           expect(response.statusCode).toBe(200)
           expect(response.json()).toEqual(GENERIC)
           expect(mail.resetCalls.map(call => call.to)).toEqual([user.email])
-          // Sin reintentos: el token emitido se conserva sin usar aunque el correo no llegara.
+          // Sin reintentos. Un correo que consta que no salió no deja un enlace activo inútil.
           const tokens = await selfServiceTokens(user.id)
-          expect(tokens).toHaveLength(1)
-          expect(tokens[0].usedAt).toBeNull()
-          expect(tokens[0].expiresAt.getTime()).toBeGreaterThan(Date.now())
+          expect(tokens).toHaveLength(activeTokens)
+          for (const token of tokens) {
+            expect(token.usedAt).toBeNull()
+            expect(token.expiresAt.getTime()).toBeGreaterThan(Date.now())
+          }
         })
 
         it('D3.b cuenta inexistente o no elegible: la misma respuesta, sin token ni envío', async () => {

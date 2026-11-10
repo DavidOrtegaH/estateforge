@@ -90,6 +90,21 @@ export async function issuePasswordResetToken(
   }
 }
 
+/**
+ * Anula un token cuyo correo consta que no se entregó (DA-39). Solo ese token, identificado por su
+ * hash, y solo si sigue sin usar: nunca toca un token emitido después, ni uno ya consumido. Bloquea
+ * antes la cuenta (F0-001), igual que la emisión y el consumo, para ordenarse con ellos. Al borrarlo
+ * deja de contar para el enfriamiento de la recuperación obligatoria. Devuelve si lo anuló.
+ */
+export async function revokeUndeliveredResetToken(userId: string, token: string): Promise<boolean> {
+  const tokenHash = hashPasswordResetToken(token)
+  return prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, userId)
+    const { count } = await tx.passwordResetToken.deleteMany({ where: { tokenHash, userId, usedAt: null } })
+    return count === 1
+  })
+}
+
 export async function consumePasswordResetToken(
   token: string,
   passwordHash: string,

@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
 
 import { prisma } from '../db/prisma.js'
+import { isDatabaseUnavailableError } from '../db/availability.js'
 import {
   PASSWORD_POLICY_MESSAGE,
   isStrongPassword,
@@ -557,6 +558,10 @@ export async function authRoutes(app: FastifyInstance) {
           deliverRecoveryLinkInBackground(request.log, link)
         }
       } catch (error) {
+        // Base no disponible antes de evaluar ninguna cuenta (la búsqueda de candidatas es igual
+        // para todas): 503, que no distingue unas cuentas de otras (DA-37). Los fallos de una cuenta
+        // concreta los absorbe el servicio, y el resto sigue con la respuesta genérica.
+        if (isDatabaseUnavailableError(error)) throw error
         // La respuesta es la misma: un fallo tampoco debe distinguir unas cuentas de otras.
         request.log.error({ errorName: safeErrorName(error) }, 'No se pudo procesar una solicitud de recuperación obligatoria')
       }

@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { databaseUnavailableKind } from '../db/availability.js'
 import { assertLocalTestServer, createTestDatabase, type TestDatabase } from '../test-support/postgres.js'
 
 // Tipos, identidad de email y ciclo de vida contra PostgreSQL real.
@@ -21,6 +22,7 @@ vi.mock('../services/email.service.js', () => ({
 let database: TestDatabase
 let client: pg.Client
 let prisma: typeof import('../db/prisma.js')['prisma']
+let closeDatabase: typeof import('../db/prisma.js')['closeDatabase']
 let app: FastifyInstance
 
 const prismaDir = resolve(import.meta.dirname, '../../prisma')
@@ -36,7 +38,7 @@ beforeAll(async () => {
   client = new pg.Client({ connectionString: database.url })
   await client.connect()
 
-  prisma = (await import('../db/prisma.js')).prisma
+  ;({ prisma, closeDatabase } = await import('../db/prisma.js'))
 
   const { authRoutes } = await import('../routes/auth.routes.js')
 
@@ -48,7 +50,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close()
-  await prisma.$disconnect()
+  await closeDatabase()
   await client.end()
   vi.unstubAllEnvs()
   await database.drop()
@@ -201,25 +203,34 @@ describe('pool de conexiones', () => {
   const connections = async () =>
     (await client.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`)).rows[0].n as number
 
-  it('no abre una conexión por petición y se cierra con $disconnect', async () => {
+  it('no abre una conexión por petición, y closeDatabase cierra el pool sin que el trabajo posterior reconecte (DA-38)', async () => {
     vi.resetModules()
 
-    const own = (await import('../db/prisma.js')).prisma
+    const own = await import('../db/prisma.js')
     const before = await connections()
 
-    await Promise.all(Array.from({ length: 60 }, () => own.user.count()))
+    await Promise.all(Array.from({ length: 60 }, () => own.prisma.user.count()))
 
     expect((await connections()) - before).toBeLessThanOrEqual(10)
 
-    await own.$disconnect()
+    await own.closeDatabase()
 
     expect(await connections()).toBeLessThanOrEqual(before)
+
+    // Trabajo que llega después del cierre: falla como base no disponible y no abre conexiones.
+    const late = await own.prisma.user.count().then(() => null, (error: unknown) => error)
+    expect(databaseUnavailableKind(late)).toBe('pool_closed')
+    expect(await connections()).toBeLessThanOrEqual(before)
+
+    // Idempotente: una segunda llamada no falla.
+    await expect(own.closeDatabase()).resolves.toBeUndefined()
   })
 
-  it('el arranque cierra el pool con la aplicación', () => {
+  it('el arranque cierra el pool al final del cierre ordenado, no en un hook onClose', () => {
     const server = readFileSync(resolve(import.meta.dirname, '../server.ts'), 'utf8')
 
-    expect(server).toMatch(/addHook\('onClose'[\s\S]*prisma\.\$disconnect\(\)/)
+    expect(server).toMatch(/registerGracefulShutdown\(app, \{ closeResources: closeDatabase \}\)/)
+    expect(server).not.toMatch(/\$disconnect|addHook\('onClose'/)
   })
 })
 

@@ -53,6 +53,7 @@ const raw = {
 }
 let app: FastifyInstance
 let prisma: typeof import('../db/prisma.js').prisma
+let closeDatabase: typeof import('../db/prisma.js').closeDatabase | undefined
 
 const insertProperty = (id: string, userId: string) =>
   raw.execute({
@@ -114,6 +115,7 @@ beforeAll(async () => {
   const { propertyRoutes } = await import('../routes/property.routes.js')
 
   prisma = prismaModule.prisma
+  closeDatabase = prismaModule.closeDatabase
   app = Fastify()
   app.setErrorHandler((error: { code?: string; message: string }, _request, reply) =>
     reply.code(error.code === 'AI_PROVIDER_ERROR' ? 502 : 500).send({ code: error.code, message: error.message }),
@@ -125,7 +127,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app?.close()
-  await prisma?.$disconnect()
+  await closeDatabase?.()
   await client?.end()
   vi.unstubAllEnvs()
   await database?.drop()

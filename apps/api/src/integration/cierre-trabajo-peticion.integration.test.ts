@@ -38,6 +38,7 @@ const PASSWORD = 'Primera-Contrasena-Segura-1'
 let testDatabase: TestDatabase
 let mods: {
   prisma: typeof import('../db/prisma.js')['prisma']
+  closeDatabase: typeof import('../db/prisma.js')['closeDatabase']
   resets: typeof import('../services/password-reset.service.js')
   passwords: typeof import('../services/password.service.js')
   authRoutes: typeof import('../routes/auth.routes.js')['authRoutes']
@@ -59,6 +60,7 @@ beforeAll(async () => {
   vi.stubEnv('DATABASE_URL', testDatabase.url)
   mods = {
     prisma: (await import('../db/prisma.js')).prisma,
+    closeDatabase: (await import('../db/prisma.js')).closeDatabase,
     resets: await import('../services/password-reset.service.js'),
     passwords: await import('../services/password.service.js'),
     authRoutes: (await import('../routes/auth.routes.js')).authRoutes,
@@ -74,7 +76,7 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
-  await mods.prisma.$disconnect()
+  await mods.closeDatabase()
   vi.unstubAllEnvs()
   await testDatabase.drop()
 })

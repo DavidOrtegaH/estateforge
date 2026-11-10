@@ -28,12 +28,12 @@ const log = { error: vi.fn(), warn: vi.fn(), info: vi.fn() } as unknown as Fasti
 async function load(): Promise<Services> {
   vi.resetModules()
 
-  const { prisma } = await import('../db/prisma.js')
+  const { closeDatabase } = await import('../db/prisma.js')
 
   return {
     recovery: await import('../services/security-recovery.service.js'),
     resets: await import('../services/password-reset.service.js'),
-    disconnect: () => prisma.$disconnect(),
+    disconnect: () => closeDatabase(),
   }
 }
 

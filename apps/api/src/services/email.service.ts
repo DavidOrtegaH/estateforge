@@ -101,6 +101,14 @@ function getSmtpSecure(port: number): boolean {
   return rawSecure === 'true'
 }
 
+// Tiempos máximos del SMTP (DA-39). Los de nodemailer por defecto (2 minutos para conectar y 10 de
+// inactividad) mantenían un envío, y su token, sin resultado durante minutos. Conectar y recibir el
+// saludo sin respuesta es un fallo conocido (no se transmitió nada); una inactividad posterior deja
+// el envío sin confirmar.
+export const SMTP_CONNECTION_TIMEOUT_MS = 10_000
+export const SMTP_GREETING_TIMEOUT_MS = 10_000
+export const SMTP_SOCKET_TIMEOUT_MS = 30_000
+
 function createTransporter() {
   const port = getSmtpPort()
 
@@ -114,6 +122,9 @@ function createTransporter() {
     },
     disableFileAccess: true,
     disableUrlAccess: true,
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
   })
 }
 
