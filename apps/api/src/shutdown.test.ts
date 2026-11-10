@@ -388,7 +388,10 @@ describe('registerGracefulShutdown', () => {
         env.signals.emit('SIGTERM')
         await until(() => env.tracking.openConnections() === 2)
         expect(env.tracking.activeRequests()).toBe(2)
-        await until(() => env.exit.mock.calls.length > 0)
+        // Tras el corte, el cierre espera al trabajo de los manejadores colgados hasta el final del
+        // plazo total (2 s menos la reserva). Se espera dentro de ese plazo: con 1 s, la prueba solo
+        // pasaba en Windows, donde el cierre de los sockets ociosos se notifica más tarde (Linux, WSL).
+        await until(() => env.exit.mock.calls.length > 0, 2_000)
 
         expect(await Promise.all(responses)).toEqual(['cortada', 'cortada'])
         expect(env.exit).toHaveBeenCalledWith(1)
