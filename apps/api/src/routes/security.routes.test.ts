@@ -209,6 +209,7 @@ describe('Security Configuration', () => {
             bathrooms: 1,
             floor: 3,
             condition: 'good',
+            commercialStatus: 'for-sale',
             elevator: true,
             terrace: false,
             balcony: true,

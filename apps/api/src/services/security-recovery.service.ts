@@ -2,7 +2,9 @@ import type { FastifyBaseLogger } from 'fastify'
 
 import { prisma } from '../db/prisma.js'
 import { emailService } from './email.service.js'
+import { safeDeliveryErrorFields, safeErrorName } from './log-safety.js'
 import { createPasswordResetToken, getPasswordResetExpiry, hashPasswordResetToken } from './password-reset.service.js'
+import { createDeliveryTracker, type DeliveryWaitResult } from './pending-deliveries.js'
 
 // Enlaces de recuperación obligatoria (E2): creación del token, envío y solicitud del titular (E2.6).
 
@@ -47,39 +49,34 @@ export async function sendRecoveryLink(
     return true
   } catch (error) {
     // Sin el error completo: podría incluir el destinatario o el contenido del mensaje.
-    log.error({ targetUserId, errorName: error instanceof Error ? error.name : typeof error }, 'No se pudo enviar el enlace de recuperación obligatoria')
+    log.error({ flow: 'security_recovery', targetUserId, ...safeDeliveryErrorFields(error) }, 'No se pudo enviar el enlace de recuperación obligatoria')
     return false
   }
 }
 
 // Envíos lanzados sin esperar a la respuesta HTTP. Siguen ejecutándose al terminar la
-// petición, y el cierre ordenado de la app espera a que acaben (hook onClose de authRoutes).
-const pendingDeliveries = new Set<Promise<void>>()
+// petición, y el cierre ordenado de la app espera a que acaben (hook onClose de authRoutes), con
+// el mismo mecanismo y plazo que los demás envíos (F0-005).
+const deliveries = createDeliveryTracker()
 
 export function deliverRecoveryLinkInBackground(log: FastifyBaseLogger, link: RecoveryLink): void {
-  const delivery: Promise<void> = (async () => {
+  deliveries.track((async () => {
     try {
       await sendRecoveryLink(log, link.userId, link)
     } catch (error) {
       // Cualquier fallo antes del SMTP (por ejemplo, al construir el enlace): nunca queda
-      // un rechazo sin gestionar. Solo el id de la cuenta y el tipo de error.
-      log.error({ targetUserId: link.userId, errorName: error instanceof Error ? error.name : typeof error }, 'No se pudo enviar el enlace de recuperación obligatoria')
+      // un rechazo sin gestionar. Solo el id de la cuenta y campos cerrados del error.
+      log.error({ flow: 'security_recovery', targetUserId: link.userId, ...safeDeliveryErrorFields(error) }, 'No se pudo enviar el enlace de recuperación obligatoria')
     }
-  })().finally(() => {
-    pendingDeliveries.delete(delivery)
-  })
-  pendingDeliveries.add(delivery)
+  })())
 }
 
 export function countPendingRecoveryDeliveries(): number {
-  return pendingDeliveries.size
+  return deliveries.count()
 }
 
-export async function waitForPendingRecoveryDeliveries(): Promise<void> {
-  // Un envío puede terminar y dejar otro registrado mientras se espera: se repite hasta vaciar.
-  while (pendingDeliveries.size > 0) {
-    await Promise.allSettled(pendingDeliveries)
-  }
+export function waitForPendingRecoveryDeliveries(timeoutMs?: number): Promise<DeliveryWaitResult> {
+  return deliveries.waitForAll(timeoutMs)
 }
 
 /**
@@ -123,7 +120,7 @@ export async function issueRequestedRecoveryLinks(
         if (link) links.push(link)
       } catch (error) {
         // Sin datos de la cuenta salvo su id; la solicitud sigue con las demás candidatas.
-        log.error({ targetUserId: candidate.id, errorName: error instanceof Error ? error.name : typeof error }, 'No se pudo emitir un enlace de recuperación solicitado')
+        log.error({ targetUserId: candidate.id, errorName: safeErrorName(error) }, 'No se pudo emitir un enlace de recuperación solicitado')
       }
     }
 

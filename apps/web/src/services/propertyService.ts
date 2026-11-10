@@ -11,6 +11,7 @@ export interface PropertyItem {
   operation: string
   type: string
   condition: string
+  commercialStatus?: string | null
   bedrooms: number
   bathrooms: number
   floor: number | null

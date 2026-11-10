@@ -153,6 +153,7 @@ model Property {
   bathrooms             Int
   floor                 Int?
   condition             String
+  commercialStatus      String?
   elevator              Boolean      @default(false)
   terrace               Boolean      @default(false)
   balcony               Boolean      @default(false)
@@ -186,6 +187,28 @@ model Generation {
   updatedAt    DateTime @default(now()) @updatedAt
 
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  publications ListingPublication[]
+}
+
+/// Registro manual de dónde ha publicado el usuario un anuncio. EstateForge no publica en los portales.
+model ListingPublication {
+  id           String     @id @default(cuid())
+  generationId String
+  platform     String
+  /// '' en los portales del catálogo; clave estable de la fila en «Otro/a».
+  instanceKey  String     @default("")
+  isPublished  Boolean    @default(false)
+  url          String?
+  customName   String?
+  homeUrl      String?
+  position     Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@unique([generationId, platform, instanceKey])
 }
 
 

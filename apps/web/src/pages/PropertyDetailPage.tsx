@@ -5,10 +5,13 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { PageJump } from '@/components/ui/PageJump'
 import { clampPage, pageSlice, totalPagesFor } from '@/lib/pagination'
 
-import type {
-  AIProviderType,
-  ListingLanguage,
-  ListingTone,
+import {
+  PROPERTY_COMMERCIAL_STATUSES,
+  commercialStatusLabels,
+  getCommercialStatusLabel,
+  type AIProviderType,
+  type ListingLanguage,
+  type ListingTone,
 } from '@estateforge/shared'
 
 import {
@@ -461,6 +464,8 @@ function PropertyDetailPage() {
         operation: editForm.operation,
         type: editForm.type,
         condition: editForm.condition,
+        commercialStatus:
+          editForm.commercialStatus || undefined,
 
         price: editForm.price,
         area: editForm.area,
@@ -592,7 +597,8 @@ function PropertyDetailPage() {
         }
 
         setGenerationError(
-          'El proveedor de IA no está disponible en este momento. Inténtalo de nuevo más tarde.',
+          (error.code === 'AI_PROVIDER_ERROR' && error.message) ||
+            'El proveedor de IA no está disponible en este momento. Inténtalo de nuevo más tarde.',
         )
         return
       }
@@ -1289,14 +1295,67 @@ function PropertyDetailPage() {
                 </select>
               </div>
 
-              {/* ESTADO */}
+              {/* ESTADO COMERCIAL */}
+
+              <div>
+                <label
+                  htmlFor="property-commercial-status"
+                  className="text-sm font-medium"
+                >
+                  Estado
+                </label>
+
+                <select
+                  id="property-commercial-status"
+                  value={
+                    editForm.commercialStatus ??
+                    ''
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEditForm({
+                      ...editForm,
+                      commercialStatus:
+                        event.target
+                          .value,
+                    })
+                  }
+                  disabled={
+                    savingEdit
+                  }
+                  className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+                >
+                  <option
+                    value=""
+                    disabled={Boolean(
+                      property.commercialStatus,
+                    )}
+                  >
+                    Sin indicar
+                  </option>
+
+                  {PROPERTY_COMMERCIAL_STATUSES.map(
+                    (status) => (
+                      <option
+                        key={status}
+                        value={status}
+                      >
+                        {commercialStatusLabels[status]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </div>
+
+              {/* CONSERVACIÓN */}
 
               <div>
                 <label
                   htmlFor="property-condition"
                   className="text-sm font-medium"
                 >
-                  Estado
+                  Conservación
                 </label>
 
                 <select
@@ -2115,11 +2174,25 @@ function PropertyDetailPage() {
             </dd>
           </div>
 
-          {/* Estado */}
+          {/* Estado comercial */}
 
           <div>
             <dt className="text-sm text-muted-foreground">
               Estado
+            </dt>
+
+            <dd className="mt-1 font-medium">
+              {getCommercialStatusLabel(
+                property.commercialStatus,
+              )}
+            </dd>
+          </div>
+
+          {/* Conservación */}
+
+          <div>
+            <dt className="text-sm text-muted-foreground">
+              Conservación
             </dt>
 
             <dd className="mt-1 font-medium">

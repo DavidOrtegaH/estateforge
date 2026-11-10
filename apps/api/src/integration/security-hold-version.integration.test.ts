@@ -43,6 +43,9 @@ const transactions = vi.hoisted(() => ({
   // si unas operaciones lanzadas a la vez llegaron a solaparse en SQLite.
   peakOpenConnections: 0,
   log: [] as string[],
+  // Escrituras de cada transacción interactiva, en orden y normalizadas a «VERBO Tabla» (Fase 1,
+  // F0-001): permiten comprobar qué fila se bloquea primero. Una lista por transacción.
+  writes: [] as string[][],
 }))
 
 vi.mock('@prisma/adapter-libsql', async importOriginal => {
@@ -51,6 +54,16 @@ vi.mock('@prisma/adapter-libsql', async importOriginal => {
   type Config = Parameters<typeof libsql.createClient>[0]
   type Client = ReturnType<typeof libsql.createClient>
   type Statement = Parameters<Client['execute']>[0]
+
+  // «UPDATE `main`.`User` SET …» (Prisma) o «UPDATE "User" SET …» (consulta directa) → «UPDATE User».
+  // Las lecturas no se registran.
+  function writeOf(statement: Statement): string | null {
+    // El tipo de execute() tiene sobrecargas y aquí se ve como texto; Prisma pasa { sql, args }.
+    const raw: unknown = statement
+    const sql = typeof raw === 'string' ? raw : (raw as { sql: string }).sql
+    const match = /^\s*(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(?:[`"]main[`"]\.)?[`"]?(\w+)[`"]?/i.exec(sql)
+    return match ? `${match[1].toUpperCase().replace(/\s+/g, ' ')} ${match[2]}` : null
+  }
 
   function open(connection: Client | null): Client {
     if (!connection) throw new Error('La conexión SQLite del test ya está cerrada')
@@ -93,10 +106,14 @@ vi.mock('@prisma/adapter-libsql', async importOriginal => {
       throw error
     }
     transactions.log.push(begin)
+    const writes: string[] = []
+    transactions.writes.push(writes)
 
     // Solo lo que usa la transacción del adaptador: execute, commit y rollback.
     return {
       execute: async (statement: Statement) => {
+        const write = writeOf(statement)
+        if (write) writes.push(write)
         try {
           return await open(connection).execute(statement)
         } catch (error) {
@@ -2386,6 +2403,374 @@ describe('versionado de la protección por incidente con SQLite real', () => {
           expect(mail.resetCalls).toEqual([])
           expect(await selfServiceTokens(held.id)).toEqual([])
         })
+      })
+    })
+  })
+
+  // Fase 1, corrección B (F0-001): orden único de bloqueos. Toda transacción que escribe la fila
+  // de la cuenta y filas de sus tokens bloquea primero la cuenta. Aquí se comprueba con SQLite
+  // real (1) que la primera escritura de cada consumo es la de User y (2) que las operaciones
+  // concurrentes dan resultados de negocio coherentes, sin estados parciales ni dobles consumos.
+  // SQLite serializa las transacciones de escritura (el pico de transacciones abiertas es 1), así
+  // que estas pruebas NO demuestran la ausencia de interbloqueos en PostgreSQL: solo que el nuevo
+  // orden conserva el comportamiento. La prueba en PostgreSQL queda diseñada en el informe.
+  describe('15. orden único de bloqueos: primero la cuenta (F0-001)', () => {
+    const POLICY = { requiredFrom: null, graceUntil: null, tokenTtlMs: 24 * 60 * 60 * 1000 }
+    const T0 = new Date('2026-12-10T12:00:00.000Z')
+    const AT = new Date(T0.getTime() + 1000)
+    const LATER = new Date(T0.getTime() + 61 * 1000)
+    const LOCK = 'UPDATE User'
+
+    function verification() {
+      return modules().verification
+    }
+
+    async function issueVerification(userId: string, now = T0) {
+      const issued = await verification().issueEmailVerificationToken(userId, POLICY, now)
+      if (!issued.issued) throw new Error(`no se emitió el enlace: ${issued.reason}`)
+      return issued
+    }
+
+    function hashOf(token: string) {
+      return createHash('sha256').update(token).digest('hex')
+    }
+
+    async function hashedPassword() {
+      return modules().passwords.hashPassword('Nueva-Contrasena-Segura-1')
+    }
+
+    // Escrituras de las transacciones interactivas que abre la operación.
+    async function writesDuring<T>(operation: () => Promise<T>) {
+      const from = transactions.writes.length
+      const value = await operation()
+      return { value, writes: transactions.writes.slice(from).filter(writes => writes.length > 0) }
+    }
+
+    // Lanza las operaciones a la vez. Un rechazo es un error técnico (por ejemplo, un
+    // interbloqueo o un conflicto de escritura), no un resultado de negocio: hace fallar la prueba.
+    async function atOnce<T>(operations: (() => Promise<T>)[]) {
+      const results = await Promise.allSettled(operations.map(operation => operation()))
+      const technical = results.flatMap((result, index) =>
+        result.status === 'rejected' ? [`operación ${index}: ${String(result.reason)}`] : [])
+      if (technical.length > 0) throw new Error(`Errores técnicos en operaciones concurrentes:\n${technical.join('\n')}`)
+      return results.map(result => (result as PromiseFulfilledResult<T>).value)
+    }
+
+    // Ciclo real hasta la recuperación obligatoria pendiente (como en el bloque 10).
+    async function pendingRecovery() {
+      const destination = `titular-${target.id}@estateforge.test`
+      await reportNewIncident(target.id, destination)
+      expect((await resolveHold(target.id)).statusCode).toBe(200)
+      return { token: new URL(mail.calls.at(-1)!.args.recoveryUrl).searchParams.get('token')!, destination }
+    }
+
+    async function user(userId: string) {
+      return db().user.findUniqueOrThrow({
+        where: { id: userId },
+        select: {
+          email: true, password: true, emailVerifiedAt: true, securityHoldAt: true, securityHoldVersion: true,
+          passwordResetRequiredAt: true, securityRecoveryEmail: true,
+        },
+      })
+    }
+
+    describe('a. la primera escritura de cada consumo es el bloqueo de la cuenta', () => {
+      it('consumeEmailVerificationToken', async () => {
+        const account = await createUser('USER')
+        const issued = await issueVerification(account.id)
+
+        const run = await writesDuring(() => verification().consumeEmailVerificationToken(issued.token, AT))
+
+        expect(run.value).toBe('verified')
+        expect(run.writes).toHaveLength(1)
+        expect(run.writes[0][0]).toBe(LOCK)
+        expect(run.writes[0].slice(1)).toEqual(['UPDATE EmailVerificationToken', 'UPDATE User', 'UPDATE EmailVerificationToken'])
+      })
+
+      it('consumeEmailChangeCode', async () => {
+        const account = await createUser('USER')
+        const { code } = await modules().emailChange.issueEmailChangeCode(account.id, `nueva-${account.id}@estateforge.test`)
+
+        const run = await writesDuring(() => modules().emailChange.consumeEmailChangeCode(account.id, code))
+
+        expect(run.value).toMatchObject({ success: true })
+        expect(run.writes).toHaveLength(1)
+        expect(run.writes[0][0]).toBe(LOCK)
+        expect(run.writes[0].slice(1)).toEqual(['UPDATE EmailChangeVerification', 'UPDATE User', 'UPDATE EmailVerificationToken', 'DELETE FROM EmailChangeVerification'])
+      })
+
+      it('reportSecurityIncident', async () => {
+        const { token } = await modules().incidents.issueSecurityIncidentToken(target.id, 'anterior@estateforge.test')
+
+        const run = await writesDuring(() => modules().incidents.reportSecurityIncident(token))
+
+        expect(run.value).toBe('reported')
+        expect(run.writes).toHaveLength(1)
+        expect(run.writes[0][0]).toBe(LOCK)
+        expect(run.writes[0][1]).toBe('UPDATE SecurityIncidentToken')
+      })
+
+      it('consumePasswordResetToken', async () => {
+        const reset = await modules().resets.issuePasswordResetToken(target.id)
+        const hash = await hashedPassword()
+
+        const run = await writesDuring(() => modules().resets.consumePasswordResetToken(reset.token, hash))
+
+        expect(run.value).toBe(true)
+        expect(run.writes).toHaveLength(1)
+        expect(run.writes[0]).toEqual([LOCK, 'UPDATE PasswordResetToken', 'UPDATE User', 'DELETE FROM Session'])
+      })
+
+      it('consumeSecurityRecoveryToken', async () => {
+        const { token } = await pendingRecovery()
+        const hash = await hashedPassword()
+
+        const run = await writesDuring(() => modules().resets.consumeSecurityRecoveryToken(token, hash))
+
+        expect(run.value).toBe('completed')
+        expect(run.writes).toHaveLength(1)
+        expect(run.writes[0][0]).toBe(LOCK)
+        expect(run.writes[0][1]).toBe('UPDATE PasswordResetToken')
+      })
+
+      // Revisión de la Fase 1: las dos emisiones que empezaban por los tokens.
+      it('issuePasswordResetToken', async () => {
+        const run = await writesDuring(() => modules().resets.issuePasswordResetToken(target.id))
+
+        expect(run.writes).toEqual([[LOCK, 'DELETE FROM PasswordResetToken', 'INSERT INTO PasswordResetToken']])
+      })
+
+      it('issueEmailChangeCode', async () => {
+        const run = await writesDuring(() => modules().emailChange.issueEmailChangeCode(target.id, `nueva-${target.id}@estateforge.test`))
+
+        expect(run.writes).toEqual([[LOCK, 'DELETE FROM EmailChangeVerification', 'INSERT INTO EmailChangeVerification']])
+      })
+
+      it('un token inexistente no bloquea la cuenta ni escribe', async () => {
+        const run = await writesDuring(() => modules().resets.consumePasswordResetToken('9'.repeat(64), 'hash'))
+
+        expect(run.value).toBe(false)
+        expect(run.writes).toEqual([])
+      })
+    })
+
+    it.each(['consumo primero', 'emisión primero'])(
+      'b. emisión de un enlace nuevo y consumo del anterior a la vez (%s): uno de los dos resultados coherentes',
+      async order => {
+        const account = await createUser('USER')
+        const first = await issueVerification(account.id)
+        const consume = () => verification().consumeEmailVerificationToken(first.token, LATER)
+        const reissue = () => verification().issueEmailVerificationToken(account.id, POLICY, LATER)
+
+        const values = await atOnce<unknown>(order === 'consumo primero' ? [consume, reissue] : [reissue, consume])
+        const consumed = values[order === 'consumo primero' ? 0 : 1]
+        const reissued = values[order === 'consumo primero' ? 1 : 0] as { issued: boolean; reason?: string }
+
+        const state = await user(account.id)
+        const tokens = await db().emailVerificationToken.findMany({ where: { userId: account.id }, orderBy: { createdAt: 'asc' } })
+        if (consumed === 'verified') {
+          // Verificó antes: la cuenta ya no necesita enlace y no se emite ninguno.
+          expect(reissued).toEqual({ issued: false, reason: 'not_eligible' })
+          expect(state.emailVerifiedAt).toEqual(LATER)
+          expect(tokens).toHaveLength(1)
+          expect(tokens[0].usedAt).toEqual(LATER)
+        } else {
+          // Emitió antes: el enlace anterior quedó anulado y no verifica; queda solo el nuevo.
+          expect(consumed).toBe('invalid')
+          expect(reissued.issued).toBe(true)
+          expect(state.emailVerifiedAt).toBeNull()
+          expect(tokens).toHaveLength(2)
+          expect(tokens[0].usedAt).toEqual(LATER)
+          expect(tokens[1].usedAt).toBeNull()
+        }
+      },
+    )
+
+    it('c. emitir un enlace de verificación mientras se consume un token de restablecimiento de la misma cuenta', async () => {
+      const account = await createUser('USER')
+      const reset = await modules().resets.issuePasswordResetToken(account.id)
+      await modules().sessions.createSession(account.id)
+      const hash = await hashedPassword()
+
+      const [consumed, issued] = await atOnce<unknown>([
+        () => modules().resets.consumePasswordResetToken(reset.token, hash),
+        () => verification().issueEmailVerificationToken(account.id, POLICY, T0),
+      ])
+
+      // Operaciones independientes sobre la misma cuenta: las dos terminan, cada una completa.
+      expect(consumed).toBe(true)
+      expect(issued).toMatchObject({ issued: true, email: account.email })
+      const state = await user(account.id)
+      expect(state.password).toBe(hash)
+      expect(await db().session.count({ where: { userId: account.id } })).toBe(0)
+      expect(await db().passwordResetToken.findUnique({ where: { tokenHash: hashOf(reset.token) }, select: { usedAt: true } }))
+        .toEqual({ usedAt: expect.any(Date) })
+      expect(await db().emailVerificationToken.count({ where: { userId: account.id, usedAt: null } })).toBe(1)
+    })
+
+    describe('d. el mismo token consumido a la vez: un solo consumo', () => {
+      it('restablecimiento de contraseña', async () => {
+        const reset = await modules().resets.issuePasswordResetToken(target.id)
+        const hashes = await Promise.all([hashedPassword(), hashedPassword(), hashedPassword()])
+
+        const values = await atOnce(hashes.map(hash => () => modules().resets.consumePasswordResetToken(reset.token, hash)))
+
+        expect(values.filter(Boolean)).toHaveLength(1)
+        const winner = hashes[values.indexOf(true)]
+        expect((await user(target.id)).password).toBe(winner)
+      })
+
+      it('código de cambio de email', async () => {
+        const newEmail = `nueva-${target.id}@estateforge.test`
+        const { code } = await modules().emailChange.issueEmailChangeCode(target.id, newEmail)
+
+        const values = await atOnce(Array.from({ length: 3 }, () => () => modules().emailChange.consumeEmailChangeCode(target.id, code)))
+
+        expect(values.filter(value => value.success)).toHaveLength(1)
+        expect(values.filter(value => !value.success)).toEqual([{ success: false, reason: 'invalid' }, { success: false, reason: 'invalid' }])
+        expect((await user(target.id)).email).toBe(newEmail)
+      })
+
+      it('denuncia de incidente: la versión sube una sola vez', async () => {
+        const { token } = await modules().incidents.issueSecurityIncidentToken(target.id, 'anterior@estateforge.test')
+        const before = (await user(target.id)).securityHoldVersion
+
+        const values = await atOnce(Array.from({ length: 3 }, () => () => modules().incidents.reportSecurityIncident(token)))
+
+        expect(values.sort()).toEqual(['invalid', 'invalid', 'reported'])
+        expect((await user(target.id)).securityHoldVersion).toBe(before + 1)
+      })
+
+      it('dos denuncias a la vez con tokens distintos de la misma cuenta (el caso del interbloqueo)', async () => {
+        await insertIncidentToken(target.id, '1'.repeat(64), { notifiedEmail: 'primero@estateforge.test' })
+        await insertIncidentToken(target.id, '2'.repeat(64), { notifiedEmail: 'segundo@estateforge.test' })
+        const before = (await user(target.id)).securityHoldVersion
+
+        const values = await atOnce(['1', '2'].map(digit => () => modules().incidents.reportSecurityIncident(digit.repeat(64))))
+
+        // La primera reclama la suya y borra la otra; la segunda ya no la encuentra válida.
+        expect([...values].sort()).toEqual(['invalid', 'reported'])
+        const state = await user(target.id)
+        expect(state.securityHoldVersion).toBe(before + 1)
+        expect(state.securityRecoveryEmail).toBe(values[0] === 'reported' ? 'primero@estateforge.test' : 'segundo@estateforge.test')
+        expect(await db().securityIncidentToken.count({ where: { userId: target.id } })).toBe(1)
+      })
+    })
+
+    it.each(['verificación primero', 'cambio primero'])(
+      'e. cambio de email y verificación del email anterior a la vez (%s): termina con la dirección nueva verificada',
+      async order => {
+        const account = await createUser('USER')
+        const issued = await issueVerification(account.id)
+        const newEmail = `nueva-${account.id}@estateforge.test`
+        const { code } = await modules().emailChange.issueEmailChangeCode(account.id, newEmail)
+        const verify = () => verification().consumeEmailVerificationToken(issued.token, AT)
+        const change = () => modules().emailChange.consumeEmailChangeCode(account.id, code)
+
+        const values = await atOnce<unknown>(order === 'verificación primero' ? [verify, change] : [change, verify])
+        const verified = values[order === 'verificación primero' ? 0 : 1]
+        const changed = values[order === 'verificación primero' ? 1 : 0]
+
+        // Los dos órdenes posibles: verificó la dirección anterior y después cambió (D1 la deja
+        // verificada), o cambió primero y el enlace de la dirección anterior ya no sirve.
+        expect(['verified', 'invalid']).toContain(verified)
+        expect(changed).toMatchObject({ success: true, email: newEmail, oldEmail: account.email })
+        const state = await user(account.id)
+        expect(state.email).toBe(newEmail)
+        expect(state.emailVerifiedAt).not.toBeNull()
+        expect(await db().emailVerificationToken.count({ where: { userId: account.id, usedAt: null } })).toBe(0)
+        expect(await db().emailChangeVerification.count({ where: { userId: account.id } })).toBe(0)
+      },
+    )
+
+    it.each(['consumo primero', 'emisión primero'])(
+      'g. restablecimiento: consumo del token y emisión de uno nuevo a la vez (%s), un solo token pendiente',
+      async order => {
+        const first = await modules().resets.issuePasswordResetToken(target.id)
+        const before = await user(target.id)
+        const hash = await hashedPassword()
+        const consume = () => modules().resets.consumePasswordResetToken(first.token, hash)
+        const reissue = () => modules().resets.issuePasswordResetToken(target.id)
+
+        const values = await atOnce<unknown>(order === 'consumo primero' ? [consume, reissue] : [reissue, consume])
+        const consumed = values[order === 'consumo primero' ? 0 : 1]
+
+        expect((await user(target.id)).password).toBe(consumed === true ? hash : before.password)
+        expect(await db().passwordResetToken.count({ where: { userId: target.id, usedAt: null } })).toBe(1)
+      },
+    )
+
+    it.each(['consumo primero', 'emisión primero'])(
+      'h. cambio de email: confirmación del código y emisión de uno nuevo a la vez (%s), sin estados parciales',
+      async order => {
+        const newEmail = `nueva-${target.id}@estateforge.test`
+        const { code } = await modules().emailChange.issueEmailChangeCode(target.id, newEmail)
+        const before = await user(target.id)
+        const consume = () => modules().emailChange.consumeEmailChangeCode(target.id, code)
+        const reissue = () => modules().emailChange.issueEmailChangeCode(target.id, `otra-${target.id}@estateforge.test`)
+
+        const values = await atOnce<unknown>(order === 'consumo primero' ? [consume, reissue] : [reissue, consume])
+        const consumed = values[order === 'consumo primero' ? 0 : 1] as { success: boolean }
+
+        expect((await user(target.id)).email).toBe(consumed.success ? newEmail : before.email)
+        expect(await db().emailChangeVerification.count({ where: { userId: target.id, usedAt: null } })).toBe(1)
+      },
+    )
+
+    describe('f. E2 a la vez que otros consumos', () => {
+      it('completar la recuperación obligatoria y consumir un enlace de verificación anterior', async () => {
+        const { token, destination } = await pendingRecovery()
+        // Enlace de verificación pendiente de antes de la recuperación (insertado: en E2 no se emiten).
+        const verifyToken = '7'.repeat(64)
+        const current = await user(target.id)
+        await db().emailVerificationToken.create({
+          data: { userId: target.id, tokenHash: hashOf(verifyToken), email: current.email, expiresAt: new Date(Date.now() + 60_000) },
+        })
+        const hash = await hashedPassword()
+
+        const [recovered, verified] = await atOnce<unknown>([
+          () => modules().resets.consumeSecurityRecoveryToken(token, hash),
+          () => verification().consumeEmailVerificationToken(verifyToken),
+        ])
+
+        // Con la recuperación pendiente no se verifica; al completarla, el enlace queda anulado (D2).
+        expect(recovered).toBe('completed')
+        expect(verified).toBe('invalid')
+        const state = await user(target.id)
+        expect(state).toMatchObject({ email: destination, password: hash, passwordResetRequiredAt: null, securityRecoveryEmail: null, emailVerifiedAt: null })
+        expect(await db().emailVerificationToken.count({ where: { userId: target.id, usedAt: null } })).toBe(0)
+      })
+
+      it('una denuncia de incidente a la vez que un restablecimiento de contraseña', async () => {
+        const reset = await modules().resets.issuePasswordResetToken(target.id)
+        const { token } = await modules().incidents.issueSecurityIncidentToken(target.id, 'anterior@estateforge.test')
+        const before = await user(target.id)
+        const hash = await hashedPassword()
+
+        const [consumed, reported] = await atOnce<unknown>([
+          () => modules().resets.consumePasswordResetToken(reset.token, hash),
+          () => modules().incidents.reportSecurityIncident(token),
+        ])
+
+        // La denuncia siempre gana la protección; el restablecimiento solo vale si fue antes.
+        expect(reported).toBe('reported')
+        const state = await user(target.id)
+        expect(state.securityHoldAt).not.toBeNull()
+        expect(state.securityHoldVersion).toBe(before.securityHoldVersion + 1)
+        expect(state.password).toBe(consumed ? hash : before.password)
+        expect(await db().passwordResetToken.count({ where: { userId: target.id, usedAt: null } })).toBe(0)
+        expect(await db().session.count({ where: { userId: target.id } })).toBe(0)
+      })
+
+      it('dos consumos a la vez del mismo enlace de recuperación obligatoria: uno completa', async () => {
+        const { token } = await pendingRecovery()
+        const hashes = await Promise.all([hashedPassword(), hashedPassword()])
+
+        const values = await atOnce(hashes.map(hash => () => modules().resets.consumeSecurityRecoveryToken(token, hash)))
+
+        expect([...values].sort()).toEqual(['completed', 'invalid_token'])
+        expect((await user(target.id)).password).toBe(hashes[values.indexOf('completed')])
+        expect(await db().adminAuditLog.count({ where: { action: 'SECURITY_RECOVERY_COMPLETED' } })).toBe(1)
       })
     })
   })

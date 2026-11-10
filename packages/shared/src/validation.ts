@@ -1,5 +1,17 @@
 import { z } from 'zod'
 
+import { PROPERTY_COMMERCIAL_STATUSES } from './property.js'
+
+import {
+  MAX_OTHER_PUBLICATIONS,
+  OTHER_NAME_MAX_LENGTH,
+  PUBLICATION_PLATFORM_IDS,
+  PUBLICATION_URL_MAX_LENGTH,
+  validateOtherUrl,
+  validatePublicationUrl,
+  type PublicationUrlResult,
+} from './publications.js'
+
 /**
  * ============================================================
  * UTILIDADES
@@ -88,6 +100,14 @@ const floorSchema = z.preprocess(
     .optional(),
 )
 
+const commercialStatusSchema = z.enum(
+  PROPERTY_COMMERCIAL_STATUSES,
+  {
+    message:
+      'Selecciona el estado del inmueble: en venta, vendido, por alquilar o alquilado',
+  },
+)
+
 /**
  * ============================================================
  * PROPERTY
@@ -137,6 +157,8 @@ const propertyFields = {
     'renovated',
     'needs-renovation',
   ]),
+
+  commercialStatus: commercialStatusSchema,
 
   elevator: booleanSchema,
 
@@ -234,6 +256,9 @@ export const PropertyUpdateSchema = z
         'needs-renovation',
       ])
       .optional(),
+
+    commercialStatus:
+      commercialStatusSchema.optional(),
 
     elevator: booleanSchema.optional(),
 
@@ -395,6 +420,204 @@ export const GenerationUpdateSchema = z
 
 export type GenerationUpdate = z.infer<
   typeof GenerationUpdateSchema
+>
+
+/**
+ * ============================================================
+ * CHECKLIST DE PUBLICACIÓN
+ * ============================================================
+ */
+
+const linkFieldSchema = z
+  .string()
+  .max(
+    PUBLICATION_URL_MAX_LENGTH * 2,
+    `El enlace no puede superar los ${PUBLICATION_URL_MAX_LENGTH} caracteres`,
+  )
+  .nullable()
+  .optional()
+
+/**
+ * PUT /api/generations/:id/publications
+ *
+ * Una fila marcada exige un enlace válido. En una fila sin marcar, omitir `url`
+ * conserva el enlace guardado, null o vacío lo borra y cualquier otro valor
+ * debe ser válido: nunca se guarda un enlace que no lo sea.
+ *
+ * `others`, si se envía, es la lista definitiva de filas «Otro/a» del anuncio.
+ */
+export const PublicationChecklistUpdateSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            platform: z.enum(
+              PUBLICATION_PLATFORM_IDS,
+              {
+                message:
+                  'La plataforma indicada no existe',
+              },
+            ),
+
+            isPublished: booleanSchema,
+
+            url: linkFieldSchema,
+          })
+          .strict(),
+      )
+      .max(
+        PUBLICATION_PLATFORM_IDS.length,
+        'Hay más plataformas de las admitidas',
+      ),
+
+    others: z
+      .array(
+        z
+          .object({
+            instanceKey: z
+              .string()
+              .regex(
+                /^[A-Za-z0-9_-]{1,64}$/,
+                'Identificador de fila no válido',
+              ),
+
+            name: z
+              .string()
+              .max(
+                OTHER_NAME_MAX_LENGTH,
+                `El nombre no puede superar los ${OTHER_NAME_MAX_LENGTH} caracteres`,
+              )
+              .nullable()
+              .optional(),
+
+            homeUrl: linkFieldSchema,
+
+            isPublished: booleanSchema,
+
+            url: linkFieldSchema,
+          })
+          .strict(),
+      )
+      .max(
+        MAX_OTHER_PUBLICATIONS,
+        `No puede haber más de ${MAX_OTHER_PUBLICATIONS} plataformas «Otro/a»`,
+      )
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.items.length === 0 &&
+      value.others === undefined
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['items'],
+        message:
+          'Debe indicarse al menos una plataforma',
+      })
+    }
+
+    const checkLink = (
+      item: {
+        isPublished: boolean
+        url?: string | null
+      },
+      path: (string | number)[],
+      validate: (
+        raw: string,
+      ) => PublicationUrlResult,
+    ) => {
+      if (
+        !item.isPublished &&
+        item.url === undefined
+      ) {
+        return
+      }
+
+      const result = validate(item.url ?? '')
+
+      if (
+        result.status === 'valid' ||
+        (result.status === 'empty' &&
+          !item.isPublished)
+      ) {
+        return
+      }
+
+      context.addIssue({
+        code: 'custom',
+        path: [...path, 'url'],
+        message:
+          result.status === 'empty'
+            ? 'El enlace de la publicación es obligatorio para marcar la plataforma'
+            : result.message,
+      })
+    }
+
+    const seen = new Set<string>()
+
+    value.items.forEach((item, index) => {
+      if (seen.has(item.platform)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['items', index, 'platform'],
+          message:
+            'Una plataforma no puede aparecer dos veces',
+        })
+      }
+
+      seen.add(item.platform)
+
+      checkLink(
+        item,
+        ['items', index],
+        (raw) =>
+          validatePublicationUrl(
+            item.platform,
+            raw,
+          ),
+      )
+    })
+
+    const keys = new Set<string>()
+
+    value.others?.forEach((other, index) => {
+      const path = ['others', index]
+
+      if (keys.has(other.instanceKey)) {
+        context.addIssue({
+          code: 'custom',
+          path: [...path, 'instanceKey'],
+          message:
+            'Una fila «Otro/a» no puede aparecer dos veces',
+        })
+      }
+
+      keys.add(other.instanceKey)
+
+      checkLink(other, path, validateOtherUrl)
+
+      const home = validateOtherUrl(
+        other.homeUrl ?? '',
+      )
+
+      if (
+        home.status !== 'valid' &&
+        home.status !== 'empty'
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: [...path, 'homeUrl'],
+          message: home.message,
+        })
+      }
+    })
+  })
+
+export type PublicationChecklistUpdate = z.infer<
+  typeof PublicationChecklistUpdateSchema
 >
 
 /**

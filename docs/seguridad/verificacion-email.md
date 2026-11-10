@@ -177,15 +177,42 @@ El sistema solo sabe que el servidor SMTP **aceptó** el mensaje (la llamada de 
 
 | Flujo | Qué se guarda antes de enviar | Envío | Si falla el SMTP | Qué ve el usuario |
 |---|---|---|---|---|
-| Verificación (registro y reenvío) | Token y reserva (`emailVerificationSentAt`), confirmados en la base | En segundo plano, sin esperar | Se registra el error con `console.error`, sin token ni enlace. **La reserva y el token se conservan** (decisión D5): el envío fallido cuenta para el intervalo de un minuto y para los cinco diarios. El token sigue válido hasta caducar o hasta que se emita otro. Pasado el minuto, el titular puede pedir otro | El mismo mensaje que si se hubiera enviado («Te hemos enviado un enlace…» en el registro; el mensaje genérico en el reenvío) |
+| Verificación (registro y reenvío) | Token y reserva (`emailVerificationSentAt`), confirmados en la base | En segundo plano, sin esperar | Se registra en el log de la API con campos cerrados (apartado 7, «Registros de errores»). **La reserva y el token se conservan** (decisión D5): el envío fallido cuenta para el intervalo de un minuto y para los cinco diarios. El token sigue válido hasta caducar o hasta que se emita otro. Pasado el minuto, el titular puede pedir otro | El mismo mensaje que si se hubiera enviado («Te hemos enviado un enlace…» en el registro; el mensaje genérico en el reenvío) |
 | Error al emitir el token de verificación (base de datos) | Nada: la transacción se deshace | No se envía | Se registra igual, sin token | El mismo mensaje |
-| Solicitud de cambio de email | El código | Se espera al código (a la dirección nueva) y al aviso (a la actual) | Se borran los códigos pendientes y responde `503`: «No se han podido enviar todos los correos de seguridad. No se ha iniciado el cambio…» | El error |
-| Aviso de cambio de email completado (con el enlace de incidente) | El cambio ya está hecho | Se espera | El cambio se mantiene (decisión D4). Se registra en el log el id de la cuenta y el tipo de error, sin la dirección anterior ni el enlace. Se audita `EMAIL_CHANGE_NOTICE_FAILED` para que un OWNER lo vea (corrección F0-002, apartado 9). La respuesta lleva `securityNoticeSent: false` | `200` con «Email actualizado correctamente, pero no hemos podido enviar el aviso de seguridad a tu dirección anterior. No hace falta repetir el cambio.»; la web lo muestra como confirmación, no como error |
-| `forgot-password` | Nada antes de responder: la emisión del token de autoservicio (1 hora) y el envío van en segundo plano (decisión D3) | En segundo plano | Se registra el id de la cuenta y el tipo de error. El token emitido se conserva sin usar | La misma respuesta genérica (apartado 9) |
-| Solicitud pública de recuperación E2 | El token `SECURITY_RECOVERY` y la auditoría, confirmados | En segundo plano | Se registra el id de la cuenta y el tipo de error; el token se conserva | El mismo mensaje genérico |
+| Solicitud de cambio de email | El código | Se espera al código (a la dirección nueva) y al aviso (a la actual) | Se borran los códigos pendientes, se registra con campos cerrados y responde `503`: «No se han podido enviar todos los correos de seguridad. No se ha iniciado el cambio…» | El error |
+| Aviso de cambio de email completado (con el enlace de incidente) | El cambio ya está hecho | Se espera | El cambio se mantiene (decisión D4). Se registra en el log el id de la cuenta, el tipo de error y, si procede, que el envío no está confirmado, sin la dirección anterior ni el enlace. Se audita `EMAIL_CHANGE_NOTICE_FAILED` para que un OWNER lo vea (corrección F0-002, apartado 9). La respuesta lleva `securityNoticeSent: false` | `200` con «Email actualizado correctamente, pero no hemos podido enviar el aviso de seguridad a tu dirección anterior. No hace falta repetir el cambio.»; la web lo muestra como confirmación, no como error |
+| `forgot-password` | Nada antes de responder: la emisión del token de autoservicio (1 hora) y el envío van en segundo plano (decisión D3) | En segundo plano | Se registra con campos cerrados (apartado 7, «Registros de errores»). El token emitido se conserva sin usar | La misma respuesta genérica (apartado 9) |
+| Solicitud pública de recuperación E2 | El token `SECURITY_RECOVERY` y la auditoría, confirmados | En segundo plano | Se registra con campos cerrados (apartado 7, «Registros de errores»); el token se conserva | El mismo mensaje genérico |
 | Recuperación E2 iniciada por un OWNER | La obligación y el token | Se espera | La operación se mantiene y responde `recoveryEmailSent: false` | El OWNER ve el aviso; [detalle](recuperacion-obligatoria.md#post-apiadminusersidrecovery-destination-y-post-apiadminusersidresend-recovery) |
 
-Los envíos en segundo plano (verificación, `forgot-password` y recuperación E2) siguen tras la respuesta; al cerrar la API se espera a los pendientes.
+Los envíos en segundo plano (verificación, `forgot-password` y recuperación E2) siguen tras la respuesta.
+
+**Cierre de la API (corrección F0-005, Fase 1).** Los tres servicios registran sus envíos con el mismo mecanismo (`services/pending-deliveries.ts`). Al cerrar la API, el hook `onClose` de las rutas de autenticación espera a los tres a la vez:
+- también a los envíos que se registren mientras espera;
+- como mucho `DELIVERY_SHUTDOWN_TIMEOUT_MS` = **8 s**, y siempre dentro del plazo total descrito abajo, por debajo de los 10 s que suelen conceder los orquestadores entre `SIGTERM` y `SIGKILL`. Los tiempos de espera por defecto de `nodemailer` (2 minutos para conectar y 10 de inactividad) alargarían el cierre sin este plazo;
+- un envío que falla no bloquea la espera ni deja un rechazo sin gestionar;
+- si se agota el plazo, el cierre continúa y se registra un aviso con el número de envíos sin terminar (`pendingDeliveries`), sin datos de las cuentas. Esos envíos se pierden si el proceso termina, como ante una caída, y el titular puede pedir otro enlace.
+
+El cierre tiene un plazo total de **9 s** (`SHUTDOWN_TIMEOUT_MS`), contado desde la primera señal y común a todas las etapas (`shutdown.ts`):
+- durante el cierre se cierran las conexiones sin ninguna petición activa, para que una conexión keep-alive o una abierta sin petición no lo retrasen ni cuenten como petición cortada;
+- a los **6 s** (`SHUTDOWN_DRAIN_MS`) se cortan las peticiones que sigan en curso, para que se ejecute la espera de envíos con el tiempo que quede;
+- todas las esperas acaban como mucho a los **8,5 s** de la señal (`SHUTDOWN_TIMEOUT_MS` menos `REPORT_RESERVE_MS` = 500 ms). Ninguna reinicia ni prolonga el plazo. La espera de envíos dura el mínimo entre 8 s y lo que quede hasta ese límite;
+- `app.close()` solo espera a las respuestas HTTP: una petición cuyo cliente se ha desconectado puede seguir ejecutándose. Por eso se sigue el trabajo de los `preHandler` y manejadores (`request-work.ts`) y, tras `app.close()`, se espera dentro de ese mismo límite a que termine;
+- si el plazo total se agota, se registran los envíos y el trabajo en curso y el proceso sale con código 1.
+
+El proceso sale con 0 solo si no se ha cortado ninguna petición ni queda trabajo de petición o envío en curso. En cualquier otro caso sale con 1.
+
+**Envíos no confirmados.** Un envío en curso al salir, o uno cuya conexión se perdió sin respuesta del servidor (`ETIMEDOUT`, `ESOCKET`, `ECONNECTION`), se registra con `deliveryState: 'unconfirmed'`: el servidor puede haber aceptado el mensaje o no. No es un envío confirmado ni un fallo confirmado. Las respuestas que indican `recoveryEmailSent: false` o `securityNoticeSent: false` significan «no confirmado», no «no entregado».
+
+Pruebas: `pending-deliveries.test.ts` y `shutdown-deliveries.routes.test.ts`, con el hook real y el plazo acortado.
+
+**Registros de errores (corrección A, Fase 1).** La API escribe en su log los avisos y errores (nivel `warn`). No registra cada petición, porque alguna URL lleva un token. Los fallos de envío y de emisión se registran con el logger de Fastify y solo con campos cerrados (`services/log-safety.ts`):
+- `flow` (por ejemplo `email_verification` o `email_change_request`) y `targetUserId`;
+- `errorName`, el nombre de la clase del error si está en la lista cerrada de nombres conocidos; si no, `Error`;
+- `errorCode`, si está en la lista cerrada de códigos de nodemailer y Prisma (`EAUTH`, `EENVELOPE`, `P2002`…); si no, `OTHER`;
+- `smtpResponseCode`, el código numérico de respuesta SMTP.
+
+Nunca se registran el mensaje, `response`, `rejected`, `command`, `meta` ni el error completo: los de `nodemailer` citan los destinatarios y la respuesta del servidor, y los de Prisma, los argumentos de la consulta. Antes, la verificación usaba `console.error` con el mensaje y la solicitud de cambio de email registraba el error completo (`{ err }`). Pruebas: `log-safety.test.ts`, `email-verification.service.test.ts` y `email-change.routes.test.ts`, que inspeccionan la salida real del logger.
 
 ## 8. Límites de envío y de peticiones
 
@@ -290,6 +317,21 @@ Pruebas de integración con SQLite real en una base temporal: `apps/api/src/inte
   | Consumo y cambio de email reales | 2 (en los dos órdenes) | En los dos órdenes, la cuenta queda verificada con la dirección nueva y el enlace usado (apartado 5) |
 
   En todos se comprueban el estado final en la base, la ausencia de efectos parciales y que cada operación abrió una sola transacción, sin reintentos.
+- **Orden único de bloqueos (F0-001, Fase 1).** Toda transacción que escribe la fila de la cuenta y filas de sus tokens bloquea **primero la cuenta**:
+  - **Ya lo hacían:** la emisión del enlace, cuya primera escritura es la reserva sobre la cuenta, el cambio de contraseña y las acciones del panel.
+  - **Antes escribían primero el token:** el consumo del enlace, la confirmación del cambio de email, la denuncia de incidente, los consumos del restablecimiento y de E2, y la emisión del código de cambio de email y del token de restablecimiento. Ahora empiezan con `lockUserRow` (`services/user-lock.ts`), una actualización sin efecto de la fila (`UPDATE "User" SET "role" = "role" WHERE "id" = ?`). En PostgreSQL toma el bloqueo de fila; no cambia `updatedAt` ni dispara los triggers de las pruebas.
+  - **Lecturas:** se hacen después del bloqueo.
+  - **Lo que no cambia:** las reclamaciones condicionales, el uso único y las demás condiciones.
+  - **Pruebas:** la sección 15 de la integración comprueba que la primera escritura de cada consumo es la de `User`. Con el código anterior, esa comprobación falla. También lanza a la vez:
+    - una emisión y un consumo, en los dos órdenes;
+    - varios consumos del mismo token, en cada flujo;
+    - dos denuncias con tokens distintos de la misma cuenta;
+    - un cambio de email junto a una verificación;
+    - E2 junto a otros consumos.
+
+    En todos los casos se exige uno de los resultados coherentes, sin estados parciales.
+  - **Límites:** con SQLite estas pruebas pasan también con el orden anterior, porque las transacciones se serializan. Demuestran que el comportamiento se conserva, no la ausencia de *deadlocks*.
+  - **Por qué también las emisiones:** en PostgreSQL, el `INSERT` de un token espera a la cuenta por la clave foránea si otra transacción cambia su email. Con los tokens borrados antes, podía formarse un ciclo con la finalización de E2.
 - **Rollback del cambio de email y de la finalización de E2**, también con SQLite real (D1.c y D2.b): un trigger temporal hace fallar la invalidación de los enlaces y la transacción termina con un `ROLLBACK` real, sin ninguna escritura.
 - **Rollback del cambio de email ante un P2002 real (D1.d, F0-003):** un trigger temporal inserta otra cuenta con la dirección nueva dentro del `UPDATE`; la transacción termina con un `ROLLBACK` real, incluida la reclamación del código.
 - **Rollback de `ConsumeAbort`, demostrado con SQLite real (14.h):**
@@ -303,7 +345,7 @@ Pruebas de integración con SQLite real en una base temporal: `apps/api/src/inte
 |---|---|
 | SQLite con Prisma 7.9.1, un proceso | Demostrado como se describe arriba. |
 | Varios procesos o instancias de la API sobre el mismo fichero SQLite | **No probado.** Con dos clientes sí podría haber transacciones simultáneas y errores de bloqueo de SQLite; no se sabe qué respondería la API. |
-| PostgreSQL | **No probado, y con un riesgo conocido (F0-001, pendiente).** El diseño se apoya en que, en `READ COMMITTED`, una segunda actualización sobre la misma fila espera al bloqueo de la primera y vuelve a evaluar su condición. Pero el consumo del enlace escribe primero el token y después la cuenta, mientras que el cambio de email y la finalización de E2 escriben primero la cuenta y después los tokens (también la emisión, respecto al consumo). Con transacciones simultáneas, PostgreSQL podría detectar un *deadlock* y abortar una de ellas: el estado no quedaría inconsistente, pero esa petición fallaría. Hay que unificar el orden y probarlo antes de migrar. Pasar las pruebas con SQLite no demuestra que funcione con PostgreSQL. |
+| PostgreSQL | **No probado.** El diseño se apoya en que, en `READ COMMITTED`, una segunda actualización sobre la misma fila espera al bloqueo de la primera y vuelve a evaluar su condición. El orden de bloqueos ya está unificado: primero la cuenta (F0-001, Fase 1). Así se elimina el ciclo conocido entre el consumo y la emisión, el cambio de email o E2, pero falta probarlo con PostgreSQL real. No hay reintentos: si PostgreSQL abortara una transacción (`P2034`), esa petición fallaría sin dejar el estado inconsistente. Pasar las pruebas con SQLite no demuestra que funcione con PostgreSQL. |
 
 ## 12. Compatibilidad
 
@@ -336,13 +378,17 @@ Correcciones de la auditoría aplicadas:
 - **F0-002.** El fallo del aviso del cambio de email queda auditado (`EMAIL_CHANGE_NOTICE_FAILED`) y visible en el panel (apartado 9).
 - **F0-003.** Un conflicto de unicidad al cambiar el email aborta la transacción sin gastar el código (apartado 5).
 
+Correcciones de la Fase 1 (pendientes de revisión e integración):
+- **F0-001.** Orden único de bloqueos en el código, primero la cuenta (apartado 11). **Sigue abierta** hasta probarla con PostgreSQL.
+- **F0-005.** El cierre de la API espera a los envíos y al trabajo de las peticiones con plazos acotados (apartado 7).
+- Registros de errores con campos cerrados (apartado 7).
+
 Cuestiones pendientes:
 1. **Enlaces pendientes tras levantar una suspensión.** `unsuspend` no invalida los enlaces de verificación: si no han caducado, vuelven a servir. No se ha decidido.
 2. **Tiempo de respuesta de `forgot-password`.** No se ha medido (apartado 9).
-3. **Orden de bloqueos para PostgreSQL (F0-001).** Hay que unificar el orden de escritura de la cuenta y de los tokens, y probarlo con PostgreSQL antes de migrar (apartado 11).
-4. **Otras observaciones de la auditoría (F0-004 a F0-007):** sin aplicar.
+3. **Orden de bloqueos en PostgreSQL (F0-001).** El orden está unificado en el código, pero falta probarlo con PostgreSQL antes de migrar (apartado 11).
+4. **Otras observaciones de la auditoría (F0-004, F0-006 y F0-007):** sin aplicar.
    - el orden de llegada de dos correos de `forgot-password` seguidos;
-   - la espera sin plazo a los envíos al cerrar la API;
    - la falta de pruebas de componentes de la web;
    - la confirmación repetida de un cambio de email ya hecho, que responde que el código no es válido.
 
@@ -354,7 +400,7 @@ Hallazgos en el código, fuera del alcance de esta fase (sin corregir):
 ## 15. PostgreSQL
 
 - **El código está pensado para ser portable:**
-  - solo usa operaciones de Prisma (`findUnique`, `count`, `updateMany`, `create`, `deleteMany` y transacciones interactivas), sin SQL propio;
+  - usa operaciones de Prisma (`findUnique`, `count`, `updateMany`, `create`, `deleteMany` y transacciones interactivas). El único SQL propio es el bloqueo de la cuenta (`lockUserRow`), una sentencia `UPDATE` estándar con identificadores entre comillas dobles, válida en SQLite y en PostgreSQL;
   - las fechas se comparan como `DateTime`;
   - los límites y el uso único se apoyan en actualizaciones condicionales.
 - **No se ha probado con PostgreSQL** (apartado 11).

@@ -1,4 +1,5 @@
 import type {
+  PropertyCommercialStatus,
   PropertyCondition,
   PropertyOperation,
   PropertyType,
@@ -42,6 +43,30 @@ export const conditionLabels: Record<
   good: 'Buen estado',
   renovated: 'Reformado',
   'needs-renovation': 'A reformar',
+}
+
+export const commercialStatusLabels: Record<
+  PropertyCommercialStatus,
+  string
+> = {
+  'for-sale': 'En venta',
+  sold: 'Vendido',
+  'for-rent': 'Por alquilar',
+  rented: 'Alquilado',
+}
+
+export const COMMERCIAL_STATUS_NOT_SET_LABEL =
+  'Sin indicar'
+
+/** Los inmuebles anteriores a este campo no tienen estado: no se les inventa uno. */
+export function getCommercialStatusLabel(
+  status: string | null | undefined,
+): string {
+  return (
+    commercialStatusLabels[
+      status as PropertyCommercialStatus
+    ] ?? COMMERCIAL_STATUS_NOT_SET_LABEL
+  )
 }
 
 export const toneLabels: Record<

@@ -19,11 +19,19 @@ import { dashboardRoutes } from './routes/dashboard.routes.js'
 import { aiKeyRoutes } from './routes/ai-key.routes.js'
 import { adminRoutes } from './routes/admin.routes.js'
 
+import { trackRequestWork } from './request-work.js'
+
 export async function buildApp() {
   const app = Fastify({
-    logger: false,
+    // Solo avisos y errores (Fase 1, revisión): sin esto, request.log y app.log no escriben nada
+    // y los fallos de envío se perderían. No se baja a «info», que registraría la URL de cada
+    // petición, y alguna lleva un token (/api/auth/security-incident/:token).
+    logger: { level: 'warn' },
     bodyLimit: 1_048_576,
   })
+
+  // Antes de registrar ninguna ruta: el cierre ordenado necesita saber qué trabajo sigue en marcha.
+  trackRequestWork(app)
 
   app.decorateRequest(
     'userId',
@@ -84,9 +92,11 @@ export async function buildApp() {
   // CABECERAS DE SEGURIDAD
   // ==========================================================
 
+  // Síncrono a propósito: Fastify ya ha terminado la etapa del manejador y este hook no se contabiliza
+  // como trabajo en el cierre. app.routes-coverage.test.ts falla si deja de limitarse a poner cabeceras.
   app.addHook(
     'onSend',
-    async (_request, reply) => {
+    (_request, reply, _payload, done) => {
       reply.header(
         'X-Content-Type-Options',
         'nosniff',
@@ -106,6 +116,8 @@ export async function buildApp() {
         'Permissions-Policy',
         'camera=(), microphone=(), geolocation=()',
       )
+
+      done()
     },
   )
 

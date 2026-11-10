@@ -2,6 +2,10 @@
 
 Instalación, configuración, variables de entorno y scripts: [README principal](../README.md). Aplicación web: [apps/web/README.md](../apps/web/README.md).
 
+## Producto
+
+- [Checklist de publicación y Estado del inmueble](producto-checklist-y-estado.md): EstateForge registra dónde se publica cada anuncio, pero no publica; validación de enlaces, Estado comercial y requisitos.
+
 ## Seguridad
 
 - [Protección por incidente y su versionado](seguridad/proteccion-por-incidente.md): estados de bloqueo de una cuenta, flujo de un incidente, retirada administrativa, contador `securityHoldVersion`, migración, pruebas y limitaciones.

@@ -46,6 +46,7 @@ export interface GenerationProperty {
   area: number
   bedrooms: number
   bathrooms: number
+  commercialStatus?: string | null
 
   elevator: boolean
   terrace: boolean

@@ -17,6 +17,20 @@ export type PropertyCondition =
   | 'renovated'
   | 'needs-renovation'
 
+/**
+ * Situación comercial del inmueble. No tiene relación con `condition`
+ * (conservación) ni con el Checklist de publicación del anuncio.
+ */
+export const PROPERTY_COMMERCIAL_STATUSES = [
+  'for-sale',
+  'sold',
+  'for-rent',
+  'rented',
+] as const
+
+export type PropertyCommercialStatus =
+  (typeof PROPERTY_COMMERCIAL_STATUSES)[number]
+
 export interface Property {
   title: string
   operation: PropertyOperation
@@ -30,6 +44,7 @@ export interface Property {
   bathrooms: number
   floor?: number
   condition: PropertyCondition
+  commercialStatus?: PropertyCommercialStatus
 
   elevator: boolean
   terrace: boolean

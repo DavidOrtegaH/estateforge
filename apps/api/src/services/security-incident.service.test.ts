@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Solo comprueba qué operaciones pide el servicio y en qué orden; la
 // atomicidad y el rollback reales de SQLite son responsabilidad de V4.
 const txMock = vi.hoisted(() => ({
+  // Bloqueo de la fila de la cuenta (F0-001): devuelve las filas afectadas.
+  $executeRaw: vi.fn(async () => 1),
   securityIncidentToken: {
     findUnique: vi.fn(),
     updateMany: vi.fn(),
@@ -150,6 +152,12 @@ describe('reportSecurityIncident', () => {
     await reportSecurityIncident(TOKEN)
 
     const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0]
+    // Orden único de bloqueos (F0-001): la cuenta antes que su token.
+    expect(order(txMock.securityIncidentToken.findUnique)).toBeLessThan(order(txMock.$executeRaw))
+    expect(order(txMock.$executeRaw)).toBeLessThan(order(txMock.securityIncidentToken.updateMany))
+    const [sql, ...values] = txMock.$executeRaw.mock.calls[0] as unknown as [TemplateStringsArray, ...unknown[]]
+    expect(sql.join('?')).toBe('UPDATE "User" SET "role" = "role" WHERE "id" = ?')
+    expect(values).toEqual([USER_ID])
     expect(order(txMock.securityIncidentToken.findUnique)).toBeLessThan(order(txMock.securityIncidentToken.updateMany))
     expect(order(txMock.securityIncidentToken.updateMany)).toBeLessThan(order(txMock.user.update))
     expect(order(txMock.user.update)).toBeLessThan(order(txMock.session.deleteMany))
@@ -176,6 +184,24 @@ describe('reportSecurityIncident', () => {
     expect(txMock.securityIncidentToken.updateMany).not.toHaveBeenCalled()
     expect(txMock.user.update).not.toHaveBeenCalled()
     expect(txMock.session.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('no reclama el token ni escribe si la cuenta ya no existe al bloquearla', async () => {
+    txMock.$executeRaw.mockResolvedValueOnce(0)
+
+    await expect(reportSecurityIncident(TOKEN)).resolves.toBe('invalid')
+
+    expect(txMock.securityIncidentToken.updateMany).not.toHaveBeenCalled()
+    expect(txMock.user.update).not.toHaveBeenCalled()
+    expect(txMock.session.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('un token no válido no bloquea la cuenta', async () => {
+    txMock.securityIncidentToken.findUnique.mockResolvedValue(null)
+
+    await expect(reportSecurityIncident(TOKEN)).resolves.toBe('invalid')
+
+    expect(txMock.$executeRaw).not.toHaveBeenCalled()
   })
 
   it('no incrementa la versión ni cambia el destino si otra petición reclama el token antes', async () => {

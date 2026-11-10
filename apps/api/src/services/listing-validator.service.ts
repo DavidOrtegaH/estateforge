@@ -4,6 +4,22 @@ import {
   type Property,
 } from '@estateforge/shared'
 
+import { AIProviderError } from '../ai/ai-provider.error.js'
+
+/**
+ * El proveedor ha respondido, pero su anuncio no se puede usar. No es un fallo
+ * interno: la API lo trata como una respuesta inválida del proveedor y, al
+ * lanzarse dentro de la transacción, no se guarda nada.
+ */
+function invalidProviderResponse(
+  detail: string,
+): AIProviderError {
+  return new AIProviderError(
+    'AI_PROVIDER_ERROR',
+    `${detail} Vuelve a generar el anuncio.`,
+  )
+}
+
 function normalizeText(value: string): string {
   return value
     .normalize('NFD')
@@ -84,6 +100,99 @@ function findWholeWordOccurrences(
 const MAX_LABEL_NUMBER_GAP = 5
 
 /**
+ * Número tal como se escribe en un anuncio: con separadores de miles
+ * (250.000, 250,000, 250 000), decimales (90,5 o 90.5) y signo (-1ª).
+ */
+const NUMBER_PATTERN =
+  /(?:(?<![\p{L}\d])-)?(?:\d{1,3}(?:[.,\u00a0\u202f ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)/gu
+
+const NUMBER_SEPARATOR = /[.,\u00a0\u202f ]/g
+
+interface ReadNumber {
+  value: number
+  decimals: number
+}
+
+/**
+ * Valores posibles de un número escrito. Solo hay ambigüedad en casos
+ * como "1.250", que puede ser 1250 o 1,25 según el idioma. "250.000" nunca
+ * se lee como 250: admitirlo aceptaría un importe mil veces mayor.
+ */
+function readNumber(token: string): ReadNumber[] {
+  const negative = token.startsWith('-')
+  const body = negative ? token.slice(1) : token
+  const sign = negative ? -1 : 1
+
+  const read = (
+    digits: string,
+    decimals = '',
+  ): ReadNumber => ({
+    value:
+      sign *
+      Number(
+        decimals
+          ? `${digits}.${decimals}`
+          : digits,
+      ),
+    decimals: decimals.length,
+  })
+
+  const separators =
+    body.match(NUMBER_SEPARATOR) ?? []
+
+  if (separators.length === 0) {
+    return [read(body)]
+  }
+
+  const parts = body.split(NUMBER_SEPARATOR)
+  const last = parts[parts.length - 1]
+  const lastSeparator =
+    separators[separators.length - 1]
+
+  if (lastSeparator !== '.' && lastSeparator !== ',') {
+    // Con un espacio normal, "3 120 m²" puede ser 120 precedido de otro número.
+    return lastSeparator === ' '
+      ? [read(parts.join('')), read(last)]
+      : [read(parts.join(''))]
+  }
+
+  if (separators.length > 1) {
+    return new Set(separators).size === 1
+      ? [read(parts.join(''))]
+      : [read(parts.slice(0, -1).join(''), last)]
+  }
+
+  const asDecimal = read(parts[0], last)
+
+  if (last.length !== 3) {
+    return [asDecimal]
+  }
+
+  const asThousands = read(parts.join(''))
+
+  return last === '000'
+    ? [asThousands]
+    : [asThousands, asDecimal]
+}
+
+/**
+ * Un número con decimales coincide si es el valor esperado redondeado a
+ * esos decimales; uno sin decimales debe ser exactamente el esperado.
+ */
+function numberMatches(
+  token: string,
+  expected: number,
+): boolean {
+  return readNumber(token).some(
+    ({ value, decimals }) =>
+      decimals === 0
+        ? value === expected
+        : Number(expected.toFixed(decimals)) ===
+          value,
+  )
+}
+
+/**
  * Comprueba únicamente números que aparecen en la misma unidad
  * de contexto que la etiqueta.
  *
@@ -101,11 +210,12 @@ function assertNumberNotContradicted(
   value: number,
   labels: string[],
 ): void {
-  const expectedValue = String(value)
+  // Un punto entre dígitos es parte del número, no el final de una frase.
+  const segments = text.split(
+    /(?<!\d)\.|\.(?!\d)|[!?;:\n]+/,
+  )
 
-  const segments = text.split(/[.!?;:\n]+/)
-
-  const numberRegex = /\d+(?:[.,]\d+)?/g
+  const numberRegex = NUMBER_PATTERN
 
   for (const label of labels) {
     const normalizedLabel = normalizeText(label)
@@ -179,9 +289,9 @@ function assertNumberNotContradicted(
 
         if (
           candidate !== undefined &&
-          candidate !== expectedValue
+          !numberMatches(candidate, value)
         ) {
-          throw new Error(
+          throw invalidProviderResponse(
             `La respuesta de la IA contiene un dato numérico posiblemente inconsistente: ${label}.`,
           )
         }
@@ -260,7 +370,7 @@ function assertFeatureConsistency(
     )
 
     if (mentioned) {
-      throw new Error(
+      throw invalidProviderResponse(
         `La respuesta de la IA menciona una característica no indicada en el inmueble: ${feature.labels[0]}.`,
       )
     }
@@ -317,7 +427,7 @@ export function validateGeneratedListing(
     GeneratedListingSchema.safeParse(value)
 
   if (!parsed.success) {
-    throw new Error(
+    throw invalidProviderResponse(
       'La IA devolvió un anuncio con un formato no válido.',
     )
   }

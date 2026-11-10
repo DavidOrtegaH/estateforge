@@ -30,7 +30,7 @@ vi.mock('../services/turnstile.service.js', () => ({ verifyTurnstileToken: mocks
 vi.mock('../services/security-recovery.service.js', () => ({
   issueRequestedRecoveryLinks: vi.fn(async () => []),
   deliverRecoveryLinkInBackground: vi.fn(),
-  waitForPendingRecoveryDeliveries: vi.fn(async () => undefined),
+  waitForPendingRecoveryDeliveries: vi.fn(async () => ({ timedOut: false, pending: 0 })),
 }))
 vi.mock('../services/password-reset.service.js', () => ({
   issuePasswordResetToken: mocks.issuePasswordResetToken,
@@ -47,7 +47,7 @@ vi.mock('../services/email-verification.service.js', async importOriginal => {
     ...actual,
     consumeEmailVerificationToken: mocks.consumeEmailVerificationToken,
     sendEmailVerificationInBackground: mocks.sendEmailVerificationInBackground,
-    waitForPendingVerificationDeliveries: vi.fn(async () => undefined),
+    waitForPendingVerificationDeliveries: vi.fn(async () => ({ timedOut: false, pending: 0 })),
   }
 })
 
@@ -135,7 +135,7 @@ describe('registro', () => {
     expect(response.statusCode).toBe(201)
     expect(response.json()).toEqual({ user: { id: USER_ID, email: EMAIL, role: 'USER' } })
     expect(setCookie(response)).toContain('estateforge_session=nueva-sesion')
-    expect(mocks.sendEmailVerificationInBackground).toHaveBeenCalledWith(USER_ID)
+    expect(mocks.sendEmailVerificationInBackground).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(Function) }), USER_ID)
   })
 
   it('con la verificación exigida crea la cuenta pendiente, envía el enlace y no inicia sesión', async () => {
@@ -153,7 +153,7 @@ describe('registro', () => {
     expect(setCookie(response)).toBe('')
     expect(mocks.createSession).not.toHaveBeenCalled()
     expect(mocks.prisma.user.create).toHaveBeenCalledWith({ data: { email: EMAIL, password: 'hash-nuevo' } })
-    expect(mocks.sendEmailVerificationInBackground).toHaveBeenCalledWith(USER_ID)
+    expect(mocks.sendEmailVerificationInBackground).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(Function) }), USER_ID)
   })
 
   it('la cuenta nueva queda sin verificar: el registro no rellena emailVerifiedAt', async () => {
@@ -399,7 +399,7 @@ describe('POST /api/auth/verify-email/resend', () => {
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual(RESEND_MESSAGE)
     expect(mocks.prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: EMAIL }, select: { id: true } })
-    expect(mocks.sendEmailVerificationInBackground).toHaveBeenCalledWith(USER_ID)
+    expect(mocks.sendEmailVerificationInBackground).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(Function) }), USER_ID)
   })
 
   it('con un email no registrado responde exactamente lo mismo y no envía nada', async () => {

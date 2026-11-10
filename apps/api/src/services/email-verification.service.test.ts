@@ -1,9 +1,12 @@
+import Fastify from 'fastify'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Pruebas UNITARIAS con un doble de Prisma: $transaction ejecuta el callback con tx y, si el
 // callback lanza, rechaza (como Prisma, que deshace la transacción). Comprueban qué operaciones
 // pide el servicio y cómo decide; la concurrencia real con SQLite se prueba en la integración.
 const db = vi.hoisted(() => ({
+  // Bloqueo de la fila de la cuenta (F0-001): devuelve las filas afectadas.
+  $executeRaw: vi.fn(),
   user: { findUnique: vi.fn(), updateMany: vi.fn() },
   emailVerificationToken: {
     count: vi.fn(),
@@ -56,6 +59,7 @@ function account(extra: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  db.$executeRaw.mockResolvedValue(1)
   db.user.updateMany.mockResolvedValue({ count: 1 })
   db.emailVerificationToken.updateMany.mockResolvedValue({ count: 1 })
   db.emailVerificationToken.deleteMany.mockResolvedValue({ count: 0 })
@@ -299,6 +303,41 @@ describe('consumeEmailVerificationToken', () => {
     expect(db.emailVerificationToken.updateMany).toHaveBeenNthCalledWith(2, { where: { userId: USER_ID, usedAt: null }, data: { usedAt: NOW } })
   })
 
+  it('bloquea la fila de la cuenta antes de leerla y de escribir el token (orden único, F0-001)', async () => {
+    db.emailVerificationToken.findUnique.mockResolvedValue(record())
+    db.user.findUnique.mockResolvedValue(account())
+
+    expect(await consumeEmailVerificationToken(TOKEN, NOW)).toBe('verified')
+    expect(db.$executeRaw).toHaveBeenCalledOnce()
+    const [sql, ...values] = db.$executeRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]]
+    expect(sql.join('?')).toBe('UPDATE "User" SET "role" = "role" WHERE "id" = ?')
+    expect(values).toEqual([USER_ID])
+    const lockOrder = db.$executeRaw.mock.invocationCallOrder[0]
+    expect(lockOrder).toBeLessThan(db.user.findUnique.mock.invocationCallOrder[0])
+    expect(lockOrder).toBeLessThan(db.emailVerificationToken.updateMany.mock.invocationCallOrder[0])
+    expect(lockOrder).toBeLessThan(db.user.updateMany.mock.invocationCallOrder[0])
+  })
+
+  it('si la cuenta ya no existe al bloquearla, no verifica ni escribe', async () => {
+    db.emailVerificationToken.findUnique.mockResolvedValue(record())
+    db.$executeRaw.mockResolvedValue(0)
+
+    expect(await consumeEmailVerificationToken(TOKEN, NOW)).toBe('invalid')
+    expect(db.user.findUnique).not.toHaveBeenCalled()
+    expect(db.emailVerificationToken.updateMany).not.toHaveBeenCalled()
+    expect(db.user.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('un token caducado, usado o inexistente no bloquea la cuenta', async () => {
+    db.emailVerificationToken.findUnique.mockResolvedValueOnce(record({ expiresAt: NOW }))
+    expect(await consumeEmailVerificationToken(TOKEN, NOW)).toBe('expired')
+    db.emailVerificationToken.findUnique.mockResolvedValueOnce(record({ usedAt: NOW }))
+    expect(await consumeEmailVerificationToken(TOKEN, NOW)).toBe('invalid')
+    db.emailVerificationToken.findUnique.mockResolvedValueOnce(null)
+    expect(await consumeEmailVerificationToken(TOKEN, NOW)).toBe('invalid')
+    expect(db.$executeRaw).not.toHaveBeenCalled()
+  })
+
   it('con la escritura sin efecto (count = 0) y la cuenta cambiada no verifica y lanza dentro de la transacción', async () => {
     db.emailVerificationToken.findUnique.mockResolvedValue(record())
     // Lectura: email del token. Escritura: no afecta. Relectura: otro email.
@@ -435,21 +474,66 @@ describe('envío', () => {
     expect(mail.sendEmailVerificationEmail).not.toHaveBeenCalled()
   })
 
-  it('en segundo plano, un fallo del correo se registra sin el token ni el enlace', async () => {
+  // Corrección A de la Fase 1: antes se registraba error.message con console.error. Se prueba con
+  // el registro real de Fastify (pino) lo que queda escrito.
+  it('en segundo plano, un fallo del SMTP se registra con campos cerrados, sin email, token, hash ni enlace', async () => {
     db.user.findUnique.mockResolvedValue({ email: EMAIL })
-    mail.sendEmailVerificationEmail.mockRejectedValueOnce(new Error('SMTP caído'))
-    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const lines: string[] = []
+    const app = Fastify({ logger: { level: 'info', stream: { write: (line: string) => { lines.push(line) } } } })
+    let sentUrl = ''
+    mail.sendEmailVerificationEmail.mockImplementationOnce(async ({ verifyUrl }: { verifyUrl: string }) => {
+      sentUrl = verifyUrl
+      throw Object.assign(new Error(`Invalid login: 535 5.7.8 rejected for ${EMAIL} at ${verifyUrl}`), {
+        code: 'EAUTH',
+        response: `535 5.7.8 <${EMAIL}> authentication failed`,
+        responseCode: 535,
+        command: 'AUTH PLAIN',
+        rejected: [EMAIL],
+      })
+    })
 
-    sendEmailVerificationInBackground(USER_ID)
-    await waitForPendingVerificationDeliveries()
+    sendEmailVerificationInBackground(app.log, USER_ID)
+    expect(await waitForPendingVerificationDeliveries()).toEqual({ timedOut: false, pending: 0 })
+    await app.close()
 
-    const token = new URL(mail.sendEmailVerificationEmail.mock.calls[0][0].verifyUrl as string).searchParams.get('token') as string
+    const token = new URL(sentUrl).searchParams.get('token') as string
     expect(token).toMatch(/^[0-9a-f]{64}$/)
-    expect(log).toHaveBeenCalledOnce()
-    const logged = JSON.stringify(log.mock.calls)
-    expect(logged).toContain('SMTP caído')
-    expect(logged).not.toContain('verificar-email')
-    expect(logged).not.toContain(token)
-    log.mockRestore()
+    const entries = lines.map(line => JSON.parse(line) as Record<string, unknown>)
+    const entry = entries.find(item => item.msg === 'No se pudo enviar el correo de verificación')
+    // Sigue siendo útil: nivel de error, flujo, cuenta, tipo de error y códigos.
+    expect(entry).toMatchObject({ level: 50, flow: 'email_verification', targetUserId: USER_ID, errorName: 'Error', errorCode: 'EAUTH', smtpResponseCode: 535 })
+    expect(entry).not.toHaveProperty('err')
+    const logged = lines.join('\n')
+    for (const secret of [EMAIL, token, hashEmailVerificationToken(token), 'verificar-email', 'Invalid login', '5.7.8', 'AUTH PLAIN', 'rejected']) {
+      expect(logged).not.toContain(secret)
+    }
+  })
+
+  it('en segundo plano, un fallo de Prisma se registra con su código, sin el mensaje ni los argumentos', async () => {
+    const lines: string[] = []
+    const app = Fastify({ logger: { level: 'info', stream: { write: (line: string) => { lines.push(line) } } } })
+    // Forma de PrismaClientKnownRequestError: el mensaje cita la consulta y sus valores.
+    class PrismaClientKnownRequestError extends Error {
+      override name = 'PrismaClientKnownRequestError'
+      code = 'P2002'
+      meta = { target: ['email'], modelName: 'EmailVerificationToken' }
+      clientVersion = '7.9.1'
+    }
+    db.user.updateMany.mockRejectedValueOnce(new PrismaClientKnownRequestError(
+      `Invalid \`prisma.user.updateMany()\` invocation: where { id: "${USER_ID}", email: "${EMAIL}" } tokenHash "${'f'.repeat(64)}"`,
+    ))
+
+    sendEmailVerificationInBackground(app.log, USER_ID)
+    await waitForPendingVerificationDeliveries()
+    await app.close()
+
+    const entry = lines.map(line => JSON.parse(line) as Record<string, unknown>).find(item => item.msg === 'No se pudo enviar el correo de verificación')
+    expect(entry).toMatchObject({ level: 50, flow: 'email_verification', targetUserId: USER_ID, errorName: 'PrismaClientKnownRequestError', errorCode: 'P2002' })
+    expect(entry).not.toHaveProperty('smtpResponseCode')
+    const logged = lines.join('\n')
+    for (const secret of [EMAIL, 'f'.repeat(64), 'Invalid', 'updateMany', 'tokenHash', 'EmailVerificationToken', 'clientVersion']) {
+      expect(logged).not.toContain(secret)
+    }
+    expect(mail.sendEmailVerificationEmail).not.toHaveBeenCalled()
   })
 })

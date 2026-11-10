@@ -257,6 +257,9 @@ export async function generateListing(
               condition:
                 request.property.condition,
 
+              commercialStatus:
+                request.property.commercialStatus,
+
               elevator:
                 request.property.elevator,
 

@@ -24,6 +24,7 @@ const validProperty = {
   bathrooms: 2,
   floor: 3,
   condition: 'good' as const,
+  commercialStatus: 'for-sale' as const,
   elevator: true,
   terrace: false,
   balcony: true,

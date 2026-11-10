@@ -254,10 +254,10 @@ describe('envío en segundo plano', () => {
     deliverRecoveryLinkInBackground(log, link)
     await waitForPendingRecoveryDeliveries()
 
-    expect(log.error).toHaveBeenCalledWith({ targetUserId: 'cuenta-1', errorName: 'Error' }, 'No se pudo enviar el enlace de recuperación obligatoria')
+    expect(log.error).toHaveBeenCalledWith({ flow: 'security_recovery', targetUserId: 'cuenta-1', errorName: 'Error' }, 'No se pudo enviar el enlace de recuperación obligatoria')
     const output = JSON.stringify(log.error.mock.calls)
     for (const secret of ['destino@estateforge.test', link.token, 'recuperar-cuenta']) expect(output).not.toContain(secret)
-    await expect(waitForPendingRecoveryDeliveries()).resolves.toBeUndefined()
+    await expect(waitForPendingRecoveryDeliveries()).resolves.toEqual({ timedOut: false, pending: 0 })
     expect(countPendingRecoveryDeliveries()).toBe(0)
   })
 
@@ -281,7 +281,8 @@ describe('envío en segundo plano', () => {
       expect(unhandled).toEqual([])
       expect(fresh.countPendingRecoveryDeliveries()).toBe(0)
       expect(mail.send).not.toHaveBeenCalled()
-      expect(log.error).toHaveBeenCalledWith({ targetUserId: 'cuenta-1', errorName: 'TypeError' }, 'No se pudo enviar el enlace de recuperación obligatoria')
+      // El código de Node (ERR_INVALID_URL) es un campo cerrado; el mensaje, que cita la URL, no se registra.
+      expect(log.error).toHaveBeenCalledWith({ flow: 'security_recovery', targetUserId: 'cuenta-1', errorName: 'TypeError', errorCode: 'ERR_INVALID_URL' }, 'No se pudo enviar el enlace de recuperación obligatoria')
       const output = JSON.stringify(log.error.mock.calls)
       for (const secret of [link.to, link.token, 'recuperar-cuenta', 'no es una url']) expect(output).not.toContain(secret)
     } finally {

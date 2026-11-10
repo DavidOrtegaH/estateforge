@@ -7,8 +7,9 @@ Trabajo Fin de Máster — Máster en IA Generativa. Estado: 🚧 en desarrollo.
 ## Funcionalidades
 
 - **Cuentas:** registro, inicio y cierre de sesión (cookie `HttpOnly`), verificación del email con un enlace (exigible por fechas, con periodo de gracia para las cuentas existentes), recuperación y cambio de contraseña, cambio de email con código de verificación y eliminación de la cuenta. Protección opcional contra bots con Cloudflare Turnstile.
-- **Inmuebles:** listado con filtros, detalle, edición y borrado (individual y múltiple). Cada inmueble pertenece a su usuario.
+- **Inmuebles:** listado con filtros, detalle, edición y borrado (individual y múltiple). Cada inmueble pertenece a su usuario y tiene un Estado comercial (en venta, vendido, por alquilar o alquilado).
 - **Generación de anuncios:** con Gemini, OpenAI o un proveedor simulado (`mock`, sin clave), historial de generaciones con filtros y panel de estadísticas.
+- **Checklist de publicación:** en cada anuncio se marcan los portales en los que se ha publicado manualmente, se conserva cada enlace y se accede a la página principal de cada portal. Admite hasta cinco plataformas adicionales. EstateForge no publica en los portales: lo hace el usuario desde cada uno.
 - **Claves de IA del usuario:** se pueden guardar cifradas (AES-256-GCM) para Gemini y OpenAI; se usan solo si se agota la cuota de la clave del servidor.
 - **Seguridad de la cuenta:** protección por incidente cuando el titular no reconoce un cambio de email, recuperación obligatoria con contraseña nueva y aviso en el login cuando la API cierra una sesión abierta. Ver [docs/seguridad](docs/README.md).
 - **Panel de administración** (`/admin`, solo cuentas OWNER): resumen, usuarios con su estado, suspender y reactivar cuentas, cerrar sesiones, retirar la protección por incidente, corregir el destino de recuperación, reenviar el enlace y auditoría con filtros.

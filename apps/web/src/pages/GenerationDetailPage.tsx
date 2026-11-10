@@ -5,6 +5,10 @@ import {
   useParams,
 } from 'react-router'
 
+import { getCommercialStatusLabel } from '@estateforge/shared'
+
+import { PublicationChecklist } from '@/components/listings/PublicationChecklist'
+
 import {
   getGeneration,
   updateGeneration,
@@ -495,7 +499,7 @@ function GenerationDetailPage() {
           EDICIÃN
       ====================================================== */}
 
-      {isEditing ? (
+      {isEditing && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-xl font-semibold">
@@ -665,8 +669,10 @@ function GenerationDetailPage() {
             </div>
           </div>
         </div>
-      ) : (
-        <>
+      )}
+
+      {/* La vista sigue montada al editar para no perder el Checklist sin guardar. */}
+      <div hidden={isEditing}>
           {/* =================================================
               CABECERA DEL ANUNCIO
           ================================================== */}
@@ -803,6 +809,12 @@ function GenerationDetailPage() {
               {generation.callToAction}
             </p>
           </section>
+
+          <PublicationChecklist
+            key={generation.id}
+            generationId={generation.id}
+            guardDisabled={deleting}
+          />
 
           {/* =================================================
               INFORMACIÃN DE GENERACIÃN
@@ -1002,11 +1014,25 @@ function GenerationDetailPage() {
                 </dd>
               </div>
 
-              {/* Estado */}
+              {/* Estado comercial */}
 
               <div>
                 <dt className="text-sm text-muted-foreground">
                   Estado
+                </dt>
+
+                <dd className="mt-1 font-medium">
+                  {getCommercialStatusLabel(
+                    property.commercialStatus,
+                  )}
+                </dd>
+              </div>
+
+              {/* Conservación */}
+
+              <div>
+                <dt className="text-sm text-muted-foreground">
+                  Conservación
                 </dt>
 
                 <dd className="mt-1 font-medium">
@@ -1057,8 +1083,7 @@ function GenerationDetailPage() {
               </div>
             </dl>
           </section>
-        </>
-      )}
+      </div>
     </div>
   )
 }

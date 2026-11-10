@@ -2,6 +2,7 @@
 import { createHash, randomInt } from 'node:crypto'
 
 import { prisma } from '../db/prisma.js'
+import { lockUserRow } from './user-lock.js'
 
 export const EMAIL_CHANGE_CODE_DURATION_MS = 1000 * 60 * 10
 
@@ -30,22 +31,25 @@ export async function issueEmailChangeCode(
   const codeHash = hashEmailChangeCode(code)
   const expiresAt = getEmailChangeCodeExpiry()
 
-  await prisma.$transaction([
-    prisma.emailChangeVerification.deleteMany({
+  await prisma.$transaction(async (tx) => {
+    // Orden único de bloqueos (F0-001): primero la cuenta, como la confirmación del código. Si la
+    // cuenta no existe, el INSERT falla por la clave foránea, como antes.
+    await lockUserRow(tx, userId)
+    await tx.emailChangeVerification.deleteMany({
       where: {
         userId,
         usedAt: null,
       },
-    }),
-    prisma.emailChangeVerification.create({
+    })
+    await tx.emailChangeVerification.create({
       data: {
         userId,
         newEmail: normalizedEmail,
         codeHash,
         expiresAt,
       },
-    }),
-  ])
+    })
+  })
 
   return { code, expiresAt }
 }
@@ -75,6 +79,10 @@ export async function consumeEmailChangeCode(
 
   try {
     return await prisma.$transaction(async (tx): Promise<EmailChangeResult> => {
+      // Orden único de bloqueos (F0-001): primero la fila de la cuenta y después el código y los
+      // enlaces de verificación. Todo lo que sigue se lee y se escribe con la cuenta bloqueada.
+      if (!(await lockUserRow(tx, userId))) return { success: false, reason: 'invalid' }
+
       const verification = await tx.emailChangeVerification.findUnique({
         where: { codeHash },
         select: {

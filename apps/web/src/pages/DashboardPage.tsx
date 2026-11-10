@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
 import {
+  PROPERTY_COMMERCIAL_STATUSES,
+  commercialStatusLabels,
+  getCommercialStatusLabel,
+} from '@estateforge/shared'
+
+import {
   deleteProperties,
   deleteProperty,
   getProperties,
@@ -284,6 +290,7 @@ function DashboardPage() {
     bathrooms: '',
     floor: '',
     condition: '',
+    commercialStatus: '',
     additionalInformation: '',
     elevator: false,
     terrace: false,
@@ -438,6 +445,8 @@ function DashboardPage() {
           ? String(property.floor)
           : '',
       condition: property.condition ?? '',
+      commercialStatus:
+        property.commercialStatus ?? '',
       additionalInformation:
         property.additionalInformation ?? '',
 
@@ -505,6 +514,9 @@ function DashboardPage() {
               ? null
               : Number(propertyForm.floor),
           condition: propertyForm.condition,
+          commercialStatus:
+            propertyForm.commercialStatus ||
+            undefined,
           additionalInformation:
             propertyForm.additionalInformation,
 
@@ -1493,6 +1505,12 @@ function DashboardPage() {
                               </span>
 
                               <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                                {getCommercialStatusLabel(
+                                  property.commercialStatus,
+                                )}
+                              </span>
+
+                              <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                                 {getConditionLabel(
                                   property.condition,
                                 )}
@@ -1943,10 +1961,58 @@ function DashboardPage() {
 
                             <div>
                               <label
-                                htmlFor={`property-condition-${property.id}`}
+                                htmlFor={`property-commercial-status-${property.id}`}
                                 className="text-sm font-medium"
                               >
                                 Estado
+                              </label>
+
+                              <select
+                                id={`property-commercial-status-${property.id}`}
+                                value={
+                                  propertyForm.commercialStatus
+                                }
+                                onChange={(event) =>
+                                  setPropertyForm(
+                                    (current) => ({
+                                      ...current,
+                                      commercialStatus:
+                                        event
+                                          .target
+                                          .value,
+                                    }),
+                                  )
+                                }
+                                className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                              >
+                                <option
+                                  value=""
+                                  disabled={Boolean(
+                                    property.commercialStatus,
+                                  )}
+                                >
+                                  Sin indicar
+                                </option>
+
+                                {PROPERTY_COMMERCIAL_STATUSES.map(
+                                  (status) => (
+                                    <option
+                                      key={status}
+                                      value={status}
+                                    >
+                                      {commercialStatusLabels[status]}
+                                    </option>
+                                  ),
+                                )}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label
+                                htmlFor={`property-condition-${property.id}`}
+                                className="text-sm font-medium"
+                              >
+                                Conservación
                               </label>
 
                               <select

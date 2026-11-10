@@ -1,7 +1,9 @@
 import type { FastifyBaseLogger } from 'fastify'
 
 import { emailService } from './email.service.js'
+import { safeDeliveryErrorFields } from './log-safety.js'
 import { issuePasswordResetToken } from './password-reset.service.js'
+import { createDeliveryTracker, type DeliveryWaitResult } from './pending-deliveries.js'
 
 // Restablecimiento de contraseña por autoservicio (forgot-password, decisión D3 de la Fase 0).
 // La emisión del token y el envío se hacen sin esperar a que terminen, para que la respuesta
@@ -18,32 +20,26 @@ export function passwordResetUrl(token: string): string {
 }
 
 // Envíos lanzados sin esperar a la respuesta HTTP. El cierre ordenado de la app espera a que
-// acaben (hook onClose de authRoutes), como los de la recuperación obligatoria.
-const pendingDeliveries = new Set<Promise<void>>()
+// acaben (hook onClose de authRoutes), con el mismo mecanismo y plazo que los demás (F0-005).
+const deliveries = createDeliveryTracker()
 
 export function deliverPasswordResetInBackground(log: FastifyBaseLogger, user: { id: string; email: string }): void {
-  const delivery: Promise<void> = (async () => {
+  deliveries.track((async () => {
     try {
       const reset = await issuePasswordResetToken(user.id)
       await emailService.sendPasswordResetEmail({ to: user.email, resetUrl: passwordResetUrl(reset.token), expiresAt: reset.expiresAt })
     } catch (error) {
-      // Solo el id de la cuenta y el tipo de error: el error completo podría incluir el
+      // Solo el id de la cuenta y campos cerrados del error: el error completo podría incluir el
       // destinatario, el enlace o el contenido del mensaje.
-      log.error({ targetUserId: user.id, errorName: error instanceof Error ? error.name : typeof error }, 'No se pudo enviar el enlace de restablecimiento de contraseña')
+      log.error({ flow: 'password_reset', targetUserId: user.id, ...safeDeliveryErrorFields(error) }, 'No se pudo enviar el enlace de restablecimiento de contraseña')
     }
-  })().finally(() => {
-    pendingDeliveries.delete(delivery)
-  })
-  pendingDeliveries.add(delivery)
+  })())
 }
 
 export function countPendingPasswordResetDeliveries(): number {
-  return pendingDeliveries.size
+  return deliveries.count()
 }
 
-export async function waitForPendingPasswordResetDeliveries(): Promise<void> {
-  // Un envío puede terminar y dejar otro registrado mientras se espera: se repite hasta vaciar.
-  while (pendingDeliveries.size > 0) {
-    await Promise.allSettled(pendingDeliveries)
-  }
+export function waitForPendingPasswordResetDeliveries(timeoutMs?: number): Promise<DeliveryWaitResult> {
+  return deliveries.waitForAll(timeoutMs)
 }

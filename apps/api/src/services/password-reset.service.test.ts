@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Solo comprueba qué operaciones pide el servicio; la atomicidad y el rollback reales
 // de SQLite se prueban en la integración (bloque 10).
 const db = vi.hoisted(() => ({
+  // Bloqueo de la fila de la cuenta (F0-001): devuelve las filas afectadas.
+  $executeRaw: vi.fn(async () => 1),
   passwordResetToken: {
     findUnique: vi.fn(),
     updateMany: vi.fn(),
@@ -39,6 +41,18 @@ const TOKEN = 'a'.repeat(64)
 const USER_ID = 'user-1'
 const DESTINATION = 'titular@estateforge.test'
 const SINCE = new Date('2026-11-02T10:00:00.000Z')
+
+// El bloqueo de la cuenta (F0-001) es la primera escritura de la transacción: va antes de leer la
+// cuenta y de cualquier escritura de tokens o sesiones.
+function expectUserLockedFirst(laterCalls: { mock: { invocationCallOrder: number[] } }[]) {
+  expect(db.$executeRaw).toHaveBeenCalledOnce()
+  const [sql, ...values] = db.$executeRaw.mock.calls[0] as unknown as [TemplateStringsArray, ...unknown[]]
+  expect(sql.join('?')).toBe('UPDATE "User" SET "role" = "role" WHERE "id" = ?')
+  expect(values).toEqual([USER_ID])
+  for (const later of laterCalls) {
+    for (const order of later.mock.invocationCallOrder) expect(db.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(order)
+  }
+}
 
 function future() {
   return new Date(Date.now() + 60_000)
@@ -93,6 +107,7 @@ describe('issuePasswordResetToken', () => {
     expect(db.passwordResetToken.create).toHaveBeenCalledWith({
       data: { tokenHash: hashPasswordResetToken(token), userId: USER_ID, expiresAt: expect.any(Date), purpose: 'SELF_SERVICE' },
     })
+    expectUserLockedFirst([db.passwordResetToken.deleteMany, db.passwordResetToken.create])
   })
 })
 
@@ -116,6 +131,18 @@ describe('consumePasswordResetToken (autoservicio)', () => {
     })
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: USER_ID }, data: { password: 'hash-nuevo' } })
     expect(db.session.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID } })
+    expectUserLockedFirst([db.user.findUnique, db.passwordResetToken.updateMany, db.user.update, db.session.deleteMany])
+  })
+
+  it('si la cuenta ya no existe al bloquearla, no reclama el token ni escribe', async () => {
+    db.$executeRaw.mockResolvedValueOnce(0)
+
+    await expect(consumePasswordResetToken(TOKEN, 'hash-nuevo')).resolves.toBe(false)
+
+    expect(db.user.findUnique).not.toHaveBeenCalled()
+    expect(db.passwordResetToken.updateMany).not.toHaveBeenCalled()
+    expect(db.user.update).not.toHaveBeenCalled()
+    expect(db.session.deleteMany).not.toHaveBeenCalled()
   })
 
   it('rechaza un token SECURITY_RECOVERY sin reclamarlo', async () => {
@@ -208,6 +235,16 @@ describe('consumeSecurityRecoveryToken', () => {
     expect(db.adminAuditLog.create).toHaveBeenCalledWith({
       data: { actorUserId: USER_ID, targetUserId: USER_ID, action: 'SECURITY_RECOVERY_COMPLETED' },
     })
+    expectUserLockedFirst([db.user.findUnique, ...writes()])
+  })
+
+  it('state_mismatch sin escrituras si la cuenta ya no existe al bloquearla', async () => {
+    db.$executeRaw.mockResolvedValueOnce(0)
+
+    await expect(consumeSecurityRecoveryToken(TOKEN, 'hash-nuevo')).resolves.toBe('state_mismatch')
+
+    expect(db.user.findUnique).not.toHaveBeenCalled()
+    for (const write of writes()) expect(write).not.toHaveBeenCalled()
   })
 
   it.each([

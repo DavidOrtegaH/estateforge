@@ -23,7 +23,7 @@ vi.mock('../services/turnstile.service.js', () => ({ verifyTurnstileToken: mocks
 vi.mock('../services/security-recovery.service.js', () => ({
   issueRequestedRecoveryLinks: vi.fn(async () => []),
   deliverRecoveryLinkInBackground: vi.fn(),
-  waitForPendingRecoveryDeliveries: vi.fn(async () => undefined),
+  waitForPendingRecoveryDeliveries: vi.fn(async () => ({ timedOut: false, pending: 0 })),
 }))
 vi.mock('../services/password-reset.service.js', () => ({
   issuePasswordResetToken: mocks.issuePasswordResetToken,

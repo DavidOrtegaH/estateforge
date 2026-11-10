@@ -1,4 +1,8 @@
 
+import {
+  getLogoutConfirmation,
+  usePendingChanges,
+} from '@/lib/unsavedChanges'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
@@ -477,6 +481,9 @@ function AppLayout() {
 
   const { user, logout } = useAuth()
 
+  const logoutConfirmation =
+    getLogoutConfirmation(usePendingChanges())
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] =
     useState(false)
 
@@ -532,6 +539,10 @@ function AppLayout() {
   }
 
   const handleLogout = () => {
+    if (logoutConfirmation.confirmDisabled) {
+      return
+    }
+
     setIsLogoutDialogOpen(false)
     void logout()
   }
@@ -1173,6 +1184,15 @@ function AppLayout() {
                 >
                   {user?.email}
                 </p>
+
+                {logoutConfirmation.warning && (
+                  <p
+                    data-testid="logout-unsaved-warning"
+                    className="mt-2 text-sm font-medium text-destructive"
+                  >
+                    {logoutConfirmation.warning}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1198,8 +1218,10 @@ function AppLayout() {
               <button
                 type="button"
                 onClick={handleLogout}
+                disabled={logoutConfirmation.confirmDisabled}
                 className={[
                   'h-10 rounded-xl px-4',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
                   'bg-primary text-primary-foreground',
                   'text-sm font-medium shadow-sm',
                   'transition',
@@ -1209,7 +1231,7 @@ function AppLayout() {
                   'focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                 ].join(' ')}
               >
-                Cerrar sesión
+                {logoutConfirmation.confirmLabel}
               </button>
             </div>
           </section>

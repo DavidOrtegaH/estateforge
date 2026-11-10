@@ -1,7 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto'
 
+import type { FastifyBaseLogger } from 'fastify'
+
 import { prisma } from '../db/prisma.js'
 import { emailService } from './email.service.js'
+import { safeDeliveryErrorFields } from './log-safety.js'
+import { createDeliveryTracker, type DeliveryWaitResult } from './pending-deliveries.js'
+import { lockUserRow } from './user-lock.js'
 
 // ==========================================================
 // POLÍTICA DE ACCESO (Fase 0)
@@ -262,6 +267,12 @@ export async function consumeEmailVerificationToken(token: string, now: Date = n
       if (!record || record.usedAt) return 'invalid'
       if (record.expiresAt.getTime() <= now.getTime()) return 'expired'
 
+      // Orden único de bloqueos (F0-001): primero la fila de la cuenta y después sus tokens, como
+      // la emisión, el cambio de email y la recuperación E2. La lectura de la cuenta y la
+      // reclamación del token se hacen ya con la cuenta bloqueada; la reclamación condicional
+      // descarta el token si otra transacción lo usó o lo invalidó antes de este bloqueo.
+      if (!(await lockUserRow(tx, record.userId))) return 'invalid'
+
       const user = await tx.user.findUnique({
         where: { id: record.userId },
         select: { email: true, emailVerifiedAt: true, securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true },
@@ -331,20 +342,24 @@ export async function sendEmailVerification(userId: string): Promise<IssueResult
 }
 
 // Envíos en segundo plano: la respuesta HTTP no espera a la base ni al SMTP, para que su
-// tiempo no revele si la cuenta existe. Al cerrar la app se espera a los pendientes.
-const pendingDeliveries = new Set<Promise<void>>()
+// tiempo no revele si la cuenta existe. Al cerrar la app se espera a los pendientes, con el
+// mismo mecanismo y el mismo plazo que los demás envíos (F0-005).
+const deliveries = createDeliveryTracker()
 
-export function sendEmailVerificationInBackground(userId: string): void {
-  const delivery = sendEmailVerification(userId)
-    .then(() => undefined)
-    .catch((error: unknown) => {
-      // Sin el token ni el enlace: solo el motivo.
-      console.error('No se pudo enviar el correo de verificación:', error instanceof Error ? error.message : 'error desconocido')
-    })
-    .finally(() => { pendingDeliveries.delete(delivery) })
-  pendingDeliveries.add(delivery)
+export function sendEmailVerificationInBackground(log: FastifyBaseLogger, userId: string): void {
+  deliveries.track(
+    sendEmailVerification(userId).catch((error: unknown) => {
+      // Ni el mensaje ni el error completo: un rechazo SMTP suele citar el destinatario, y un error
+      // de Prisma, los argumentos de la consulta (email y hash del token). Solo campos cerrados.
+      log.error({ flow: 'email_verification', targetUserId: userId, ...safeDeliveryErrorFields(error) }, 'No se pudo enviar el correo de verificación')
+    }),
+  )
 }
 
-export async function waitForPendingVerificationDeliveries(): Promise<void> {
-  await Promise.allSettled(pendingDeliveries)
+export function countPendingVerificationDeliveries(): number {
+  return deliveries.count()
+}
+
+export function waitForPendingVerificationDeliveries(timeoutMs?: number): Promise<DeliveryWaitResult> {
+  return deliveries.waitForAll(timeoutMs)
 }

@@ -61,6 +61,7 @@ const propertyPayload = {
     bathrooms: 2,
     floor: 4,
     condition: 'good',
+    commercialStatus: 'for-sale',
     elevator: true,
     terrace: true,
     balcony: false,

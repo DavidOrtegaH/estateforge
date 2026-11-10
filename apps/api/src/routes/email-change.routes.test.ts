@@ -10,20 +10,24 @@ const mocks = vi.hoisted(() => ({
     user: { findUnique: vi.fn() },
     session: { findUnique: vi.fn(), deleteMany: vi.fn() },
     adminAuditLog: { create: vi.fn() },
+    emailChangeVerification: { deleteMany: vi.fn() },
   },
   consumeEmailChangeCode: vi.fn(),
+  issueEmailChangeCode: vi.fn(),
+  verifyPassword: vi.fn(),
+  sendEmailChangeCodeEmail: vi.fn(),
   issueSecurityIncidentToken: vi.fn(),
   sendEmailChangeNoticeEmail: vi.fn(),
 }))
 
 vi.mock('../db/prisma.js', () => ({ prisma: mocks.prisma }))
 vi.mock('../services/session.service.js', () => ({ createSession: vi.fn(), deleteSession: vi.fn() }))
-vi.mock('../services/password.service.js', () => ({ hashPassword: vi.fn(), verifyPassword: vi.fn() }))
+vi.mock('../services/password.service.js', () => ({ hashPassword: vi.fn(), verifyPassword: mocks.verifyPassword }))
 vi.mock('../services/turnstile.service.js', () => ({ verifyTurnstileToken: vi.fn(async () => true) }))
 vi.mock('../services/security-recovery.service.js', () => ({
   issueRequestedRecoveryLinks: vi.fn(async () => []),
   deliverRecoveryLinkInBackground: vi.fn(),
-  waitForPendingRecoveryDeliveries: vi.fn(async () => undefined),
+  waitForPendingRecoveryDeliveries: vi.fn(async () => ({ timedOut: false, pending: 0 })),
 }))
 vi.mock('../services/password-reset.service.js', () => ({
   issuePasswordResetToken: vi.fn(),
@@ -35,11 +39,11 @@ vi.mock('../services/security-incident.service.js', () => ({
   reportSecurityIncident: vi.fn(),
 }))
 vi.mock('../services/email.service.js', () => ({
-  emailService: { sendEmailChangeNoticeEmail: mocks.sendEmailChangeNoticeEmail },
+  emailService: { sendEmailChangeNoticeEmail: mocks.sendEmailChangeNoticeEmail, sendEmailChangeCodeEmail: mocks.sendEmailChangeCodeEmail },
 }))
 vi.mock('../services/email-change.service.js', async importOriginal => {
   const actual = await importOriginal<typeof import('../services/email-change.service.js')>()
-  return { ...actual, consumeEmailChangeCode: mocks.consumeEmailChangeCode }
+  return { ...actual, consumeEmailChangeCode: mocks.consumeEmailChangeCode, issueEmailChangeCode: mocks.issueEmailChangeCode }
 })
 
 import { authRoutes } from './auth.routes.js'
@@ -167,5 +171,69 @@ describe('POST /api/auth/change-email/verify y el aviso a la dirección anterior
     expect(response.json()).toEqual({ message: 'El código de verificación no es válido o ha caducado.' })
     expect(mocks.issueSecurityIncidentToken).not.toHaveBeenCalled()
     expect(mocks.sendEmailChangeNoticeEmail).not.toHaveBeenCalled()
+  })
+})
+
+// Corrección A de la Fase 1: el fallo del SMTP al pedir el cambio de email se registraba con el
+// error completo ({ err }), cuyo mensaje y respuesta pueden contener las direcciones. Se prueba con
+// el registro real de Fastify (pino) que solo quedan campos cerrados y que la respuesta no cambia.
+describe('POST /api/auth/change-email/request: fallo del SMTP y registro seguro', () => {
+  const CODE = '654321'
+  const request = () =>
+    app.inject({
+      method: 'POST',
+      url: '/api/auth/change-email/request',
+      headers: { cookie: COOKIE },
+      payload: { newEmail: NEW_EMAIL, currentPassword: 'Contraseña-actual-1' },
+    })
+
+  beforeEach(() => {
+    mocks.verifyPassword.mockResolvedValue(true)
+    mocks.prisma.user.findUnique.mockResolvedValue(null)
+    mocks.prisma.emailChangeVerification.deleteMany.mockResolvedValue({ count: 1 })
+    mocks.issueEmailChangeCode.mockResolvedValue({ code: CODE, expiresAt: new Date(Date.now() + 600_000) })
+    mocks.sendEmailChangeCodeEmail.mockResolvedValue(undefined)
+  })
+
+  // Errores con la forma de los de nodemailer: el mensaje, la respuesta y los rechazados repiten
+  // las direcciones y el contenido.
+  const smtpError = (to: string) =>
+    Object.assign(new Error(`Can't send mail - all recipients were rejected: 550 5.1.1 <${to}> unknown; code ${CODE}`), {
+      code: 'EENVELOPE',
+      response: `550 5.1.1 <${to}> User unknown`,
+      responseCode: 550,
+      command: 'RCPT TO',
+      rejected: [to],
+    })
+
+  it.each([
+    ['el código a la dirección nueva', () => mocks.sendEmailChangeCodeEmail.mockRejectedValue(smtpError(NEW_EMAIL))],
+    ['el aviso a la dirección actual', () => mocks.sendEmailChangeNoticeEmail.mockRejectedValue(smtpError(OLD_EMAIL))],
+  ])('si falla %s: 503 de siempre, código anulado y un registro útil sin datos sensibles', async (_label, prepare) => {
+    prepare()
+
+    const response = await request()
+
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toEqual({
+      message: 'No se han podido enviar todos los correos de seguridad. No se ha iniciado el cambio; inténtalo de nuevo más tarde.',
+    })
+    expect(mocks.prisma.emailChangeVerification.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID, usedAt: null } })
+
+    const entries = logs.map(line => JSON.parse(line) as Record<string, unknown>)
+    const entry = entries.find(item => item.msg === 'No se pudieron enviar los correos de cambio de email')
+    expect(entry).toMatchObject({
+      level: 50,
+      flow: 'email_change_request',
+      targetUserId: USER_ID,
+      errorName: 'Error',
+      errorCode: 'EENVELOPE',
+      smtpResponseCode: 550,
+    })
+    expect(entry).not.toHaveProperty('err')
+    const logged = logs.join('\n')
+    for (const secret of [NEW_EMAIL, OLD_EMAIL, CODE, '550 5.1.1', 'rejected', 'RCPT TO', 'all recipients']) {
+      expect(logged).not.toContain(secret)
+    }
   })
 })

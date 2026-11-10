@@ -2,6 +2,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 
 import { prisma } from '../db/prisma.js'
+import { lockUserRow } from './user-lock.js'
 
 export const PASSWORD_RESET_TOKEN_DURATION_MS =
   1000 * 60 * 60
@@ -59,24 +60,29 @@ export async function issuePasswordResetToken(
   const tokenHash = hashPasswordResetToken(token)
   const expiresAt = getPasswordResetExpiry()
 
-  await prisma.$transaction([
+  await prisma.$transaction(async (tx) => {
+    // Orden único de bloqueos (F0-001): primero la cuenta. Sin esto, en PostgreSQL esta transacción
+    // podía tener los tokens borrados y esperar a la cuenta por la clave foránea del INSERT, mientras
+    // la finalización de E2 tenía la cuenta y esperaba a esos tokens. Si la cuenta no existe, el
+    // INSERT falla por la clave foránea, como antes.
+    await lockUserRow(tx, userId)
     // Solo sustituye tokens de autoservicio: un token obligatorio pendiente (E2) se conserva.
-    prisma.passwordResetToken.deleteMany({
+    await tx.passwordResetToken.deleteMany({
       where: {
         userId,
         usedAt: null,
         purpose: SELF_SERVICE_PURPOSE,
       },
-    }),
-    prisma.passwordResetToken.create({
+    })
+    await tx.passwordResetToken.create({
       data: {
         tokenHash,
         userId,
         expiresAt,
         purpose: SELF_SERVICE_PURPOSE,
       },
-    }),
-  ])
+    })
+  })
 
   return {
     token,
@@ -113,6 +119,10 @@ export async function consumePasswordResetToken(
     ) {
       return false
     }
+
+    // Orden único de bloqueos (F0-001): primero la fila de la cuenta y después el token y las
+    // sesiones. El estado de la cuenta se lee ya con la cuenta bloqueada.
+    if (!(await lockUserRow(tx, resetToken.userId))) return false
 
     const owner = await tx.user.findUnique({ where: { id: resetToken.userId }, select: { securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true } })
     if (!owner || owner.securityHoldAt || owner.adminSuspendedAt || owner.passwordResetRequiredAt) return false
@@ -194,6 +204,10 @@ export async function consumeSecurityRecoveryToken(
       }
 
       const { userId, deliverTo, securityHoldVersion } = record
+      // Orden único de bloqueos (F0-001): primero la fila de la cuenta y después el token, las
+      // sesiones, los códigos y los enlaces de verificación. El estado se lee ya bloqueado.
+      if (!(await lockUserRow(tx, userId))) return 'state_mismatch'
+
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: {

@@ -22,6 +22,8 @@ import {
   requireAuth,
 } from '../middleware/auth.middleware.js'
 
+import { registerPublicationRoutes } from './publication.routes.js'
+
 function sendValidationError(
   reply: FastifyReply,
   error: {
@@ -43,6 +45,8 @@ function sendValidationError(
 export async function generationRoutes(
   app: FastifyInstance,
 ) {
+  registerPublicationRoutes(app)
+
   /**
    * ==========================================================
    * GENERAR ANUNCIO DESDE UNA PETICIÓN COMPLETA

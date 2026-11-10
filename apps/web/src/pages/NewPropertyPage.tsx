@@ -2,6 +2,12 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 
+import {
+  PROPERTY_COMMERCIAL_STATUSES,
+  commercialStatusLabels,
+  type PropertyCommercialStatus,
+} from '@estateforge/shared'
+
 import type {
   AIProviderType,
   GeneratedListing,
@@ -155,6 +161,10 @@ function NewPropertyPage() {
   }
 
   function validateProperty(): string | null {
+    if (!property.commercialStatus) {
+      return 'Selecciona el estado del inmueble.'
+    }
+
     if (property.price <= 0) {
       return 'El precio debe ser mayor que 0.'
     }
@@ -273,7 +283,8 @@ function NewPropertyPage() {
           'AI_PROVIDER_ERROR'
         ) {
           setError(
-            'El proveedor de IA no está disponible en este momento. Inténtalo de nuevo más tarde.',
+            generationError.message ||
+              'El proveedor de IA no está disponible en este momento. Inténtalo de nuevo más tarde.',
           )
           scrollToBottom()
           return
@@ -726,6 +737,41 @@ ${listingToCopy.callToAction}
             <label className="grid gap-2">
               <span className="text-sm font-medium">
                 Estado
+              </span>
+
+              <select
+                required
+                aria-label="Estado comercial"
+                value={property.commercialStatus ?? ''}
+                onChange={(event) =>
+                  updateProperty(
+                    'commercialStatus',
+                    event.target
+                      .value as PropertyCommercialStatus,
+                  )
+                }
+                className="h-10 rounded-md border bg-background px-3"
+              >
+                <option value="" disabled>
+                  Seleccionar
+                </option>
+
+                {PROPERTY_COMMERCIAL_STATUSES.map(
+                  (status) => (
+                    <option
+                      key={status}
+                      value={status}
+                    >
+                      {commercialStatusLabels[status]}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">
+                Conservación
               </span>
 
               <select

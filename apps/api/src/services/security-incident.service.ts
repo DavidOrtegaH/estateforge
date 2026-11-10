@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { prisma } from '../db/prisma.js'
 import { normalizeEmail } from './email-change.service.js'
+import { lockUserRow } from './user-lock.js'
 
 export const SECURITY_INCIDENT_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7
 
@@ -32,6 +33,12 @@ export async function reportSecurityIncident(token: string): Promise<'reported' 
       select: { id: true, userId: true, expiresAt: true, usedAt: true, notifiedEmail: true },
     })
     if (!record || record.usedAt || record.expiresAt <= now) return 'invalid'
+    // Orden único de bloqueos (F0-001): primero la fila de la cuenta y después sus tokens. Sin
+    // esto, dos denuncias con tokens distintos de la misma cuenta se podían interbloquear: cada
+    // una reclamaba su token y después esperaba a la cuenta, y la primera, al borrar los demás
+    // tokens, esperaba al de la segunda. La reclamación condicional descarta un token que otra
+    // denuncia haya borrado o usado antes de este bloqueo.
+    if (!(await lockUserRow(tx, record.userId))) return 'invalid'
     const claimed = await tx.securityIncidentToken.updateMany({
       where: { id: record.id, usedAt: null, expiresAt: { gt: now } },
       data: { usedAt: now },

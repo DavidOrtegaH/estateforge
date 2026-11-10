@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { getCommercialStatusLabel } from '@estateforge/shared'
 import { useModalDialog } from '@/hooks/useModalDialog'
 import { PageJump } from '@/components/ui/PageJump'
 import { clampPage, pageSlice, totalPagesFor } from '@/lib/pagination'
@@ -336,7 +337,10 @@ function getPropertyStructuredPills(
     )
   }
 
-  // ESTADO
+  // ESTADO COMERCIAL
+  pills.push(getCommercialStatusLabel(property.commercialStatus))
+
+  // CONSERVACIÓN
   if (property.condition) {
     const condition = getPropertyCondition(property.condition)
     if (condition) {
@@ -1544,7 +1548,7 @@ function PropertiesPage() {
                     htmlFor="filter-condition"
                     className="text-sm font-medium"
                   >
-                    Estado
+                    Conservación
                   </label>
 
                   <select
@@ -1659,7 +1663,7 @@ function PropertiesPage() {
 
                     {filters.condition && (
                       <span className="rounded-md bg-background px-2 py-1 text-xs">
-                        Estado: {getPropertyCondition(filters.condition)}
+                        Conservación: {getPropertyCondition(filters.condition)}
                       </span>
                     )}
                   </div>

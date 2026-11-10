@@ -93,7 +93,7 @@ beforeEach(async () => {
   vi.clearAllMocks()
   mocks.verifyTurnstileToken.mockResolvedValue(true)
   mocks.issueRequestedRecoveryLinks.mockResolvedValue([])
-  mocks.waitForPendingRecoveryDeliveries.mockResolvedValue(undefined)
+  mocks.waitForPendingRecoveryDeliveries.mockResolvedValue({ timedOut: false, pending: 0 })
   mocks.prisma.session.deleteMany.mockResolvedValue({ count: 1 })
   mocks.createSession.mockResolvedValue({ token: 'nueva-sesion', expiresAt: new Date(Date.now() + 60_000) })
   app = Fastify()

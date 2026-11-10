@@ -3,6 +3,7 @@ import {
   type GeneratedListing,
 } from '@estateforge/shared'
 import type { AIProvider } from './ai-provider.js'
+import { AIProviderError } from './ai-provider.error.js'
 
 interface PromptProperty {
   title: string
@@ -398,7 +399,8 @@ export class MockAIProvider
       GeneratedListingSchema.safeParse(result)
 
     if (!validation.success) {
-      throw new Error(
+      throw new AIProviderError(
+        'AI_PROVIDER_ERROR',
         'El proveedor Mock generó un anuncio con un formato inválido.',
       )
     }
