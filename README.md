@@ -6,7 +6,7 @@ Trabajo Fin de Máster — Máster en IA Generativa. Estado: 🚧 en desarrollo.
 
 ## Funcionalidades
 
-- **Cuentas:** registro, inicio y cierre de sesión (cookie `HttpOnly`), recuperación y cambio de contraseña, cambio de email con código de verificación y eliminación de la cuenta. Protección opcional contra bots con Cloudflare Turnstile.
+- **Cuentas:** registro, inicio y cierre de sesión (cookie `HttpOnly`), verificación del email con un enlace (exigible por fechas, con periodo de gracia para las cuentas existentes), recuperación y cambio de contraseña, cambio de email con código de verificación y eliminación de la cuenta. Protección opcional contra bots con Cloudflare Turnstile.
 - **Inmuebles:** listado con filtros, detalle, edición y borrado (individual y múltiple). Cada inmueble pertenece a su usuario.
 - **Generación de anuncios:** con Gemini, OpenAI o un proveedor simulado (`mock`, sin clave), historial de generaciones con filtros y panel de estadísticas.
 - **Claves de IA del usuario:** se pueden guardar cifradas (AES-256-GCM) para Gemini y OpenAI; se usan solo si se agota la cuota de la clave del servidor.
@@ -132,6 +132,9 @@ Plantilla: [`apps/api/.env.example`](apps/api/.env.example). Nunca subas el `.en
 | `SMTP_PORT` | No (por defecto `587`) | Puerto SMTP. |
 | `SMTP_SECURE` | No | `true` o `false`; si se omite, es `true` solo con el puerto 465. |
 | `SUPPORT_EMAIL` | No | Contacto de soporte que se añade a algunos correos. |
+| `EMAIL_VERIFICATION_REQUIRED_FROM` | No | Fecha ISO 8601 con zona horaria desde la que las cuentas nuevas deben verificar el email. Vacía: no se exige a nadie. Ver [Verificación del email](docs/seguridad/verificacion-email.md#2-política-periodo-de-gracia-y-avisos). |
+| `EMAIL_VERIFICATION_GRACE_UNTIL` | No | Fecha ISO 8601 con zona horaria hasta la que las cuentas existentes sin verificar siguen entrando. Vacía: la gracia no termina. Requiere la anterior. |
+| `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | No (por defecto `24`) | Validez del enlace de verificación, en horas enteras de 1 a 168. Un valor que no sea un número entero entre 1 y 168 impide arrancar la API. |
 | `TURNSTILE_SECRET_KEY` | No | Clave secreta de Turnstile. Sin ella, la API no verifica Turnstile (modo de desarrollo). |
 | `TURNSTILE_EXPECTED_HOSTNAME` | No | Si se indica, rechaza tokens de Turnstile de otro hostname. |
 | `NODE_ENV` | No (por defecto `development`) | Con `production`, la cookie de sesión lleva `Secure` (requiere HTTPS). |
@@ -159,4 +162,5 @@ Plantilla: [`apps/web/.env.example`](apps/web/.env.example).
 - [Índice de la documentación](docs/README.md)
 - [Protección por incidente y su versionado](docs/seguridad/proteccion-por-incidente.md)
 - [Recuperación obligatoria tras un incidente](docs/seguridad/recuperacion-obligatoria.md)
+- [Verificación del email](docs/seguridad/verificacion-email.md)
 - [Aplicación web](apps/web/README.md)

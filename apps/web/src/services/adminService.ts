@@ -21,8 +21,12 @@ export type AdminAuditLog = {
   revokedCount: number | null
   // De dónde salió el destino de la recuperación (E2.4); la API nunca devuelve la dirección.
   recoveryDestination: AuditRecoveryDestination | null
+  // Fase en la que falló el aviso tras un cambio de email (EMAIL_CHANGE_NOTICE_FAILED). Las API
+  // anteriores no envían el campo.
+  noticeFailure?: AuditNoticeFailure | null
 }
 export type AuditRecoveryDestination = 'STORED' | 'OWNER_PROVIDED' | 'OWNER_CORRECTED'
+export type AuditNoticeFailure = 'INCIDENT_LINK' | 'DELIVERY'
 // Las mismas acciones que acepta el filtro de GET /api/admin/audit.
 export type AdminAuditAction =
   | 'ACCOUNT_SUSPENDED'
@@ -33,6 +37,7 @@ export type AdminAuditAction =
   | 'SECURITY_RECOVERY_LINK_RESENT'
   | 'SECURITY_RECOVERY_LINK_REQUESTED'
   | 'SECURITY_RECOVERY_COMPLETED'
+  | 'EMAIL_CHANGE_NOTICE_FAILED'
 export type AdminAuditResponse = { logs: AdminAuditLog[]; pagination: AdminPagination }
 export type AdminUserAction = 'suspend' | 'unsuspend' | 'revoke-sessions'
 // Operaciones de la recuperación obligatoria (E2.4 y E2.5f), solo para cuentas no propietarias.

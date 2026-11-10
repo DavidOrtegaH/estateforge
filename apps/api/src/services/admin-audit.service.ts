@@ -7,16 +7,24 @@ import { z } from 'zod'
 export const RECOVERY_DESTINATION_SOURCES = ['STORED', 'OWNER_PROVIDED', 'OWNER_CORRECTED'] as const
 export type RecoveryDestinationSource = (typeof RECOVERY_DESTINATION_SOURCES)[number]
 
+// Fase en la que falló el aviso de seguridad tras un cambio de email (EMAIL_CHANGE_NOTICE_FAILED,
+// corrección F0-002): al crear el enlace de incidente o al enviar el correo. Es una clasificación
+// propia, nunca el mensaje del error.
+export const NOTICE_FAILURE_KINDS = ['INCIDENT_LINK', 'DELIVERY'] as const
+export type NoticeFailureKind = (typeof NOTICE_FAILURE_KINDS)[number]
+
 export interface AuditMetadata {
   revokedCount?: number
   actorEmail?: string
   targetEmail?: string
   recoveryDestination?: RecoveryDestinationSource
+  noticeFailure?: NoticeFailureKind
 }
 
 const AuditEmail = z.string().min(1).max(254)
 const RevokedCount = z.number().int().nonnegative()
 const RecoveryDestination = z.enum(RECOVERY_DESTINATION_SOURCES)
+const NoticeFailure = z.enum(NOTICE_FAILURE_KINDS)
 
 /** Serializa los metadatos omitiendo los campos desconocidos; null si no queda ninguno. */
 export function buildAuditMetadata(input: {
@@ -24,12 +32,14 @@ export function buildAuditMetadata(input: {
   actorEmail?: string | null
   targetEmail?: string | null
   recoveryDestination?: RecoveryDestinationSource
+  noticeFailure?: NoticeFailureKind
 }): string | null {
   const metadata: AuditMetadata = {}
   if (input.revokedCount !== undefined) metadata.revokedCount = input.revokedCount
   if (typeof input.actorEmail === 'string') metadata.actorEmail = input.actorEmail
   if (typeof input.targetEmail === 'string') metadata.targetEmail = input.targetEmail
   if (input.recoveryDestination !== undefined) metadata.recoveryDestination = input.recoveryDestination
+  if (input.noticeFailure !== undefined) metadata.noticeFailure = input.noticeFailure
   return Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null
 }
 
@@ -55,6 +65,8 @@ export function parseAuditMetadata(raw: string | null): AuditMetadata {
   if (targetEmail.success) result.targetEmail = targetEmail.data
   const recoveryDestination = RecoveryDestination.safeParse(fields.recoveryDestination)
   if (recoveryDestination.success) result.recoveryDestination = recoveryDestination.data
+  const noticeFailure = NoticeFailure.safeParse(fields.noticeFailure)
+  if (noticeFailure.success) result.noticeFailure = noticeFailure.data
   return result
 }
 
@@ -82,6 +94,7 @@ export function resolveAuditAccounts<T extends { actorUserId: string | null; tar
       targetFound: targetUserId === null ? null : emailsById.has(targetUserId),
       revokedCount: snapshot.revokedCount ?? null,
       recoveryDestination: snapshot.recoveryDestination ?? null,
+      noticeFailure: snapshot.noticeFailure ?? null,
     }
   })
 }

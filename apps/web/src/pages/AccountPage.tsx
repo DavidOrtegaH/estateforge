@@ -8,6 +8,7 @@ import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
 } from '@/lib/passwordPolicy'
+import { emailChangeCompletedMessage } from '@/lib/authSession'
 import { useAuth } from '@/hooks/useAuth'
 import { useModalDialog } from '@/hooks/useModalDialog'
 import { requestEmailChange } from '@/services/authService'
@@ -238,8 +239,9 @@ async function handleRequestEmailChange() {
     setEmailVerifying(true)
 
     try {
-      const updatedUser = await updateEmail(emailCode.trim())
-      setEmailMessage(`Email actualizado correctamente a ${updatedUser.email}.`)
+      // El cambio está hecho aunque no se haya podido avisar a la dirección anterior (decisión D4).
+      const result = await updateEmail(emailCode.trim())
+      setEmailMessage(emailChangeCompletedMessage(result))
       setEmailCode('')
       setNewEmail('')
       setEmailCurrentPassword('')

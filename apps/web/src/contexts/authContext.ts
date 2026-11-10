@@ -1,6 +1,6 @@
 import { createContext } from 'react'
 
-import type { AuthUser } from '@/services/authService'
+import type { AuthUser, EmailChangeResult, RegisterResult } from '@/services/authService'
 
 export interface AuthContextValue {
   user: AuthUser | null
@@ -12,18 +12,20 @@ export interface AuthContextValue {
     password: string,
     turnstileToken?: string,
   ) => Promise<void>
+  // Si la verificación del email ya se exige, la cuenta se crea sin sesión (Fase 0).
   register: (
     email: string,
     password: string,
     turnstileToken?: string,
-  ) => Promise<void>
+  ) => Promise<RegisterResult>
   logout: () => Promise<void>
   changePassword: (
     currentPassword: string,
     newPassword: string,
   ) => Promise<string>
   deleteAccount: (currentPassword: string) => Promise<string>
-  updateEmail: (code: string) => Promise<AuthUser>
+  // El cambio está hecho; `securityNoticeSent` indica si se avisó a la dirección anterior.
+  updateEmail: (code: string) => Promise<EmailChangeResult>
 }
 
 export const AuthContext =

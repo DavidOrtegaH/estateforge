@@ -6,6 +6,7 @@ import {
   describeAuditAccount,
   describeAuditAction,
   describeAuditActor,
+  noticeFailureLabel,
   recoveryDestinationLabel,
 } from './adminAudit'
 
@@ -85,7 +86,7 @@ describe('auditActionLabel', () => {
 })
 
 describe('AUDIT_ACTIONS', () => {
-  it('ofrece en el filtro las ocho acciones de la API, en orden y todas con etiqueta propia', () => {
+  it('ofrece en el filtro las nueve acciones de la API, en orden y todas con etiqueta propia', () => {
     expect(AUDIT_ACTIONS).toEqual([
       'ACCOUNT_SUSPENDED',
       'ACCOUNT_UNSUSPENDED',
@@ -95,8 +96,30 @@ describe('AUDIT_ACTIONS', () => {
       'SECURITY_RECOVERY_LINK_RESENT',
       'SECURITY_RECOVERY_LINK_REQUESTED',
       'SECURITY_RECOVERY_COMPLETED',
+      'EMAIL_CHANGE_NOTICE_FAILED',
     ])
     for (const action of AUDIT_ACTIONS) expect(auditActionLabel(action)).not.toBe(action)
+  })
+})
+
+describe('aviso de cambio de email no enviado (F0-002)', () => {
+  it('tiene etiqueta propia en el panel', () => {
+    expect(auditActionLabel('EMAIL_CHANGE_NOTICE_FAILED')).toBe('Aviso de cambio de email no enviado')
+  })
+
+  it.each([
+    ['INCIDENT_LINK', 'Aviso de cambio de email no enviado (no se pudo crear el enlace de incidente)'],
+    ['DELIVERY', 'Aviso de cambio de email no enviado (falló el envío del correo)'],
+  ])('la columna Acción indica la fase %s', (kind, text) => {
+    expect(describeAuditAction({ action: 'EMAIL_CHANGE_NOTICE_FAILED', revokedCount: null, recoveryDestination: null, noticeFailure: kind })).toBe(text)
+  })
+
+  it('sin fase, o con una desconocida o ausente (API anterior), muestra solo la etiqueta', () => {
+    for (const noticeFailure of [null, undefined, 'SMTP_550']) {
+      expect(describeAuditAction({ action: 'EMAIL_CHANGE_NOTICE_FAILED', revokedCount: null, recoveryDestination: null, noticeFailure }))
+        .toBe('Aviso de cambio de email no enviado')
+    }
+    expect(noticeFailureLabel('otro')).toBeNull()
   })
 })
 

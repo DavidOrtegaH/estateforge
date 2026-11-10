@@ -14,7 +14,8 @@ import {
 } from '@/components/security/TurnstileField'
 
 import { PasswordInput } from '@/components/ui/PasswordInput'
-import { isSecurityRecoveryRequiredMessage } from '@/services/authService'
+import { isEmailNotVerifiedMessage, isSecurityRecoveryRequiredMessage } from '@/services/authService'
+import { ResendVerificationForm } from '@/components/auth/ResendVerificationForm'
 import { sessionEndedNotice } from '@/lib/sessionAccess'
 
 interface LocationState {
@@ -146,6 +147,10 @@ function LoginPage() {
   const sessionNotice = sessionEndedNotice(location.state)
   const showRecoveryLink = [error, sessionNotice].some(
     (message) => message !== null && isSecurityRecoveryRequiredMessage(message),
+  )
+  // Fase 0: falta verificar el email; se ofrece pedir un enlace nuevo.
+  const showVerificationResend = [error, sessionNotice].some(
+    (message) => message !== null && isEmailNotVerifiedMessage(message),
   )
 
   async function handleSubmit() {
@@ -311,6 +316,15 @@ function LoginPage() {
               : 'Iniciar sesión'}
           </button>
         </form>
+
+        {showVerificationResend && (
+          <div className="mt-4 space-y-2 border-t pt-4">
+            <p className="text-sm text-muted-foreground">
+              ¿No encuentras el correo de verificación? Te enviamos un enlace nuevo.
+            </p>
+            <ResendVerificationForm email={email.trim()} editable />
+          </div>
+        )}
 
         <p className="mt-6 text-sm text-muted-foreground">
           ¿No tienes cuenta?{' '}

@@ -13,6 +13,7 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   session: { deleteMany: vi.fn() },
   emailChangeVerification: { deleteMany: vi.fn() },
+  emailVerificationToken: { updateMany: vi.fn() },
   adminAuditLog: { create: vi.fn() },
 }))
 
@@ -149,9 +150,12 @@ describe('consumeSecurityRecoveryToken', () => {
     }
   }
 
+  // Caso típico de un incidente: el email actual de la cuenta no es el destino.
+  const CURRENT_EMAIL = 'atacante@estateforge.test'
+
   function account(extra: Record<string, unknown> = {}) {
     return {
-      passwordResetRequiredAt: SINCE, securityHoldAt: null, adminSuspendedAt: null,
+      email: CURRENT_EMAIL, passwordResetRequiredAt: SINCE, securityHoldAt: null, adminSuspendedAt: null,
       securityHoldVersion: 2, securityRecoveryEmail: DESTINATION, ...extra,
     }
   }
@@ -167,13 +171,15 @@ describe('consumeSecurityRecoveryToken', () => {
     db.session.deleteMany.mockResolvedValue({ count: 0 })
     db.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 })
     db.emailChangeVerification.deleteMany.mockResolvedValue({ count: 0 })
+    db.emailVerificationToken.updateMany.mockResolvedValue({ count: 0 })
     db.adminAuditLog.create.mockResolvedValue({})
   })
 
   function writes() {
     return [
       db.passwordResetToken.updateMany, db.user.updateMany, db.session.deleteMany,
-      db.passwordResetToken.deleteMany, db.emailChangeVerification.deleteMany, db.adminAuditLog.create,
+      db.passwordResetToken.deleteMany, db.emailChangeVerification.deleteMany,
+      db.emailVerificationToken.updateMany, db.adminAuditLog.create,
     ]
   }
 
@@ -185,16 +191,19 @@ describe('consumeSecurityRecoveryToken', () => {
       where: { id: 'rec-1', usedAt: null, expiresAt: { gt: expect.any(Date) }, purpose: 'SECURITY_RECOVERY' },
       data: { usedAt: expect.any(Date) },
     })
+    // La escritura repite también el email leído; la dirección cambia, así que la cuenta queda
+    // sin verificar (decisión D2).
     expect(db.user.updateMany).toHaveBeenCalledWith({
       where: {
-        id: USER_ID, passwordResetRequiredAt: { not: null }, securityHoldAt: null, adminSuspendedAt: null,
+        id: USER_ID, email: CURRENT_EMAIL, passwordResetRequiredAt: { not: null }, securityHoldAt: null, adminSuspendedAt: null,
         securityHoldVersion: 2, securityRecoveryEmail: DESTINATION,
       },
-      data: { password: 'hash-nuevo', email: DESTINATION, passwordResetRequiredAt: null, securityRecoveryEmail: null },
+      data: { password: 'hash-nuevo', email: DESTINATION, passwordResetRequiredAt: null, securityRecoveryEmail: null, emailVerifiedAt: null },
     })
     expect(db.session.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID } })
     expect(db.passwordResetToken.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID, usedAt: null } })
     expect(db.emailChangeVerification.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID, usedAt: null } })
+    expect(db.emailVerificationToken.updateMany).toHaveBeenCalledWith({ where: { userId: USER_ID, usedAt: null }, data: { usedAt: expect.any(Date) } })
     // Exacto: sin metadatos, motivo, emails, token ni enlace.
     expect(db.adminAuditLog.create).toHaveBeenCalledWith({
       data: { actorUserId: USER_ID, targetUserId: USER_ID, action: 'SECURITY_RECOVERY_COMPLETED' },
@@ -257,6 +266,22 @@ describe('consumeSecurityRecoveryToken', () => {
       args.where.id ? account() : { id: USER_ID })
 
     await expect(consumeSecurityRecoveryToken(TOKEN, 'hash-nuevo')).resolves.toBe('completed')
+  })
+
+  it('si la dirección no cambia, conserva emailVerifiedAt (no lo escribe) e invalida los enlaces pendientes', async () => {
+    db.user.findUnique.mockImplementation(async (args: { where: { id?: string } }) =>
+      args.where.id ? account({ email: DESTINATION }) : { id: USER_ID })
+
+    await expect(consumeSecurityRecoveryToken(TOKEN, 'hash-nuevo')).resolves.toBe('completed')
+
+    expect(db.user.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: USER_ID, email: DESTINATION, passwordResetRequiredAt: { not: null }, securityHoldAt: null, adminSuspendedAt: null,
+        securityHoldVersion: 2, securityRecoveryEmail: DESTINATION,
+      },
+      data: { password: 'hash-nuevo', email: DESTINATION, passwordResetRequiredAt: null, securityRecoveryEmail: null },
+    })
+    expect(db.emailVerificationToken.updateMany).toHaveBeenCalledWith({ where: { userId: USER_ID, usedAt: null }, data: { usedAt: expect.any(Date) } })
   })
 
   it('traduce un P2002 a email_taken', async () => {

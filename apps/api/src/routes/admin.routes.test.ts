@@ -2193,6 +2193,7 @@ describe('Admin routes', () => {
         targetFound: true,
         revokedCount: null,
         recoveryDestination: null,
+        noticeFailure: null,
       })
     })
 

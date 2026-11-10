@@ -7,6 +7,13 @@ export interface PasswordResetEmail {
   expiresAt: Date
 }
 
+// Verificación del email de una cuenta (Fase 0).
+export interface EmailVerificationEmail {
+  to: string
+  verifyUrl: string
+  expiresAt: Date
+}
+
 export interface EmailChangeCodeEmail {
   to: string
   code: string
@@ -42,6 +49,10 @@ export interface EmailService {
 
   sendEmailChangeNoticeEmail(
     email: EmailChangeNoticeEmail,
+  ): Promise<void>
+
+  sendEmailVerificationEmail(
+    email: EmailVerificationEmail,
   ): Promise<void>
 }
 
@@ -127,6 +138,64 @@ function formatExpiration(date: Date): string {
 }
 
 export class SMTPEmailService implements EmailService {
+  async sendEmailVerificationEmail(
+    email: EmailVerificationEmail,
+  ): Promise<void> {
+    const transporter = createTransporter()
+    const fromAddress = getFromAddress()
+    const verifyUrl = escapeHtml(email.verifyUrl)
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: email.to,
+      subject: 'EstateForge — Verifica tu email',
+      text: [
+        'Confirma que este email es tuyo para usar tu cuenta de EstateForge.',
+        '',
+        `Enlace de verificación: ${email.verifyUrl}`,
+        '',
+        `Este enlace caduca el ${formatExpiration(email.expiresAt)}.`,
+        '',
+        'Si no has creado una cuenta en EstateForge, puedes ignorar este mensaje.',
+      ].join('\n'),
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
+          <h2>EstateForge</h2>
+
+          <p>
+            Confirma que este email es tuyo para usar tu cuenta.
+          </p>
+
+          <p>
+            <a
+              href="${verifyUrl}"
+              style="
+                display:inline-block;
+                padding:10px 16px;
+                background:#111827;
+                color:#ffffff;
+                text-decoration:none;
+                border-radius:8px;
+              "
+            >
+              Verificar email
+            </a>
+          </p>
+
+          <p>
+            Este enlace caduca el
+            <strong>${formatExpiration(email.expiresAt)}</strong>.
+          </p>
+
+          <p>
+            Si no has creado una cuenta en EstateForge,
+            puedes ignorar este mensaje.
+          </p>
+        </div>
+      `,
+    })
+  }
+
   async sendPasswordResetEmail(
     email: PasswordResetEmail,
   ): Promise<void> {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import Fastify from 'fastify'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Doble de Prisma: solo la búsqueda de la sesión con su usuario y el borrado.
 const prismaMock = vi.hoisted(() => ({
@@ -31,7 +31,7 @@ beforeEach(() => {
 })
 
 describe('getUserIdFromSession', () => {
-  it('lee los tres estados de acceso del usuario', async () => {
+  it('lee los tres estados de acceso del usuario y los datos de verificación del email', async () => {
     prismaMock.session.findUnique.mockResolvedValue(sessionOf())
 
     await getUserIdFromSession(TOKEN)
@@ -41,7 +41,7 @@ describe('getUserIdFromSession', () => {
       select: {
         userId: true,
         expiresAt: true,
-        user: { select: { securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true } },
+        user: { select: { securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true, emailVerifiedAt: true, createdAt: true } },
       },
     })
   })
@@ -97,5 +97,66 @@ describe('requireAuth con el servicio de sesión real', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ userId: USER_ID })
+  })
+})
+
+// Fase 0: la sesión deja de valer cuando la verificación del email ya se exige a la cuenta.
+describe('getUserIdFromSession y la verificación del email', () => {
+  const EXISTING = new Date('2026-06-01T00:00:00.000Z')
+  const NEW = new Date(Date.now() - 60_000)
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  function requireFrom(from: string, graceUntil?: string) {
+    vi.stubEnv('EMAIL_VERIFICATION_REQUIRED_FROM', from)
+    vi.stubEnv('EMAIL_VERIFICATION_GRACE_UNTIL', graceUntil ?? '')
+  }
+
+  it('sin la verificación configurada, una cuenta sin verificar conserva su sesión', async () => {
+    prismaMock.session.findUnique.mockResolvedValue(sessionOf({ emailVerifiedAt: null, createdAt: NEW }))
+
+    expect(await getUserIdFromSession(TOKEN)).toBe(USER_ID)
+    expect(prismaMock.session.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('una cuenta nueva sin verificar pierde la sesión', async () => {
+    requireFrom('2026-01-01T00:00:00Z')
+    prismaMock.session.findUnique.mockResolvedValue(sessionOf({ emailVerifiedAt: null, createdAt: NEW }))
+
+    expect(await getUserIdFromSession(TOKEN)).toBeNull()
+    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { tokenHash: TOKEN_HASH } })
+  })
+
+  it('una cuenta existente sin verificar conserva la sesión durante el periodo de gracia', async () => {
+    requireFrom('2026-09-01T00:00:00Z', '2099-01-01T00:00:00Z')
+    prismaMock.session.findUnique.mockResolvedValue(sessionOf({ emailVerifiedAt: null, createdAt: EXISTING }))
+
+    expect(await getUserIdFromSession(TOKEN)).toBe(USER_ID)
+    expect(prismaMock.session.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('al terminar el periodo de gracia, la cuenta existente sin verificar pierde la sesión', async () => {
+    requireFrom('2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z')
+    prismaMock.session.findUnique.mockResolvedValue(sessionOf({ emailVerifiedAt: null, createdAt: EXISTING }))
+
+    expect(await getUserIdFromSession(TOKEN)).toBeNull()
+    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { tokenHash: TOKEN_HASH } })
+  })
+
+  it('una cuenta verificada conserva la sesión aunque haya terminado el periodo de gracia', async () => {
+    requireFrom('2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z')
+    prismaMock.session.findUnique.mockResolvedValue(sessionOf({ emailVerifiedAt: SINCE, createdAt: NEW }))
+
+    expect(await getUserIdFromSession(TOKEN)).toBe(USER_ID)
+  })
+
+  it('los estados de E2 siguen teniendo prioridad', async () => {
+    requireFrom('2026-01-01T00:00:00Z')
+    prismaMock.session.findUnique.mockResolvedValue(sessionOf({ securityHoldAt: SINCE, emailVerifiedAt: null, createdAt: NEW }))
+
+    expect(await getUserIdFromSession(TOKEN)).toBeNull()
+    expect(prismaMock.session.deleteMany).toHaveBeenCalledOnce()
   })
 })

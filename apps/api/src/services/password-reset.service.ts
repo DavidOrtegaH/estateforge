@@ -197,6 +197,7 @@ export async function consumeSecurityRecoveryToken(
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: {
+          email: true,
           passwordResetRequiredAt: true,
           securityHoldAt: true,
           adminSuspendedAt: true,
@@ -240,10 +241,18 @@ export async function consumeSecurityRecoveryToken(
         throw new SecurityRecoveryAbort('email_taken')
       }
 
-      // Las mismas condiciones que la lectura anterior, ahora dentro de la escritura.
+      // Verificación del email (decisión D2 de la Fase 0): si la cuenta conserva su dirección,
+      // conserva también su estado de verificación; si pasa a otra, queda sin verificar. El
+      // enlace de recuperación no cuenta como verificación de la dirección nueva.
+      const previousEmail = user.email
+      const addressChanges = previousEmail !== deliverTo
+
+      // Las mismas condiciones que la lectura anterior, ahora dentro de la escritura. Incluye el
+      // email leído, para que la comparación anterior siga siendo cierta al escribir.
       const updated = await tx.user.updateMany({
         where: {
           id: userId,
+          email: previousEmail,
           passwordResetRequiredAt: { not: null },
           securityHoldAt: null,
           adminSuspendedAt: null,
@@ -255,6 +264,7 @@ export async function consumeSecurityRecoveryToken(
           email: deliverTo,
           passwordResetRequiredAt: null,
           securityRecoveryEmail: null,
+          ...(addressChanges && { emailVerifiedAt: null }),
         },
       })
 
@@ -266,6 +276,10 @@ export async function consumeSecurityRecoveryToken(
       await tx.session.deleteMany({ where: { userId } })
       await tx.passwordResetToken.deleteMany({ where: { userId, usedAt: null } })
       await tx.emailChangeVerification.deleteMany({ where: { userId, usedAt: null } })
+      // Ningún enlace de verificación del email anterior a la recuperación sigue sirviendo
+      // (decisión D2). Se marcan como usados, como en el resto de la verificación, sin tocar
+      // los ya consumidos.
+      await tx.emailVerificationToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: now } })
       // Acción del propio usuario: sin emails, token ni enlace.
       await tx.adminAuditLog.create({
         data: {

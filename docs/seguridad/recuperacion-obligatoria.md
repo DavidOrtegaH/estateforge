@@ -151,12 +151,16 @@ El historial de acciones del panel (`/admin`, solo para cuentas OWNER: `OwnerRou
 | `SECURITY_RECOVERY_LINK_RESENT` | Enlace de recuperación reenviado | El OWNER |
 | `SECURITY_RECOVERY_LINK_REQUESTED` | Enlace solicitado por el titular | «Solicitud no autenticada» (sin actor, sin identificador) |
 | `SECURITY_RECOVERY_COMPLETED` | Recuperación completada | La propia cuenta afectada |
+| `EMAIL_CHANGE_NOTICE_FAILED` | Aviso de cambio de email no enviado | La propia cuenta afectada ([Verificación del email, apartado 9](verificacion-email.md#9-respuestas-públicas-y-errores-http)) |
 
 Una acción que el panel no conozca se muestra con su código tal cual.
 
-**Filtro «Acción»:** ofrece «Todas» y las ocho acciones, en el orden de la tabla. Se combina con el filtro por cuenta (botón «Filtrar» de la columna Cuenta afectada). La acción se envía codificada en la URL (`?action=…`) y la API solo acepta esas ocho; un valor no válido no filtra.
+**Filtro «Acción»:** ofrece «Todas» y las nueve acciones, en el orden de la tabla. Se combina con el filtro por cuenta (botón «Filtrar» de la columna Cuenta afectada). La acción se envía codificada en la URL (`?action=…`) y la API solo acepta esas nueve; un valor no válido no filtra.
 
-**Texto de la columna Acción:** la etiqueta y, entre paréntesis, los datos adicionales que haya: el número de sesiones cerradas en `SESSIONS_REVOKED` (por ejemplo, «Sesiones cerradas (3)») y el origen del destino de recuperación (`recoveryDestination`), por ejemplo «Protección retirada (destino guardado)».
+**Texto de la columna Acción:** la etiqueta y, entre paréntesis, los datos adicionales que haya:
+- el número de sesiones cerradas en `SESSIONS_REVOKED`, por ejemplo «Sesiones cerradas (3)»;
+- el origen del destino de recuperación (`recoveryDestination`), por ejemplo «Protección retirada (destino guardado)»;
+- en `EMAIL_CHANGE_NOTICE_FAILED`, la fase del fallo (`noticeFailure`): «no se pudo crear el enlace de incidente» o «falló el envío del correo».
 
 | `recoveryDestination` | Texto | Cuándo se registra |
 |---|---|---|
@@ -216,17 +220,21 @@ Todas abren el diálogo de confirmación del panel y exigen un **motivo de 3 a 5
 
 1. Reclama el token (sección 5).
 2. Comprueba que el destino está libre.
-3. Actualiza la cuenta con una escritura condicional que repite las comprobaciones de estado (`passwordResetRequiredAt` no nulo, sin protección ni suspensión, misma versión, mismo destino):
+3. Actualiza la cuenta con una escritura condicional que repite las comprobaciones de estado (`passwordResetRequiredAt` no nulo, sin protección ni suspensión, misma versión, mismo destino y el mismo email leído):
    - `password` = hash de la contraseña nueva (`hashPassword`, sin cambios en la política);
    - `email` = `deliverTo`;
    - `passwordResetRequiredAt` = nulo;
-   - `securityRecoveryEmail` = nulo.
+   - `securityRecoveryEmail` = nulo;
+   - `emailVerifiedAt` = nulo **solo si `deliverTo` es distinto del email anterior**. Si es el mismo, se conserva (decisión D2 de la Fase 0).
 4. Borra todas las sesiones de la cuenta.
 5. Borra los tokens de recuperación **no usados** de la cuenta.
 6. Borra las verificaciones de cambio de email **pendientes** (`usedAt` nulo) de la cuenta.
-7. Registra `SECURITY_RECOVERY_COMPLETED` con la propia cuenta como actor y como objetivo, **sin motivo ni metadatos**: ni emails, ni token, ni enlace.
+7. Marca como usados los enlaces de verificación del email **pendientes** de la cuenta (D2). Los ya usados no se tocan.
+8. Registra `SECURITY_RECOVERY_COMPLETED` con la propia cuenta como actor y como objetivo, **sin motivo ni metadatos**: ni emails, ni token, ni enlace.
 
 Todos los borrados se limitan a la cuenta del token. Los tokens de incidente no se tocan. Si cualquier paso posterior a la reclamación falla o se rechaza, la transacción se deshace por completo, incluida la reclamación del token.
+
+El enlace de recuperación no cuenta como verificación del email: una dirección distinta queda sin verificar. Detalle en [Verificación del email, apartado 6](verificacion-email.md#6-relación-con-e2-y-con-los-demás-estados-de-la-cuenta).
 
 ## 7. Errores, respuestas y operativa
 
@@ -394,7 +402,7 @@ En esa integración no se ejecutaron `apps/api/src/cors.test.ts` ni `apps/api/sr
 - **Caducidad de 1 hora.** Si el titular no usa el enlace a tiempo, puede pedir otro (E2.6) una vez pasado el enfriamiento de 15 minutos, o un OWNER puede reenviarlo.
 - **Concurrencia entre procesos (SQLite).** Las garantías se basan en escrituras condicionales dentro de transacciones. Con varias instancias de la API, SQLite puede devolver `SQLITE_BUSY`, que hoy acaba en 500 sin reintento. Las pruebas usan un único cliente de Prisma (ver el otro documento, sección 9).
 - **Un destino compartido solo lo puede restaurar una cuenta.** Varias cuentas pueden tener el mismo `securityRecoveryEmail` y recibir cada una su enlace, pero cuando la primera completa, esa dirección pasa a ser su `User.email`; las demás reciben `email_taken` al finalizar y necesitan que un OWNER corrija su destino (demostrado en el bloque 12).
-- **Tiempo de respuesta de la solicitud del titular (limitación aceptada).** El cuerpo, el código y las cabeceras son idénticos y el correo no se espera, pero la búsqueda y las transacciones solo se ejecutan para las cuentas que coinciden y cumplen las condiciones, así que quedan diferencias de tiempo pequeñas que no se ocultan. El límite por IP del plugin vive en la memoria de cada proceso. `forgot-password` sigue esperando al SMTP (fuga de tiempo previa, fuera de E2.6).
+- **Tiempo de respuesta de la solicitud del titular (limitación aceptada).** El cuerpo, el código y las cabeceras son idénticos y el correo no se espera, pero la búsqueda y las transacciones solo se ejecutan para las cuentas que coinciden y cumplen las condiciones, así que quedan diferencias de tiempo pequeñas que no se ocultan. El límite por IP del plugin vive en la memoria de cada proceso. `forgot-password` ya no espera al SMTP: emite el token y envía el correo en segundo plano desde la decisión D3 de la Fase 0 ([Verificación del email, apartado 7](verificacion-email.md#7-envío-de-correos-y-fallos-de-smtp)).
 - **Envíos en segundo plano.** Sobreviven al final de la petición y a un cierre ordenado, pero no a una caída brusca del proceso (ver sección 4); no hay cola ni outbox duraderos.
 - **Distinción por texto en la web.** Si cambiaran los mensajes de la API, la web dejaría de distinguir `invalid_token` y `state_mismatch` y los trataría como errores reintentables, y el login dejaría de mostrar el enlace a `/recuperar-cuenta/solicitar` (sin otro efecto: el error se seguiría mostrando).
 

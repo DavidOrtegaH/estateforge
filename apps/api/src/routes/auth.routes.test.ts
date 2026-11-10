@@ -251,7 +251,10 @@ describe('GET /api/auth/me', () => {
     const response = await me()
 
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ user: { id: USER_ID, email: EMAIL, role: 'USER' } })
+    // Sin EMAIL_VERIFICATION_REQUIRED_FROM la verificación no se exige (Fase 0).
+    expect(response.json()).toEqual({
+      user: { id: USER_ID, email: EMAIL, role: 'USER', emailVerification: { status: 'NOT_ENFORCED', graceUntil: null } },
+    })
     expect(mocks.prisma.session.deleteMany).not.toHaveBeenCalled()
   })
 })

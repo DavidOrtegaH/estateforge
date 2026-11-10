@@ -24,6 +24,13 @@ model User {
   adminSuspendedAt    DateTime?
   adminSuspensionReason String?
   role                String              @default("USER")
+  // Verificación del email (Fase 0). NULL = sin verificar; nunca se rellena sin que el titular
+  // confirme un enlace enviado a ese email. Las cuentas existentes no se marcan como verificadas.
+  emailVerifiedAt     DateTime?
+  // Último enlace de verificación emitido. Se reserva con una escritura condicional atómica
+  // (un enlace por minuto como mucho) que serializa por cuenta la emisión de enlaces.
+  emailVerificationSentAt DateTime?
+  emailVerificationTokens EmailVerificationToken[]
   properties          Property[]
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
@@ -83,6 +90,23 @@ model EmailChangeVerification {
   @@index([expiresAt])
 }
 
+
+// Enlace de verificación del email (Fase 0): solo se guarda el hash del token. `email` es la
+// dirección a la que se envió; si la cuenta cambia de email, el token deja de servir.
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
 
 model SecurityIncidentToken {
   id        String   @id @default(cuid())

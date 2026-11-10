@@ -9,6 +9,7 @@ import appIcon from '@/assets/appIcon.svg'
 import appIconWhite from '@/assets/appIconWhite.svg'
 import appLogo from '@/assets/appLogo.svg'
 import appLogoWhite from '@/assets/appLogoWhite.svg'
+import { EmailVerificationNotice } from '@/components/auth/EmailVerificationNotice'
 
 type NavigationItem = {
   label: string
@@ -1454,6 +1455,7 @@ function AppLayout() {
             'p-4 sm:p-6 lg:p-8',
           ].join(' ')}
         >
+          <EmailVerificationNotice />
           <Outlet />
         </div>
       </main>

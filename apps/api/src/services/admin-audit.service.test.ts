@@ -35,6 +35,21 @@ describe('buildAuditMetadata', () => {
     expect(JSON.parse(buildAuditMetadata(input)!)).toEqual(input)
     expect(parseAuditMetadata(buildAuditMetadata(input))).toEqual(input)
   })
+
+  it.each(['INCIDENT_LINK', 'DELIVERY'] as const)('guarda solo la fase del aviso fallido (%s), sin emails ni detalles', kind => {
+    expect(buildAuditMetadata({ noticeFailure: kind })).toBe(JSON.stringify({ noticeFailure: kind }))
+    expect(parseAuditMetadata(buildAuditMetadata({ noticeFailure: kind }))).toEqual({ noticeFailure: kind })
+  })
+})
+
+describe('noticeFailure al leer', () => {
+  it.each([
+    ['un valor desconocido', 'SMTP_550'],
+    ['un mensaje de error', 'Recipient rejected: anterior@x.test'],
+    ['un número', 1],
+  ])('ignora %s', (_label, value) => {
+    expect(parseAuditMetadata(JSON.stringify({ noticeFailure: value }))).toEqual({})
+  })
 })
 
 describe('parseAuditMetadata', () => {
@@ -118,6 +133,7 @@ describe('resolveAuditAccounts', () => {
       targetFound: true,
       revokedCount: null,
       recoveryDestination: null,
+      noticeFailure: null,
     })
     expect(log).not.toHaveProperty('metadata')
   })
@@ -172,5 +188,18 @@ describe('resolveAuditAccounts', () => {
     )
 
     expect(log.recoveryDestination).toBe('OWNER_CORRECTED')
+  })
+
+  it('expone la fase del aviso de cambio de email no enviado, y null si no la hay', () => {
+    const [failed, other] = resolveAuditAccounts(
+      [
+        { ...base, actorUserId: 'user', targetUserId: 'user', metadata: JSON.stringify({ noticeFailure: 'DELIVERY' }) },
+        { ...base, actorUserId: 'owner', targetUserId: 'user', metadata: null },
+      ],
+      emails,
+    )
+
+    expect(failed.noticeFailure).toBe('DELIVERY')
+    expect(other.noticeFailure).toBeNull()
   })
 })

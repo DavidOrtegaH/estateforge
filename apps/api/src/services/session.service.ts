@@ -5,6 +5,7 @@ import {
 } from 'node:crypto'
 
 import { prisma } from '../db/prisma.js'
+import { isEmailVerificationRequired } from './email-verification.service.js'
 
 const SESSION_DURATION_MS =
   1000 * 60 * 60 * 24 * 7
@@ -56,7 +57,7 @@ export async function getUserIdFromSession(
       select: {
         userId: true,
         expiresAt: true,
-        user: { select: { securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true } },
+        user: { select: { securityHoldAt: true, adminSuspendedAt: true, passwordResetRequiredAt: true, emailVerifiedAt: true, createdAt: true } },
       },
     })
 
@@ -67,6 +68,12 @@ export async function getUserIdFromSession(
   // Protección, suspensión y recuperación obligatoria son estados independientes;
   // cualquiera de ellos invalida la sesión.
   if (session.user.securityHoldAt || session.user.adminSuspendedAt || session.user.passwordResetRequiredAt) {
+    await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } })
+    return null
+  }
+
+  // Email sin verificar cuando ya se exige (cuenta nueva o fin del periodo de gracia, Fase 0).
+  if (isEmailVerificationRequired(session.user)) {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } })
     return null
   }

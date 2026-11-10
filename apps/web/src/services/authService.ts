@@ -6,7 +6,50 @@ export interface AuthUser {
   id: string
   email: string
   role: 'USER' | 'OWNER'
+  // Estado de la verificación del email que devuelve /me (Fase 0). No lo traen el login, el
+  // registro ni el cambio de email: AuthProvider lo completa con /me (lib/authSession.ts).
+  // GRACE incluye la fecha hasta la que la cuenta puede entrar sin verificar.
+  emailVerification?: EmailVerificationState
 }
+
+export interface EmailVerificationState {
+  status: 'VERIFIED' | 'NOT_ENFORCED' | 'GRACE'
+  graceUntil: string | null
+}
+
+// Texto exacto de la API cuando falta verificar el email (403 con code EMAIL_NOT_VERIFIED).
+export const EMAIL_NOT_VERIFIED_MESSAGE =
+  'Tienes que verificar tu email antes de acceder. Revisa tu correo o solicita un enlace nuevo.'
+
+export function isEmailNotVerifiedMessage(message: string): boolean {
+  return message === EMAIL_NOT_VERIFIED_MESSAGE
+}
+
+// El login es correcto, pero la cuenta debe verificar su email antes de acceder.
+export class EmailNotVerifiedError extends Error {
+  constructor(message: string = EMAIL_NOT_VERIFIED_MESSAGE) {
+    super(message)
+    this.name = 'EmailNotVerifiedError'
+  }
+}
+
+async function readErrorBody(response: Response): Promise<{ code: string | null; message: string | null }> {
+  try {
+    const body = (await response.json()) as { code?: unknown; message?: unknown }
+    return {
+      code: typeof body.code === 'string' ? body.code : null,
+      message: typeof body.message === 'string' && body.message ? body.message : null,
+    }
+  } catch {
+    return { code: null, message: null }
+  }
+}
+
+export type RegisterResult =
+  // Cuenta creada con la sesión abierta (la verificación todavía no se exige).
+  | { kind: 'session'; user: AuthUser }
+  // Cuenta creada sin sesión: hay que verificar el email y después iniciar sesión.
+  | { kind: 'verification_required'; email: string; message: string }
 
 async function extractErrorMessage(
   response: Response,
@@ -34,7 +77,7 @@ export async function register(
   email: string,
   password: string,
   turnstileToken?: string,
-): Promise<AuthUser> {
+): Promise<RegisterResult> {
   const response = await fetch(`${API_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -48,8 +91,13 @@ export async function register(
     )
   }
 
-  const data = (await response.json()) as { user: AuthUser }
-  return data.user
+  const data = (await response.json()) as
+    | { user: AuthUser }
+    | { verificationRequired: true; email: string; message: string }
+  if ('verificationRequired' in data && data.verificationRequired) {
+    return { kind: 'verification_required', email: data.email, message: data.message }
+  }
+  return { kind: 'session', user: (data as { user: AuthUser }).user }
 }
 
 export async function login(
@@ -63,6 +111,12 @@ export async function login(
     credentials: 'include',
     body: JSON.stringify({ email, password, turnstileToken }),
   })
+
+  if (response.status === 403) {
+    const body = await readErrorBody(response)
+    if (body.code === 'EMAIL_NOT_VERIFIED') throw new EmailNotVerifiedError(body.message ?? undefined)
+    throw new Error(body.message ?? `Login failed: ${response.status}`)
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -334,6 +388,8 @@ export type SessionBlockReason =
   | 'security_hold'
   | 'admin_suspension'
   | 'recovery_required'
+  // 403 con code EMAIL_NOT_VERIFIED (Fase 0): falta verificar el email.
+  | 'email_not_verified'
   // Un 423 con otro texto: se conserva el mensaje, pero no se clasifica.
   | 'unknown'
 
@@ -341,6 +397,7 @@ export function sessionBlockReason(message: string): SessionBlockReason {
   if (message === SECURITY_HOLD_MESSAGE) return 'security_hold'
   if (message === ADMIN_SUSPENSION_MESSAGE) return 'admin_suspension'
   if (isSecurityRecoveryRequiredMessage(message)) return 'recovery_required'
+  if (isEmailNotVerifiedMessage(message)) return 'email_not_verified'
   return 'unknown'
 }
 
@@ -375,6 +432,12 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     if (message) throw new SessionBlockedError(message)
   }
 
+  // Fase 0: la API cierra la sesión si ya se exige verificar el email y no se ha hecho.
+  if (response.status === 403) {
+    const body = await readErrorBody(response)
+    if (body.code === 'EMAIL_NOT_VERIFIED' && body.message) throw new SessionBlockedError(body.message)
+  }
+
   if (!response.ok) {
     throw new Error(`Failed to load session: ${response.status}`)
   }
@@ -406,9 +469,16 @@ export async function requestEmailChange(
   return data.message
 }
 
+// Resultado de confirmar el cambio de email. El cambio está hecho en ambos casos;
+// `securityNoticeSent` indica si se pudo avisar a la dirección anterior (decisión D4).
+export interface EmailChangeResult {
+  user: AuthUser
+  securityNoticeSent: boolean
+}
+
 export async function verifyEmailChange(
   code: string,
-): Promise<AuthUser> {
+): Promise<EmailChangeResult> {
   const response = await fetch(`${API_URL}/api/auth/change-email/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -425,6 +495,61 @@ export async function verifyEmailChange(
     )
   }
 
-  const data = (await response.json()) as { user: AuthUser }
-  return data.user
+  const data = (await response.json()) as { user: AuthUser; securityNoticeSent?: boolean }
+  // Solo un `false` explícito indica que el aviso falló; una API anterior no envía el campo.
+  return { user: data.user, securityNoticeSent: data.securityNoticeSent !== false }
+}
+
+// ==========================================================
+// VERIFICACIÓN DEL EMAIL (Fase 0)
+// ==========================================================
+
+export type VerifyEmailResult =
+  | { ok: true; message: string }
+  | { ok: false; reason: 'expired' | 'invalid' | 'rate_limited' | 'unexpected'; message: string }
+
+const VERIFY_EMAIL_UNEXPECTED_MESSAGE = 'No se ha podido verificar el email. Inténtalo de nuevo más tarde.'
+const VERIFY_EMAIL_RATE_LIMITED_MESSAGE = 'Has hecho demasiados intentos. Espera unos minutos e inténtalo de nuevo.'
+
+/** Confirma el email con el token del enlace. No inicia sesión. */
+export async function verifyEmail(token: string): Promise<VerifyEmailResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}/api/auth/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    })
+  } catch {
+    return { ok: false, reason: 'unexpected', message: VERIFY_EMAIL_UNEXPECTED_MESSAGE }
+  }
+
+  const body = await readErrorBody(response)
+  if (response.ok) return { ok: true, message: body.message ?? 'Email verificado. Ya puedes iniciar sesión.' }
+  if (response.status === 429) return { ok: false, reason: 'rate_limited', message: VERIFY_EMAIL_RATE_LIMITED_MESSAGE }
+  if (response.status === 400 && body.message) {
+    return { ok: false, reason: body.code === 'EXPIRED' ? 'expired' : 'invalid', message: body.message }
+  }
+  return { ok: false, reason: 'unexpected', message: VERIFY_EMAIL_UNEXPECTED_MESSAGE }
+}
+
+export const RESEND_VERIFICATION_RATE_LIMITED_MESSAGE =
+  'Has pedido demasiados enlaces. Espera unos minutos antes de volver a intentarlo.'
+
+/** Pide un enlace de verificación nuevo. La respuesta es la misma exista o no la cuenta. */
+export async function requestEmailVerification(email: string): Promise<string> {
+  const response = await fetch(`${API_URL}/api/auth/verify-email/resend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  })
+
+  if (response.status === 429) throw new Error(RESEND_VERIFICATION_RATE_LIMITED_MESSAGE)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, 'No se ha podido solicitar el enlace. Inténtalo de nuevo más tarde.'))
+  }
+  const data = (await response.json()) as { message: string }
+  return data.message
 }

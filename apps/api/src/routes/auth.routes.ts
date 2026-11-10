@@ -13,11 +13,15 @@ import {
   MAX_PASSWORD_LENGTH,
 } from '../services/password-policy.js'
 import {
-  issuePasswordResetToken,
   consumePasswordResetToken,
   consumeSecurityRecoveryToken,
 } from '../services/password-reset.service.js'
+import {
+  deliverPasswordResetInBackground,
+  waitForPendingPasswordResetDeliveries,
+} from '../services/password-reset-delivery.service.js'
 import { emailService } from '../services/email.service.js'
+import { buildAuditMetadata, type NoticeFailureKind } from '../services/admin-audit.service.js'
 import { issueSecurityIncidentToken, reportSecurityIncident } from '../services/security-incident.service.js'
 import {
   consumeEmailChangeCode,
@@ -40,6 +44,16 @@ import {
 import {
   verifyTurnstileToken,
 } from '../services/turnstile.service.js'
+import {
+  EMAIL_NOT_VERIFIED_CODE,
+  EMAIL_NOT_VERIFIED_MESSAGE,
+  consumeEmailVerificationToken,
+  emailAccess,
+  isEmailVerificationRequired,
+  readEmailVerificationPolicy,
+  sendEmailVerificationInBackground,
+  waitForPendingVerificationDeliveries,
+} from '../services/email-verification.service.js'
 import {
   ChangePasswordSchema,
   DeleteAccountSchema,
@@ -81,6 +95,19 @@ const SecurityRecoveryRequestSchema = z.object({
 const SECURITY_RECOVERY_REQUEST_MESSAGE =
   'Si la cuenta puede recuperar el acceso, recibirás instrucciones en el destino de recuperación registrado.'
 
+// Verificación del email (Fase 0).
+const VerifyEmailSchema = z.object({
+  token: z.string().trim().min(1).max(256),
+}).strict()
+const ResendEmailVerificationSchema = z.object({
+  email: z.string().trim().email().max(254),
+}).strict()
+// Igual exista o no la cuenta, esté verificada o no: no revela nada.
+const RESEND_EMAIL_VERIFICATION_MESSAGE =
+  'Si la cuenta existe y su email está pendiente de verificación, recibirás un enlace nuevo en unos minutos.'
+const REGISTER_VERIFICATION_MESSAGE =
+  'Cuenta creada. Te hemos enviado un enlace para verificar tu email; ábrelo para poder acceder.'
+
 const ResetPasswordSchema = z.object({
   token: z.string().trim().min(32).max(256),
   password: z
@@ -92,8 +119,9 @@ const ResetPasswordSchema = z.object({
 })
 
 const SESSION_COOKIE = 'estateforge_session'
-const RESET_PASSWORD_URL =
-  process.env.WEB_APP_URL ?? 'http://localhost:5173'
+// El cambio de email se completó, pero no se pudo avisar a la dirección anterior (decisión D4).
+const EMAIL_CHANGED_NOTICE_FAILED_MESSAGE =
+  'Email actualizado correctamente, pero no hemos podido enviar el aviso de seguridad a tu dirección anterior. No hace falta repetir el cambio.'
 const API_PUBLIC_URL =
   process.env.API_PUBLIC_URL ?? 'http://localhost:3000'
 
@@ -222,6 +250,8 @@ async function getAuthenticatedUser(
           password: true,
           securityHoldAt: true,
           passwordResetRequiredAt: true,
+          emailVerifiedAt: true,
+          createdAt: true,
         },
       },
       expiresAt: true,
@@ -262,6 +292,14 @@ async function getAuthenticatedUser(
     return null
   }
 
+  // Fase 0: email sin verificar cuando ya se exige (después de los estados de E2).
+  if (isEmailVerificationRequired(session.user)) {
+    await prisma.session.deleteMany({ where: { userId: session.user.id } })
+    clearSessionCookie(reply)
+    reply.code(403).send({ code: EMAIL_NOT_VERIFIED_CODE, message: EMAIL_NOT_VERIFIED_MESSAGE })
+    return null
+  }
+
   return {
     token,
     ...session.user,
@@ -269,9 +307,15 @@ async function getAuthenticatedUser(
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  // Al cerrar la app, espera a los enlaces de recuperación que se enviaban en segundo plano.
+  // Una configuración de verificación del email no válida detiene el arranque (Fase 0).
+  readEmailVerificationPolicy()
+
+  // Al cerrar la app, espera a los enlaces de recuperación, de verificación y de restablecimiento
+  // de contraseña que se enviaban en segundo plano.
   app.addHook('onClose', async () => {
     await waitForPendingRecoveryDeliveries()
+    await waitForPendingVerificationDeliveries()
+    await waitForPendingPasswordResetDeliveries()
   })
 
   app.post(
@@ -324,6 +368,17 @@ export async function authRoutes(app: FastifyInstance) {
           password: passwordHash,
         },
       })
+
+      // La cuenta nace sin verificar y siempre recibe el enlace. Si la verificación ya se exige,
+      // no se abre sesión: el titular confirma el email y después inicia sesión.
+      sendEmailVerificationInBackground(user.id)
+      if (isEmailVerificationRequired(user)) {
+        return reply.code(201).send({
+          verificationRequired: true,
+          email: user.email,
+          message: REGISTER_VERIFICATION_MESSAGE,
+        })
+      }
 
       const session = await createSession(user.id)
       setSessionCookie(reply, session.token, session.expiresAt)
@@ -398,6 +453,11 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(423).send({ message: PASSWORD_RESET_REQUIRED_MESSAGE })
       }
 
+      // Fase 0: solo se informa tras una contraseña correcta, así que no revela cuentas.
+      if (isEmailVerificationRequired(user)) {
+        return reply.code(403).send({ code: EMAIL_NOT_VERIFIED_CODE, message: EMAIL_NOT_VERIFIED_MESSAGE })
+      }
+
       const session = await createSession(user.id)
       setSessionCookie(reply, session.token, session.expiresAt)
 
@@ -440,19 +500,10 @@ export async function authRoutes(app: FastifyInstance) {
 
       // Una cuenta en recuperación obligatoria (E2) no recibe un enlace de autoservicio al
       // email actual: su único enlace válido es el obligatorio. La respuesta sigue siendo genérica.
+      // La emisión del token y el envío van en segundo plano (decisión D3 de la Fase 0): la
+      // respuesta no espera al SMTP y un fallo de envío no la cambia.
       if (user && !user.securityHoldAt && !user.adminSuspendedAt && !user.passwordResetRequiredAt) {
-        const reset = await issuePasswordResetToken(user.id)
-        const resetUrl = new URL(
-          '/restablecer-contrasena',
-          RESET_PASSWORD_URL,
-        )
-        resetUrl.searchParams.set('token', reset.token)
-
-        await emailService.sendPasswordResetEmail({
-          to: user.email,
-          resetUrl: resetUrl.toString(),
-          expiresAt: reset.expiresAt,
-        })
+        deliverPasswordResetInBackground(request.log, { id: user.id, email: user.email })
       }
 
       return {
@@ -735,10 +786,17 @@ export async function authRoutes(app: FastifyInstance) {
         })
       }
 
+      // El cambio ya está confirmado en la base y no se deshace aunque falle el aviso a la
+      // dirección anterior (decisión D4 de la Fase 0). La respuesta lo indica para que la web
+      // no presente un fallo del aviso como un fallo del cambio.
+      let securityNoticeSent = true
+      // Fase en curso, para clasificar un fallo sin guardar el error (corrección F0-002).
+      let noticeStage: NoticeFailureKind = 'INCIDENT_LINK'
       try {
         // El token guarda el email anterior: es la dirección a la que se envía el aviso.
         const incident = await issueSecurityIncidentToken(user.id, verification.oldEmail)
         const incidentUrl = new URL(`/api/auth/security-incident/${incident.token}`, API_PUBLIC_URL)
+        noticeStage = 'DELIVERY'
         await emailService.sendEmailChangeNoticeEmail({
           to: verification.oldEmail,
           newEmail: verification.email,
@@ -746,7 +804,24 @@ export async function authRoutes(app: FastifyInstance) {
           incidentReportUrl: incidentUrl.toString(),
         })
       } catch (error) {
-        request.log.error({ err: error }, 'No se pudo enviar el aviso de cambio de email completado')
+        securityNoticeSent = false
+        // Sin el error completo: podría incluir la dirección anterior, el enlace o el mensaje.
+        request.log.error({ targetUserId: user.id, errorName: error instanceof Error ? error.name : typeof error }, 'No se pudo enviar el aviso de cambio de email completado')
+        // El titular anterior se queda sin el enlace para denunciar el cambio: se deja constancia
+        // en la auditoría para que un OWNER lo vea. Sin emails, token ni enlace; solo la fase.
+        // Un fallo al auditar tampoco convierte el cambio, ya hecho, en un error.
+        try {
+          await prisma.adminAuditLog.create({
+            data: {
+              actorUserId: user.id,
+              targetUserId: user.id,
+              action: 'EMAIL_CHANGE_NOTICE_FAILED',
+              metadata: buildAuditMetadata({ noticeFailure: noticeStage }),
+            },
+          })
+        } catch (auditError) {
+          request.log.error({ targetUserId: user.id, errorName: auditError instanceof Error ? auditError.name : typeof auditError }, 'No se pudo auditar el aviso de cambio de email no enviado')
+        }
       }
 
       return {
@@ -754,7 +829,10 @@ export async function authRoutes(app: FastifyInstance) {
           id: user.id,
           email: verification.email,
         },
-        message: 'Email actualizado correctamente.',
+        securityNoticeSent,
+        message: securityNoticeSent
+          ? 'Email actualizado correctamente.'
+          : EMAIL_CHANGED_NOTICE_FAILED_MESSAGE,
       }
     },
   )
@@ -906,6 +984,51 @@ export async function authRoutes(app: FastifyInstance) {
     },
   )
 
+  // Confirma el email con el token del enlace. No inicia sesión ni necesita una: verificar el
+  // email no es una forma de autenticarse. El token va en el cuerpo (no en la URL de la API),
+  // y la página web solo lo envía cuando el titular pulsa el botón.
+  app.post(
+    '/api/auth/verify-email',
+    { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } },
+    async (request, reply) => {
+      const parsed = VerifyEmailSchema.safeParse(request.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ code: 'INVALID', message: 'El enlace de verificación no es válido.' })
+      }
+
+      const result = await consumeEmailVerificationToken(parsed.data.token)
+      if (result === 'verified') {
+        return { verified: true, message: 'Email verificado. Ya puedes iniciar sesión.' }
+      }
+      if (result === 'expired') {
+        return reply.code(400).send({ code: 'EXPIRED', message: 'El enlace de verificación ha caducado. Solicita uno nuevo.' })
+      }
+      return reply.code(400).send({ code: 'INVALID', message: 'El enlace de verificación no es válido o ya se ha usado.' })
+    },
+  )
+
+  // Pide un enlace nuevo. La respuesta es la misma para cualquier email y no espera al envío,
+  // para no revelar si la cuenta existe ni su estado. Además del límite por IP, el servicio
+  // limita los envíos por cuenta (uno por minuto y cinco al día).
+  app.post(
+    '/api/auth/verify-email/resend',
+    { config: { rateLimit: { max: 3, timeWindow: '15 minutes' } } },
+    async (request, reply) => {
+      const parsed = ResendEmailVerificationSchema.safeParse(request.body)
+      if (!parsed.success) {
+        return sendValidationError(reply, 'Introduce un email válido.')
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { email: normalizeEmail(parsed.data.email) },
+        select: { id: true },
+      })
+      if (user) sendEmailVerificationInBackground(user.id)
+
+      return { message: RESEND_EMAIL_VERIFICATION_MESSAGE }
+    },
+  )
+
   app.get('/api/auth/me', async (request, reply) => {
     const token = getSessionCookie(request)
 
@@ -927,6 +1050,8 @@ export async function authRoutes(app: FastifyInstance) {
             securityHoldAt: true,
             adminSuspendedAt: true,
             passwordResetRequiredAt: true,
+            emailVerifiedAt: true,
+            createdAt: true,
           },
         },
         expiresAt: true,
@@ -971,7 +1096,27 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(423).send({ message: PASSWORD_RESET_REQUIRED_MESSAGE })
     }
 
-    return { user: { id: session.user.id, email: session.user.email, role: session.user.role } }
+    // Fase 0: email sin verificar cuando ya se exige (cuenta nueva o fin del periodo de gracia).
+    const policy = readEmailVerificationPolicy()
+    const access = emailAccess(session.user, policy)
+    if (access === 'REQUIRED') {
+      await prisma.session.deleteMany({ where: { userId: session.user.id } })
+      clearSessionCookie(reply)
+      return reply.code(403).send({ code: EMAIL_NOT_VERIFIED_CODE, message: EMAIL_NOT_VERIFIED_MESSAGE })
+    }
+
+    return {
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        role: session.user.role,
+        // Para avisar en la web a quien aún no ha verificado; graceUntil solo en el periodo de gracia.
+        emailVerification: {
+          status: access,
+          graceUntil: access === 'GRACE' && policy.graceUntil ? policy.graceUntil.toISOString() : null,
+        },
+      },
+    }
   })
 
   app.post('/api/auth/logout', async (request, reply) => {

@@ -14,6 +14,12 @@ import {
 
 
 import { PasswordInput } from '@/components/ui/PasswordInput'
+import { ResendVerificationForm } from '@/components/auth/ResendVerificationForm'
+import {
+  getPasswordValidationErrors,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+} from '@/lib/passwordPolicy'
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') {
@@ -89,6 +95,9 @@ function RegisterPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string>()
+  // Cuenta creada sin sesión porque falta verificar el email (Fase 0).
+  const [pendingVerification, setPendingVerification] =
+    useState<{ email: string; message: string } | null>(null)
   const [isDarkMode, setIsDarkMode] =
     useState(getInitialDarkMode)
 
@@ -135,10 +144,10 @@ function RegisterPage() {
       return
     }
 
-    if (password.length < 8) {
-      setError(
-        'La contraseña debe tener al menos 8 caracteres.',
-      )
+    // La misma política que aplica el servidor (12 a 128 caracteres y complejidad).
+    const passwordErrors = getPasswordValidationErrors(password)
+    if (passwordErrors.length > 0) {
+      setError(passwordErrors[0])
       return
     }
 
@@ -151,7 +160,10 @@ function RegisterPage() {
     setError(null)
 
     try {
-      await register(email.trim(), password, turnstileToken)
+      const result = await register(email.trim(), password, turnstileToken)
+      if (result.kind === 'verification_required') {
+        setPendingVerification({ email: result.email, message: result.message })
+      }
     } catch (registerError) {
       setError(
         registerError instanceof Error
@@ -205,6 +217,33 @@ function RegisterPage() {
           </p>
         </div>
 
+        {pendingVerification ? (
+          <div className="space-y-4">
+            <div
+              role="status"
+              className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"
+            >
+              <p className="font-medium">Revisa tu correo.</p>
+              <p className="mt-1">{pendingVerification.message}</p>
+              <p className="mt-1 break-all">
+                Enviado a <span className="font-medium">{pendingVerification.email}</span>.
+              </p>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              ¿No te ha llegado? Revisa la carpeta de spam o pide otro enlace.
+            </p>
+
+            <ResendVerificationForm email={pendingVerification.email} />
+
+            <Link
+              to="/login"
+              className="flex h-10 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90"
+            >
+              Volver al inicio de sesión
+            </Link>
+          </div>
+        ) : (
         <form
           onSubmit={(event) => {
             event.preventDefault()
@@ -251,13 +290,14 @@ function RegisterPage() {
               }
               disabled={submitting}
               required
-              minLength={8}
+              minLength={MIN_PASSWORD_LENGTH}
+              maxLength={MAX_PASSWORD_LENGTH}
               autoComplete="new-password"
               className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
              wrapperClassName="mt-2"  visibilityLabel="contraseña" />
 
             <p className="mt-1 text-xs text-muted-foreground">
-              Mínimo 8 caracteres.
+              Entre {MIN_PASSWORD_LENGTH} y {MAX_PASSWORD_LENGTH} caracteres, con al menos una mayúscula, una minúscula, un número y un carácter especial.
             </p>
           </div>
 
@@ -278,7 +318,8 @@ function RegisterPage() {
               }
               disabled={submitting}
               required
-              minLength={8}
+              minLength={MIN_PASSWORD_LENGTH}
+              maxLength={MAX_PASSWORD_LENGTH}
               autoComplete="new-password"
               className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
              wrapperClassName="mt-2"  visibilityLabel="contraseña" />
@@ -302,6 +343,7 @@ function RegisterPage() {
               : 'Crear cuenta'}
           </button>
         </form>
+        )}
 
         <p className="mt-6 text-sm text-muted-foreground">
           ¿Ya tienes cuenta?{' '}

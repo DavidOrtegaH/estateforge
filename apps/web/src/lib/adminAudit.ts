@@ -1,4 +1,4 @@
-import type { AdminAuditAction, AuditRecoveryDestination } from '@/services/adminService'
+import type { AdminAuditAction, AuditNoticeFailure, AuditRecoveryDestination } from '@/services/adminService'
 
 // id null: no hay cuenta que mostrar (acción sin actor autenticado).
 export type AuditAccountView = { primary: string; id: string | null; note: string | null }
@@ -53,6 +53,7 @@ export const AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   SECURITY_RECOVERY_LINK_RESENT: 'Enlace de recuperación reenviado',
   SECURITY_RECOVERY_LINK_REQUESTED: 'Enlace solicitado por el titular',
   SECURITY_RECOVERY_COMPLETED: 'Recuperación completada',
+  EMAIL_CHANGE_NOTICE_FAILED: 'Aviso de cambio de email no enviado',
 }
 
 // Opciones del filtro, en el mismo orden que las etiquetas.
@@ -75,15 +76,31 @@ export function recoveryDestinationLabel(source: string | null | undefined): str
   return RECOVERY_DESTINATION_LABELS[source as AuditRecoveryDestination]
 }
 
-/** Texto de la columna Acción: la etiqueta y, entre paréntesis, las sesiones cerradas o el origen del destino. */
+const NOTICE_FAILURE_LABELS: Record<AuditNoticeFailure, string> = {
+  INCIDENT_LINK: 'no se pudo crear el enlace de incidente',
+  DELIVERY: 'falló el envío del correo',
+}
+
+/** Fase en la que falló el aviso de cambio de email; null si no hay o no se reconoce. */
+export function noticeFailureLabel(kind: string | null | undefined): string | null {
+  if (typeof kind !== 'string' || !Object.hasOwn(NOTICE_FAILURE_LABELS, kind)) return null
+  return NOTICE_FAILURE_LABELS[kind as AuditNoticeFailure]
+}
+
+/**
+ * Texto de la columna Acción: la etiqueta y, entre paréntesis, las sesiones cerradas, el origen del
+ * destino o la fase en la que falló el aviso de cambio de email.
+ */
 export function describeAuditAction(log: {
   action: string
   revokedCount: number | null
   recoveryDestination: string | null
+  noticeFailure?: string | null
 }): string {
   const details = [
     log.revokedCount !== null ? String(log.revokedCount) : null,
     recoveryDestinationLabel(log.recoveryDestination),
+    noticeFailureLabel(log.noticeFailure),
   ].filter((detail): detail is string => detail !== null)
   return details.reduce((text, detail) => `${text} (${detail})`, auditActionLabel(log.action))
 }

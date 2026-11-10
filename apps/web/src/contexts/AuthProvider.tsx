@@ -7,6 +7,11 @@ import {
 import * as authService from '@/services/authService'
 import type { AuthUser } from '@/services/authService'
 import { sessionEndedReasonFrom } from '@/lib/sessionAccess'
+import {
+  loginWithSessionState,
+  registerWithSessionState,
+  updateEmailWithSessionState,
+} from '@/lib/authSession'
 
 import { AuthContext } from './authContext'
 
@@ -66,8 +71,10 @@ export function AuthProvider({
       password: string,
       turnstileToken?: string,
     ) => {
+      // El usuario de /me, con el estado de verificación del email (Fase 0.3a).
       const loggedInUser =
-        await authService.login(
+        await loginWithSessionState(
+          authService,
           email,
           password,
           turnstileToken,
@@ -82,15 +89,19 @@ export function AuthProvider({
       password: string,
       turnstileToken?: string,
     ) => {
-      const registeredUser =
-        await authService.register(
+      const result =
+        await registerWithSessionState(
+          authService,
           email,
           password,
           turnstileToken,
         )
 
-      setUser(registeredUser)
+      // Solo hay sesión si la API la abrió; si falta verificar el email, no la hay (Fase 0).
+      // Con sesión, el usuario es el de /me (Fase 0.3a).
+      if (result.kind === 'session') setUser(result.user)
       setSessionEndedReason(null)
+      return result
     },
 
     logout: async () => {
@@ -108,9 +119,11 @@ export function AuthProvider({
       ),
 
     updateEmail: async (code: string) => {
-      const updatedUser = await authService.verifyEmailChange(code)
-      setUser(updatedUser)
-      return updatedUser
+      // El usuario de /me, con el estado de verificación del email (Fase 0.3a), y si se pudo
+      // avisar a la dirección anterior (decisión D4).
+      const result = await updateEmailWithSessionState(authService, code)
+      setUser(result.user)
+      return result
     },
 
     deleteAccount: async (currentPassword: string) => {
