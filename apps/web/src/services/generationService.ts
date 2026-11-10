@@ -39,7 +39,7 @@ export interface GenerationProperty {
   id: string
   operation: string
   type: string
-  price: number
+  price: string
   address: string
   city: string
   neighborhood: string

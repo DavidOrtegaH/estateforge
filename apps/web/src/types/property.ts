@@ -29,7 +29,7 @@ export interface Property {
 
   type: PropertyType
 
-  price: number
+  price: string
 
   address: string
 

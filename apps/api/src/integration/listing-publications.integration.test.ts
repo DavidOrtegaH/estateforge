@@ -1,13 +1,11 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { createClient, type Client } from '@libsql/client'
+import pg from 'pg'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Checklist y Estado sobre SQLite real: base temporal propia con las migraciones del
-// proyecto. No usa dev.db ni test.db. Prisma se importa tras fijar DATABASE_URL.
+import { createTestDatabase, type TestDatabase } from '../test-support/postgres.js'
+
+// Checklist y Estado sobre PostgreSQL real: base temporal propia con las migraciones del
+// proyecto. Prisma se importa tras fijar DATABASE_URL.
 
 const auth = vi.hoisted(() => ({ userId: 'user-a' as string | null }))
 
@@ -25,12 +23,6 @@ vi.mock('../middleware/auth.middleware.js', () => ({
   },
 }))
 
-const migrationsDir = resolve(import.meta.dirname, '../../prisma/migrations')
-const FIRST = '20261109120000_add_commercial_status_and_listing_publications'
-const OTHERS = '20261109130000_add_other_publication_rows'
-const INTEGRITY = '20261109140000_add_listing_publication_integrity'
-const LAST = '20261109150000_tighten_listing_publication_instances'
-
 const IDS = {
   legacy: 'cmj7b5q8r0000v6y7g5q4m3n2',
   genA: 'cmj7b5q8r0001v6y7g5q4m3n2',
@@ -41,19 +33,26 @@ const IDS = {
 
 const VALID = 'https://www.idealista.com/inmueble/1/'
 
-let dir: string
-let raw: Client
+let database: TestDatabase
+let client: pg.Client
+
+// SQL directo de las pruebas: parámetros «?» e identificadores con mayúsculas sin citar.
+const IDENTIFIERS = /\b(ListingPublication|Property|Generation|User|generationId|instanceKey|isPublished|additionalInformation|userId|updatedAt|propertyId|callToAction|commercialStatus)\b/g
+
+const toPostgres = (sql: string) => {
+  let index = 0
+
+  return sql.replace(/\?/g, () => `$${++index}`).replace(IDENTIFIERS, '"$1"')
+}
+
+const raw = {
+  execute: (statement: string | { sql: string; args: unknown[] }) =>
+    typeof statement === 'string'
+      ? client.query(toPostgres(statement))
+      : client.query(toPostgres(statement.sql), statement.args),
+}
 let app: FastifyInstance
 let prisma: typeof import('../db/prisma.js').prisma
-let migratedLegacyRows: Array<Record<string, unknown>>
-
-async function migrate(names: string[]) {
-  for (const name of names) {
-    await raw.executeMultiple(
-      await readFile(join(migrationsDir, name, 'migration.sql'), 'utf8'),
-    )
-  }
-}
 
 const insertProperty = (id: string, userId: string) =>
   raw.execute({
@@ -92,22 +91,10 @@ const idealista = (items: Awaited<ReturnType<typeof get>>) =>
   items.find((item) => item.platform === 'idealista')
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'estateforge-checklist-'))
-
-  const url = pathToFileURL(join(dir, 'checklist.db')).href
-
-  process.env.DATABASE_URL = url
-  raw = createClient({ url })
-
-  const names = (await readdir(migrationsDir, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-
-  expect(names.slice(-4)).toEqual([FIRST, OTHERS, INTEGRITY, LAST])
-
-  // Hay datos reales antes de las migraciones de esta funcionalidad.
-  await migrate(names.slice(0, -4))
+  database = await createTestDatabase()
+  vi.stubEnv('DATABASE_URL', database.url)
+  client = new pg.Client({ connectionString: database.url })
+  await client.connect()
 
   for (const id of ['user-a', 'user-b']) {
     await raw.execute({
@@ -122,40 +109,11 @@ beforeAll(async () => {
   await insertProperty(IDS.other, 'user-b')
   await insertGeneration(IDS.genOther, IDS.other)
 
-  await migrate([FIRST])
-
-  // La primera versión permitía una plataforma marcada sin enlace.
-  await raw.executeMultiple(`
-    INSERT INTO ListingPublication (id,generationId,platform,isPublished,url,updatedAt) VALUES
-      ('sin-enlace','${IDS.genA}','pisos',1,NULL,CURRENT_TIMESTAMP),
-      ('con-enlace','${IDS.genA}','idealista',1,'${VALID}',CURRENT_TIMESTAMP);
-  `)
-
-  await migrate([OTHERS])
-
-  // Datos previos a las restricciones: un enlace en blanco y filas «Otro/a» con posiciones sin normalizar.
-  await raw.executeMultiple(`
-    INSERT INTO ListingPublication (id,generationId,platform,isPublished,url,updatedAt) VALUES
-      ('en-blanco','${IDS.genB}','pisos',1,'   ',CURRENT_TIMESTAMP);
-    INSERT INTO ListingPublication (id,generationId,platform,instanceKey,isPublished,url,position,updatedAt) VALUES
-      ('otro-b','${IDS.genB}','other','b',1,'https://b.example/x',7,CURRENT_TIMESTAMP),
-      ('otro-a','${IDS.genB}','other','a',0,NULL,3,CURRENT_TIMESTAMP);
-  `)
-
-  await migrate([INTEGRITY])
-
-  // La migración anterior todavía permitía un portal con posición.
-  await raw.execute(`INSERT INTO ListingPublication (id,generationId,platform,position,updatedAt) VALUES ('portal-pos','${IDS.genB}','habitaclia',7,CURRENT_TIMESTAMP)`)
-
-  await migrate([LAST])
-
-  migratedLegacyRows = (await raw.execute('SELECT id,isPublished,url,instanceKey,position FROM ListingPublication ORDER BY id')).rows.map((row) => ({ ...row }))
-
-  const database = await import('../db/prisma.js')
+  const prismaModule = await import('../db/prisma.js')
   const { generationRoutes } = await import('../routes/generation.routes.js')
   const { propertyRoutes } = await import('../routes/property.routes.js')
 
-  prisma = database.prisma
+  prisma = prismaModule.prisma
   app = Fastify()
   app.setErrorHandler((error: { code?: string; message: string }, _request, reply) =>
     reply.code(error.code === 'AI_PROVIDER_ERROR' ? 502 : 500).send({ code: error.code, message: error.message }),
@@ -168,9 +126,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await app?.close()
   await prisma?.$disconnect()
-  raw?.close()
-  // En Windows el adaptador puede retener el archivo: la base queda en el temporal del sistema.
-  await rm(dir, { recursive: true, force: true, maxRetries: 3 }).catch(() => undefined)
+  await client?.end()
+  vi.unstubAllEnvs()
+  await database?.drop()
 })
 
 beforeEach(async () => {
@@ -190,15 +148,10 @@ describe('migración', () => {
     expect(property.generations).toHaveLength(2)
   })
 
-  it('desmarca sin borrar las filas marcadas sin enlace y conserva las demás', () => {
-    expect(migratedLegacyRows).toEqual([
-      { id: 'con-enlace', isPublished: 1, url: VALID, instanceKey: '', position: 0 },
-      { id: 'en-blanco', isPublished: 0, url: '   ', instanceKey: '', position: 0 },
-      { id: 'otro-a', isPublished: 0, url: null, instanceKey: 'a', position: 0 },
-      { id: 'otro-b', isPublished: 1, url: 'https://b.example/x', instanceKey: 'b', position: 1 },
-      { id: 'portal-pos', isPublished: 0, url: null, instanceKey: '', position: 0 },
-      { id: 'sin-enlace', isPublished: 0, url: null, instanceKey: '', position: 0 },
-    ])
+  it('la base no admite los estados que antes se corregían al migrar', async () => {
+    await expect(raw.execute(`INSERT INTO ListingPublication (id,generationId,platform,isPublished,url,updatedAt) VALUES ('sin-enlace','${IDS.genA}','pisos',true,NULL,now())`)).rejects.toThrow(/published_requires_url/)
+    await expect(raw.execute(`INSERT INTO ListingPublication (id,generationId,platform,isPublished,url,updatedAt) VALUES ('en-blanco','${IDS.genA}','pisos',true,'   ',now())`)).rejects.toThrow(/published_requires_url/)
+    await expect(raw.execute(`INSERT INTO ListingPublication (id,generationId,platform,position,updatedAt) VALUES ('portal-pos','${IDS.genA}','pisos',7,now())`)).rejects.toThrow(/other_position_range/)
   })
 
   it('la base impide duplicar anuncio y plataforma', async () => {
@@ -460,7 +413,11 @@ describe('filas «Otro/a»', () => {
 
 describe('restricciones de la base de datos', () => {
   const insert = (fields: Record<string, unknown>) => {
-    const row = { id: `r${Math.random()}`, generationId: IDS.genA, platform: 'idealista', updatedAt: 1, ...fields }
+    const row: Record<string, unknown> = { id: `r${Math.random()}`, generationId: IDS.genA, platform: 'idealista', updatedAt: new Date(), ...fields }
+
+    if ('isPublished' in row) {
+      row.isPublished = Boolean(row.isPublished)
+    }
     const names = Object.keys(row)
 
     return raw.execute({
@@ -516,10 +473,10 @@ describe('restricciones de la base de datos', () => {
   })
 
   it.each([
-    ['position NULL en other', { platform: 'other', instanceKey: 'n', position: null }, /NOT NULL/],
-    ['instanceKey NULL en other', { platform: 'other', instanceKey: null, position: 1 }, /NOT NULL/],
-    ['instanceKey NULL en portal', { platform: 'pisos', instanceKey: null }, /NOT NULL/],
-    ['position NULL en portal', { platform: 'pisos', position: null }, /NOT NULL/],
+    ['position NULL en other', { platform: 'other', instanceKey: 'n', position: null }, /not-null/],
+    ['instanceKey NULL en other', { platform: 'other', instanceKey: null, position: 1 }, /not-null/],
+    ['instanceKey NULL en portal', { platform: 'pisos', instanceKey: null }, /not-null/],
+    ['position NULL en portal', { platform: 'pisos', position: null }, /not-null/],
     ['portal con posición', { platform: 'pisos', position: 3 }, /other_position_range/],
     ['portal con clave', { platform: 'pisos', instanceKey: 'x' }, /instance_key_matches_platform/],
   ])('SQL rechaza %s', async (_name, fields, error) => {
@@ -528,17 +485,17 @@ describe('restricciones de la base de datos', () => {
 
   it('seis filas con posición NULL no entran', async () => {
     for (let i = 0; i < 6; i++) {
-      await expect(insert({ platform: 'other', instanceKey: `n${i}`, position: null })).rejects.toThrow(/NOT NULL/)
+      await expect(insert({ platform: 'other', instanceKey: `n${i}`, position: null })).rejects.toThrow(/not-null/)
     }
 
     await expect(prisma.listingPublication.count()).resolves.toBe(0)
   })
 
   it.each([
-    ['position = NULL', /NOT NULL/],
+    ['position = NULL', /not-null/],
     ['position = 5', /other_position_range/],
     ['position = -1', /other_position_range/],
-    ['instanceKey = NULL', /NOT NULL/],
+    ['instanceKey = NULL', /not-null/],
     [`instanceKey = ''`, /instance_key_matches_platform/],
   ])('SQL rechaza UPDATE %s en una fila other', async (assignment, error) => {
     await insert({ id: 'u', platform: 'other', instanceKey: 'a', position: 0 })
@@ -559,8 +516,9 @@ describe('restricciones de la base de datos', () => {
   })
 
   it('las restricciones siguen en el esquema migrado', async () => {
-    const { rows } = await raw.execute(`SELECT sql FROM sqlite_master WHERE tbl_name = 'ListingPublication' AND sql IS NOT NULL`)
-    const ddl = rows.map((row) => row.sql).join('\n')
+    const constraints = await client.query(`SELECT conname AS name FROM pg_constraint WHERE conrelid = '"ListingPublication"'::regclass`)
+    const indexes = await client.query(`SELECT indexname AS name FROM pg_indexes WHERE tablename = 'ListingPublication'`)
+    const ddl = [...constraints.rows, ...indexes.rows].map((row) => row.name).join('\n')
 
     for (const name of ['published_requires_url', 'instance_key_matches_platform', 'other_position_range', 'ListingPublication_other_position_key']) {
       expect(ddl).toContain(name)
@@ -704,7 +662,8 @@ describe('Estado del inmueble', () => {
         include: { generations: true },
       })
 
-      expect(created.price).toBe(price)
+      expect(Number(created.price)).toBe(price)
+      expect(response.json().listing).toBeDefined()
       expect(created.generations).toHaveLength(1)
     })
 
@@ -729,6 +688,20 @@ describe('Estado del inmueble', () => {
 
       expect(response.statusCode).toBe(502)
       expect([await prisma.property.count(), await prisma.generation.count()]).toEqual(before)
+    })
+
+    it('la API responde los importes como cadena exacta y admite cadenas', async () => {
+      const response = await create({ ...property, operation: 'sale', price: '250000.10', commercialStatus: 'for-sale' })
+
+      expect(response.statusCode).toBe(200)
+
+      const read = await app.inject({ url: `/api/properties/${response.json().propertyId}` })
+
+      expect(read.json().price).toBe('250000.1')
+    })
+
+    it.each(['12.345', '-1', 'abc', '100000000.01', ''])('rechaza el importe %j', async (price) => {
+      expect((await create({ ...property, price, commercialStatus: 'for-sale' })).statusCode).toBe(400)
     })
 
     it('no crea el inmueble si falta el estado', async () => {

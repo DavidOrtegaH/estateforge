@@ -1,3 +1,4 @@
+import { formatMoneyAmount } from '@estateforge/shared'
 import {
   useEffect,
   useMemo,
@@ -1769,9 +1770,7 @@ function HistoryPage() {
                                   ?.price !==
                                   undefined && (
                                     <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-                                      {generation.property.price.toLocaleString(
-                                        'es-ES',
-                                      )}{' '}
+                                      {formatMoneyAmount(generation.property.price)}{' '}
                                       €
                                     </span>
                                   )}

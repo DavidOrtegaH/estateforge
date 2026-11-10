@@ -97,7 +97,7 @@ Cada guardado es una transacción que primero adquiere la fila del anuncio (`UPD
 
 Las columnas `position` e `instanceKey` son `NOT NULL`, y cada `CHECK` exige además sus columnas de forma explícita.
 
-Prisma no modela los `CHECK` ni los índices parciales. Si una migración futura reconstruye la tabla, debe volver a incluirlos; una prueba de integración falla si desaparecen. `apps/api/prisma/postgresql/constraints.sql` contiene las mismas restricciones para PostgreSQL y otra prueba falla si divergen.
+Prisma no modela los `CHECK` ni los índices parciales. Si una migración futura reconstruye la tabla, debe volver a incluirlos; una prueba de integración falla si desaparecen. `apps/api/prisma/postgresql/constraints.sql` contiene las mismas restricciones que la línea base y otra prueba falla si divergen.
 
 | Acción en un portal | Enlace guardado |
 |---|---|
@@ -145,17 +145,10 @@ Las filas «Otro/a» usan un icono genérico.
 
 ## Motores
 
-PostgreSQL es el motor de destino previsto (DA-13), pero **todavía no está soportado**. El proyecto funciona hoy solo con SQLite: es el proveedor de `schema.prisma` y de las migraciones. El plan de migración está en SpecDD: `plan_y_trazabilidad.md`, apartado 13.
+EstateForge funciona con PostgreSQL 17. Las restricciones se aplican en la línea base de `prisma/migrations` y están verificadas contra PostgreSQL real, con conexiones concurrentes. Detalles en [postgresql.md](postgresql.md).
 
-| Motor | Comprobado |
-|---|---|
-| SQLite | Migraciones de ida y vuelta, restricciones, API con Prisma y guardados simultáneos |
-| PostgreSQL 17.5 (PGlite, sesión única) | El esquema que genera Prisma para PostgreSQL, los `CHECK` y el índice parcial con el mismo SQL de la migración, el bloqueo de fila, las transacciones y los borrados en cascada |
-| PostgreSQL | **Sin probar:** Prisma contra PostgreSQL y la concurrencia entre conexiones reales |
+Las migraciones SQLite, con sus `down.sql`, quedan archivadas en `prisma/sqlite-history`.
 
-Las migraciones actuales son específicas de SQLite (`DATETIME`, `PRAGMA`, reconstrucción de tabla). Para pasar a PostgreSQL habrá que generarlas de nuevo e incluir estas restricciones con `ALTER TABLE … ADD CONSTRAINT`.
-
-Cada migración tiene un `down.sql` para la reversión manual. La segunda reversión elimina las filas «Otro/a» y no vuelve a marcar las que se desmarcaron. La primera elimina el Checklist y el Estado.
 
 ## Requisitos
 

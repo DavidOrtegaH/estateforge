@@ -257,7 +257,8 @@ function isWriteConflict(error: unknown): boolean {
   const code = (error as { code?: unknown } | null)
     ?.code
 
-  return code === 'P2002' || code === 'P2034'
+  // Unicidad, conflicto o interbloqueo de PostgreSQL, y espera agotada de una transacción.
+  return code === 'P2002' || code === 'P2034' || code === 'P2028'
 }
 
 export function registerPublicationRoutes(

@@ -32,8 +32,8 @@ const SAFE_ERROR_NAMES: ReadonlySet<string> = new Set([
   'PrismaClientKnownRequestError', 'PrismaClientUnknownRequestError', 'PrismaClientRustPanicError',
   'PrismaClientInitializationError', 'PrismaClientValidationError', 'PrismaClientConstructorValidationError',
   'DriverAdapterError',
-  // @libsql/core.
-  'LibsqlError', 'LibsqlBatchError',
+  // pg.
+  'DatabaseError',
 ])
 
 // Resultado de `typeof`, para lo que se lanza sin ser un Error: un conjunto cerrado por el lenguaje.

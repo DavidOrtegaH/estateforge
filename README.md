@@ -18,7 +18,7 @@ Trabajo Fin de Máster — Máster en IA Generativa. Estado: 🚧 en desarrollo.
 
 | Parte | Tecnologías |
 |---|---|
-| API (`apps/api`) | Node.js, TypeScript, Fastify 5 (`@fastify/cors`, `@fastify/rate-limit`), Prisma 7 con SQLite mediante `@prisma/adapter-libsql`, Zod 4, Nodemailer (SMTP), `@google/genai` (Gemini) y `openai` |
+| API (`apps/api`) | Node.js, TypeScript, Fastify 5 (`@fastify/cors`, `@fastify/rate-limit`), Prisma 7 con PostgreSQL 17 mediante `@prisma/adapter-pg`, Zod 4, Nodemailer (SMTP), `@google/genai` (Gemini) y `openai` |
 | Web (`apps/web`) | React 19, React Router 8, Vite 8, TypeScript, Tailwind CSS 4, componentes Base UI / shadcn, iconos Lucide |
 | Compartido (`packages/shared`) | Tipos, etiquetas y validaciones (Zod 3) usados por la API y la web |
 | Herramientas | pnpm (workspace), Vitest, Oxlint, `tsx` |
@@ -38,7 +38,7 @@ apps/
       services/        lógica de negocio (sesiones, correo, recuperación, cifrado, Turnstile…)
       middleware/      requireAuth y requireOwner
       db/              cliente Prisma
-      integration/     prueba de integración con SQLite real
+      integration/     pruebas de integración con PostgreSQL real
   web/                 aplicación React (ver apps/web/README.md)
 packages/
   shared/              código compartido entre API y web
@@ -70,13 +70,12 @@ docs/                  documentación (seguridad)
    pnpm --filter api exec prisma generate
    ```
 
-5. **Base de datos.** Crea o actualiza la base SQLite indicada en `DATABASE_URL` aplicando las migraciones versionadas:
+5. **Base de datos.** Necesitas PostgreSQL 17. Define `DATABASE_URL` y aplica las migraciones versionadas (detalle en [docs/postgresql.md](docs/postgresql.md)):
 
    ```bash
-   pnpm --filter api exec prisma migrate deploy
+   pnpm --filter api db:migrate
    ```
 
-   La base local (`apps/api/dev.db*`) está en `.gitignore`: no se versiona.
 
 6. **Arranque en desarrollo** (API y web a la vez):
 
@@ -110,7 +109,7 @@ El `package.json` raíz también define `build` (`tsc -b && vite build`) y `prev
 
 ### Tests
 
-- **API:** Vitest con un Prisma simulado en memoria; `src/integration/security-hold-version.integration.test.ts` usa SQLite real en una base temporal (no toca `dev.db`). La configuración (`apps/api/vitest.config.ts`) fija `NODE_ENV=test`, `DATABASE_URL=file:./test.db` y valores de prueba para `GEMINI_API_KEY` y `CORS_ORIGIN`.
+- **API:** Vitest con un Prisma simulado en memoria; las suites de `src/integration` usan PostgreSQL real, con una base temporal por suite (requieren `TEST_POSTGRES_ADMIN_URL`; ver [docs/postgresql.md](docs/postgresql.md)).
 - **Web:** Vitest sin entorno DOM. Se prueba la lógica extraída (`src/lib`, `src/services`), no el renderizado de las páginas.
 - Los tests que importan `apps/api/src/app.ts` (`src/cors.test.ts` y `src/routes/security.routes.test.ts`) cargan también `apps/api/.env` a través de `dotenv`; las variables de `vitest.config.ts` tienen prioridad.
 
@@ -122,7 +121,7 @@ Plantilla: [`apps/api/.env.example`](apps/api/.env.example). Nunca subas el `.en
 
 | Variable | Obligatoria | Uso |
 |---|---|---|
-| `DATABASE_URL` | Sí | URL de la base SQLite para libsql (por ejemplo, `file:./dev.db`). Sin ella la API no arranca. |
+| `DATABASE_URL` | Sí | Conexión `postgresql://`. Sin ella la API no arranca. El pool y el SSL se describen en [docs/postgresql.md](docs/postgresql.md). |
 | `GEMINI_API_KEY` | Sí | Clave del servidor para Gemini. La valida `src/env.ts` al arrancar, aunque solo se use el proveedor `mock` u OpenAI. |
 | `OPENAI_API_KEY` | No | Clave del servidor para OpenAI. Sin ella, generar con OpenAI requiere que el usuario aporte su clave. |
 | `ESTATEFORGE_API_KEY_ENCRYPTION_KEY` | Para guardar claves de IA | Clave AES-256 de 32 bytes, en base64 o en hexadecimal, para cifrar las claves de IA que guardan los usuarios. |

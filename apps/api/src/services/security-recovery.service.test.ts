@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Doble mínimo de Prisma y del correo. Solo comprueba qué pide el servicio; la atomicidad, el
 // rollback y las carreras reales se prueban con SQLite (bloque 12 de la integración).
 const db = vi.hoisted(() => ({
+  $executeRaw: vi.fn(async () => 1),
   user: { findMany: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
   passwordResetToken: { findFirst: vi.fn(), deleteMany: vi.fn(), create: vi.fn() },
   adminAuditLog: { create: vi.fn() },

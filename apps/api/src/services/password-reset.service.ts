@@ -208,6 +208,16 @@ export async function consumeSecurityRecoveryToken(
       // sesiones, los códigos y los enlaces de verificación. El estado se lee ya bloqueado.
       if (!(await lockUserRow(tx, userId))) return 'state_mismatch'
 
+      // Otra petición con el mismo token puede haberlo consumido mientras esta esperaba el bloqueo.
+      const current = await tx.passwordResetToken.findUnique({
+        where: { id: record.id },
+        select: { usedAt: true },
+      })
+
+      if (!current || current.usedAt) {
+        return 'invalid_token'
+      }
+
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: {

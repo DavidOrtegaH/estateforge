@@ -16,7 +16,9 @@ export type ListingLanguage =
   | 'english'
 
 export type GenerationRequest = {
-  property: Property
+  property: Omit<Property, 'price'> & {
+    price: number | string
+  }
   provider: AIProviderType
   tone: ListingTone
   language: ListingLanguage

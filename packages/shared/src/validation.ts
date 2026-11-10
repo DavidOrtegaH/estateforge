@@ -64,6 +64,25 @@ const nonNegativeInteger = (max: number) =>
 const booleanSchema = z.boolean()
 
 /**
+ * Importe exacto: número o cadena decimal, hasta 100.000.000 y 2 decimales.
+ * El resultado es siempre una cadena, para no pasar por coma flotante.
+ */
+const moneySchema = z
+  .union([z.string().trim(), z.number().finite()])
+  .transform((value) =>
+    typeof value === 'number' ? String(value) : value,
+  )
+  .refine(
+    (value) =>
+      /^\d{1,9}(\.\d{1,2})?$/.test(value) &&
+      Number(value) <= 100_000_000,
+    {
+      message:
+        'El importe debe ser un número positivo de hasta 100.000.000 con un máximo de 2 decimales',
+    },
+  )
+
+/**
  * API key temporal proporcionada por el usuario.
  *
  * Nunca debe persistirse en base de datos ni incluirse
@@ -135,7 +154,7 @@ const propertyFields = {
     'land',
   ]),
 
-  price: nonNegativeNumber(100_000_000),
+  price: moneySchema,
 
   address: requiredText(200),
 
@@ -224,9 +243,7 @@ export const PropertyUpdateSchema = z
       ])
       .optional(),
 
-    price: nonNegativeNumber(
-      100_000_000,
-    ).optional(),
+    price: moneySchema.optional(),
 
     address: requiredText(200).optional(),
 

@@ -67,13 +67,28 @@ describe('PropertyInputSchema', () => {
     assert.equal(result.success, false)
   })
 
-  it('rechaza números enviados como texto', () => {
+  it('rechaza números enviados como texto salvo el importe', () => {
     const result = PropertyInputSchema.safeParse({
       ...validProperty,
-      price: '250000',
+      area: '90',
     })
 
     assert.equal(result.success, false)
+  })
+
+  it('el importe admite número o cadena decimal y siempre devuelve cadena', () => {
+    for (const [price, expected] of [[250000, '250000'], ['250000', '250000'], ['250000.10', '250000.10'], [0.5, '0.5'], [100000000, '100000000']] as const) {
+      const result = PropertyInputSchema.safeParse({ ...validProperty, price })
+
+      assert.equal(result.success, true)
+      assert.equal(result.data?.price, expected)
+    }
+  })
+
+  it('rechaza importes sin formato exacto o fuera de rango', () => {
+    for (const price of ['12.345', 12.345, '-1', -1, '1e5', 'abc', '', '100000000.01', 100000000.01, null]) {
+      assert.equal(PropertyInputSchema.safeParse({ ...validProperty, price }).success, false, String(price))
+    }
   })
 
   it('rechaza Infinity y NaN', () => {

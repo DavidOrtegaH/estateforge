@@ -399,6 +399,8 @@ Hallazgos en el código, fuera del alcance de esta fase (sin corregir):
 
 ## 15. PostgreSQL
 
+> **Actualización:** EstateForge usa ya PostgreSQL 17 (ver [postgresql.md](../postgresql.md)). Lo que sigue describe el estado anterior a la migración. F0-001 continúa abierto.
+
 - **El código está pensado para ser portable:**
   - usa operaciones de Prisma (`findUnique`, `count`, `updateMany`, `create`, `deleteMany` y transacciones interactivas). El único SQL propio es el bloqueo de la cuenta (`lockUserRow`), una sentencia `UPDATE` estándar con identificadores entre comillas dobles, válida en SQLite y en PostgreSQL;
   - las fechas se comparan como `DateTime`;

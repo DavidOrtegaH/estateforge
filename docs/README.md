@@ -2,6 +2,10 @@
 
 Instalación, configuración, variables de entorno y scripts: [README principal](../README.md). Aplicación web: [apps/web/README.md](../apps/web/README.md).
 
+## Base de datos
+
+- [PostgreSQL](postgresql.md): puesta en marcha, migraciones, tipos, variables, despliegue y recuperación.
+
 ## Producto
 
 - [Checklist de publicación y Estado del inmueble](producto-checklist-y-estado.md): EstateForge registra dónde se publica cada anuncio, pero no publica; validación de enlaces, Estado comercial y requisitos.

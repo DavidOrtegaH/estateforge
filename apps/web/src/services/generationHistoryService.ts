@@ -16,7 +16,7 @@ export interface GenerationHistoryItem {
     id: string
     operation: string
     type: string
-    price: number
+    price: string
     city: string
     neighborhood: string
     area: number

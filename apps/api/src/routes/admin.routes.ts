@@ -108,7 +108,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/users', { preHandler: requireOwner }, async (request) => {
     const { search, page } = UsersQuery.parse(request.query)
     const pageSize = 20
-    const where = search ? { email: { contains: search } } : {}
+    const where = search ? { email: { contains: search, mode: 'insensitive' as const } } : {}
     const [total, users] = await Promise.all([
       prisma.user.count({ where }),
       prisma.user.findMany({

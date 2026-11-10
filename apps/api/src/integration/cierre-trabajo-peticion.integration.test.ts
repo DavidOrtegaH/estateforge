@@ -1,19 +1,14 @@
 import { EventEmitter } from 'node:events'
-import { readdirSync, readFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
 import { request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { createClient } from '@libsql/client'
 import rateLimit from '@fastify/rate-limit'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-// SQLite real en una base temporal, flujo real de reset-password y TCP real en localhost. La señal
+import { createTestDatabase, type TestDatabase } from '../test-support/postgres.js'
+
+// PostgreSQL real en una base temporal, flujo real de reset-password y TCP real en localhost. La señal
 // se emite sobre un emisor propio y el código de salida es un doble: NO son señales reales.
-// No acredita PostgreSQL.
 const gate = vi.hoisted(() => ({
   entered: 0,
   release: (() => undefined) as () => void,
@@ -38,10 +33,9 @@ vi.mock('../services/password.service.js', async importOriginal => {
 vi.mock('../services/turnstile.service.js', () => ({ verifyTurnstileToken: vi.fn(async () => true) }))
 vi.mock('../services/email.service.js', () => ({ emailService: {} }))
 
-const API_DIR = fileURLToPath(new URL('../../', import.meta.url))
 const PASSWORD = 'Primera-Contrasena-Segura-1'
 
-let tempDir: string
+let testDatabase: TestDatabase
 let mods: {
   prisma: typeof import('../db/prisma.js')['prisma']
   resets: typeof import('../services/password-reset.service.js')
@@ -61,15 +55,8 @@ async function until(condition: () => boolean | Promise<boolean>, ms = 4_000) {
 }
 
 beforeAll(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'estateforge-cierre-'))
-  const url = `file:${join(tempDir, 'test.db').replaceAll('\\', '/')}`
-  vi.stubEnv('DATABASE_URL', url)
-  const client = createClient({ url })
-  const migrations = join(API_DIR, 'prisma', 'migrations')
-  for (const folder of readdirSync(migrations, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort()) {
-    await client.executeMultiple(readFileSync(join(migrations, folder, 'migration.sql'), 'utf8'))
-  }
-  client.close()
+  testDatabase = await createTestDatabase()
+  vi.stubEnv('DATABASE_URL', testDatabase.url)
   mods = {
     prisma: (await import('../db/prisma.js')).prisma,
     resets: await import('../services/password-reset.service.js'),
@@ -89,8 +76,7 @@ afterEach(async () => {
 afterAll(async () => {
   await mods.prisma.$disconnect()
   vi.unstubAllEnvs()
-  // En Windows, libsql puede retener el fichero: la limpieza no decide el resultado de la prueba.
-  await rm(tempDir, { recursive: true, force: true }).catch(() => undefined)
+  await testDatabase.drop()
 })
 
 describe('trabajo de una petición cuyo cliente se ha desconectado', () => {

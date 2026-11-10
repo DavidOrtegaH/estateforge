@@ -1,17 +1,12 @@
-import { PrismaLibSql } from '@prisma/adapter-libsql'
+import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../generated/prisma/client.js'
 
-const databaseUrl = process.env.DATABASE_URL
+import { buildPoolConfig } from './connection-config.js'
 
-if (!databaseUrl) {
-  throw new Error(
-    'DATABASE_URL no está configurada.',
-  )
-}
-
-const adapter = new PrismaLibSql({
-  url: databaseUrl,
-})
+// Cliente único por proceso: el adaptador crea el pool y lo cierra con $disconnect.
+const adapter = new PrismaPg(
+  buildPoolConfig(process.env),
+)
 
 export const prisma = new PrismaClient({
   adapter,

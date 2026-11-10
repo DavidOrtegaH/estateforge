@@ -170,8 +170,8 @@ const fake = vi.hoisted(() => {
           return value !== null
         }
 
-        if ('contains' in expected && typeof expected.contains === 'string' && Object.keys(expected).length === 1) {
-          return typeof value === 'string' && value.includes(expected.contains)
+        if ('contains' in expected && typeof expected.contains === 'string') {
+          return typeof value === 'string' && value.toLowerCase().includes(expected.contains.toLowerCase())
         }
 
         if ('in' in expected && Array.isArray(expected.in) && Object.keys(expected).length === 1) {
@@ -1922,7 +1922,7 @@ describe('Admin routes', () => {
       const response = await getUsers(`?search=${encodeURIComponent('  target  ')}`)
 
       expect(response.statusCode).toBe(200)
-      expect(fake.state.lastUserFindMany?.where).toEqual({ email: { contains: 'target' } })
+      expect(fake.state.lastUserFindMany?.where).toEqual({ email: { contains: 'target', mode: 'insensitive' } })
       expect(response.json().users.map((item: { id: string }) => item.id)).toEqual([TARGET])
       expect(response.json().pagination.total).toBe(1)
     })
@@ -1930,7 +1930,7 @@ describe('Admin routes', () => {
     it('users limita la búsqueda a 120 caracteres', async () => {
       await getUsers(`?search=${'a'.repeat(200)}`)
 
-      expect(fake.state.lastUserFindMany?.where).toEqual({ email: { contains: 'a'.repeat(120) } })
+      expect(fake.state.lastUserFindMany?.where).toEqual({ email: { contains: 'a'.repeat(120), mode: 'insensitive' } })
     })
 
     it('users ignora una búsqueda formada solo por espacios', async () => {
@@ -2016,7 +2016,7 @@ describe('Admin routes', () => {
       await getUsers(`?search=target&page=1250`)
 
       expect(fake.state.userFindManyCalls).toBe(1)
-      expect(fake.state.lastUserFindMany).toEqual({ where: { email: { contains: 'target' } }, skip: 1249 * 20, take: 20 })
+      expect(fake.state.lastUserFindMany).toEqual({ where: { email: { contains: 'target', mode: 'insensitive' } }, skip: 1249 * 20, take: 20 })
     })
 
     it('users ordena por fecha de alta y desempata por id', async () => {

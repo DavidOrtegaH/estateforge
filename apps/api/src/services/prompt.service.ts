@@ -166,7 +166,7 @@ ${getLanguageInstructions(language)}
 
 DATOS DEL INMUEBLE:
 
-${JSON.stringify(property, null, 2)}
+${JSON.stringify({ ...property, price: Number(property.price) }, null, 2)}
 
 IMPORTANTE:
 

@@ -1,4 +1,5 @@
 
+import { formatMoneyAmount } from '@estateforge/shared'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -499,7 +500,7 @@ function DashboardPage() {
           title: propertyForm.title.trim(),
           operation: propertyForm.operation,
           type: propertyForm.type,
-          price: Number(propertyForm.price),
+          price: propertyForm.price,
           address: propertyForm.address,
           city: propertyForm.city,
           neighborhood:
@@ -1481,9 +1482,7 @@ function DashboardPage() {
                               </div>
 
                               <p className="whitespace-nowrap text-lg font-bold">
-                                {property.price.toLocaleString(
-                                  'es-ES',
-                                )}{' '}
+                                {formatMoneyAmount(property.price)}{' '}
                                 €
                               </p>
                             </div>

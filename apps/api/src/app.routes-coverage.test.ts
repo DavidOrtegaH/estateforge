@@ -388,6 +388,8 @@ const REVIEWED_ENTRIES: Record<string, 'peticion' | 'aplicacion' | 'plugin' | 'c
   'app.ts | setErrorHandler | sincrona': 'peticion',
   'request-work.ts | addHook:onRoute | sincrona': 'aplicacion',
   'routes/auth.routes.ts | addHook:onClose | async': 'aplicacion',
+  'server.ts | addHook:onClose | async': 'aplicacion',
+  'server.ts | register:readinessRoutes | referencia': 'plugin',
 }
 
 const SOURCE_DIR = fileURLToPath(new URL('.', import.meta.url))

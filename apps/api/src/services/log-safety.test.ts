@@ -66,7 +66,7 @@ describe('safeErrorFields', () => {
     expect(safeErrorFields(error)).toEqual({ errorName: 'Error' })
   })
 
-  it.each(['TypeError', 'PrismaClientKnownRequestError', 'DriverAdapterError', 'LibsqlError'])('conserva el nombre conocido %s', name => {
+  it.each(['TypeError', 'PrismaClientKnownRequestError', 'DriverAdapterError', 'DatabaseError'])('conserva el nombre conocido %s', name => {
     const error = new Error('x')
     error.name = name
 

@@ -102,7 +102,7 @@ function toSharedProperty(
     title: string
     operation: string
     type: string
-    price: number
+    price: { toString(): string } | number
     address: string
     city: string
     neighborhood: string
@@ -134,7 +134,7 @@ function toSharedProperty(
       property.type as PropertyType,
 
     price:
-      property.price,
+      Number(property.price.toString()),
 
     address:
       property.address,

@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify'
 
 import { prisma } from '../db/prisma.js'
+import { lockUserRow } from './user-lock.js'
 import { emailService } from './email.service.js'
 import { safeDeliveryErrorFields, safeErrorName } from './log-safety.js'
 import { createPasswordResetToken, getPasswordResetExpiry, hashPasswordResetToken } from './password-reset.service.js'
@@ -133,6 +134,9 @@ export async function issueRequestedRecoveryLinks(
 async function issueRequestedLinkFor(userId: string, destination: string, version: number, now: Date): Promise<RecoveryLink | null> {
   const recovery = newRecoveryToken(userId, destination, version)
   const issued = await prisma.$transaction(async tx => {
+    // Primero la cuenta (F0-001): con el bloqueo, una segunda solicitud simultánea ve ya el enlace
+    // confirmado por la primera al comprobar el enfriamiento.
+    if (!(await lockUserRow(tx, userId))) return false
     // El destino puede compartirse como securityRecoveryEmail, pero no ser el email de otra cuenta.
     const holder = await tx.user.findUnique({ where: { email: destination }, select: { id: true } })
     if (holder && holder.id !== userId) return false

@@ -1,4 +1,5 @@
 
+import { formatMoneyAmount } from '@estateforge/shared'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
@@ -1425,10 +1426,8 @@ function PropertyDetailPage() {
                     setEditForm({
                       ...editForm,
                       price:
-                        Number(
-                          event.target
-                            .value,
-                        ),
+                        event.target.value ||
+                        '0',
                     })
                   }
                   disabled={
@@ -2074,7 +2073,7 @@ function PropertyDetailPage() {
             </dt>
 
             <dd className="mt-1 font-medium">
-              {property.price.toLocaleString('es-ES')} €
+              {formatMoneyAmount(property.price)} €
             </dd>
           </div>
 

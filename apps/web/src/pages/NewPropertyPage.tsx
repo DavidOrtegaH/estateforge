@@ -222,7 +222,10 @@ function NewPropertyPage() {
 
     try {
       const result = await generateListing({
-        property,
+        property: {
+          ...property,
+          price: property.price.toFixed(2),
+        },
         provider,
         tone,
         language,

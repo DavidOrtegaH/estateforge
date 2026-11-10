@@ -1,3 +1,4 @@
+import { formatMoneyAmount } from '@estateforge/shared'
 import { useEffect, useState } from 'react'
 import {
   Link,
@@ -713,9 +714,7 @@ function GenerationDetailPage() {
               </p>
 
               <p className="mt-1 text-lg font-semibold">
-                {property.price.toLocaleString(
-                  'es-ES',
-                )}{' '}
+                {formatMoneyAmount(property.price)}{' '}
                 €
               </p>
             </div>
@@ -904,9 +903,7 @@ function GenerationDetailPage() {
                 </dt>
 
                 <dd className="mt-1 font-medium">
-                  {property.price.toLocaleString(
-                    'es-ES',
-                  )}{' '}
+                  {formatMoneyAmount(property.price)}{' '}
                   €
                 </dd>
               </div>

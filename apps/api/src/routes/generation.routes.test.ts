@@ -52,7 +52,7 @@ const propertyPayload = {
     title: 'Piso de prueba',
     operation: 'sale',
     type: 'apartment',
-    price: 250000,
+    price: '250000',
     address: 'Calle Mayor 10',
     city: 'Madrid',
     neighborhood: 'Centro',

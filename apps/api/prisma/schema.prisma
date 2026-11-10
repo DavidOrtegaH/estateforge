@@ -6,30 +6,30 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
   id                  String              @id @default(cuid())
   email               String              @unique
   password            String
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  securityHoldAt      DateTime?
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
+  securityHoldAt      DateTime? @db.Timestamptz(3)
   securityHoldVersion Int                 @default(0)
   // Recuperación obligatoria tras un incidente (E2). NULL = flujo normal / sin destino conocido.
   // securityRecoveryEmail es el destino propuesto; solo queda autorizado cuando lo confirma un OWNER.
-  passwordResetRequiredAt DateTime?
+  passwordResetRequiredAt DateTime? @db.Timestamptz(3)
   securityRecoveryEmail   String?
-  adminSuspendedAt    DateTime?
+  adminSuspendedAt    DateTime? @db.Timestamptz(3)
   adminSuspensionReason String?
   role                String              @default("USER")
   // Verificación del email (Fase 0). NULL = sin verificar; nunca se rellena sin que el titular
   // confirme un enlace enviado a ese email. Las cuentas existentes no se marcan como verificadas.
-  emailVerifiedAt     DateTime?
+  emailVerifiedAt     DateTime? @db.Timestamptz(3)
   // Último enlace de verificación emitido. Se reserva con una escritura condicional atómica
   // (un enlace por minuto como mucho) que serializa por cuenta la emisión de enlaces.
-  emailVerificationSentAt DateTime?
+  emailVerificationSentAt DateTime? @db.Timestamptz(3)
   emailVerificationTokens EmailVerificationToken[]
   properties          Property[]
   sessions            Session[]
@@ -43,8 +43,8 @@ model Session {
   id        String   @id @default(cuid())
   tokenHash String   @unique
   userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -56,9 +56,9 @@ model PasswordResetToken {
   id        String    @id @default(cuid())
   tokenHash String    @unique
   userId    String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  expiresAt DateTime @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
   // 'SELF_SERVICE' (flujo normal) o 'SECURITY_RECOVERY' (obligatorio tras un incidente, E2).
   // Un token obligatorio lleva deliverTo y securityHoldVersion; uno normal los deja a NULL.
   // La emisión de un token normal no debe eliminar un token obligatorio pendiente.
@@ -79,9 +79,9 @@ model EmailChangeVerification {
   userId    String
   newEmail  String
   codeHash  String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
+  expiresAt DateTime @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -98,9 +98,9 @@ model EmailVerificationToken {
   tokenHash String    @unique
   userId    String
   email     String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  expiresAt DateTime @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -112,9 +112,9 @@ model SecurityIncidentToken {
   id        String   @id @default(cuid())
   tokenHash String   @unique
   userId    String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
+  expiresAt DateTime @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
   // Email al que se envió el enlace de incidente. Es un dato del incidente, no una
   // autorización: el destino de la recuperación lo confirma un OWNER (E2).
   notifiedEmail String?
@@ -130,8 +130,8 @@ model UserAIKey {
   userId       String
   provider     String
   encryptedKey String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -144,7 +144,7 @@ model Property {
   title                 String
   operation             String
   type                  String
-  price                 Float
+  price                 Decimal      @db.Decimal(12, 2)
   address               String
   city                  String
   neighborhood          String
@@ -165,8 +165,8 @@ model Property {
   heating               Boolean      @default(false)
   additionalInformation String
   userId                String?
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  createdAt             DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime     @updatedAt @db.Timestamptz(3)
 
   user                  User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -183,8 +183,8 @@ model Generation {
   tone         String
   language     String
   propertyId   String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(3)
 
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
@@ -203,8 +203,8 @@ model ListingPublication {
   customName   String?
   homeUrl      String?
   position     Int        @default(0)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
 
   generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
 
@@ -221,7 +221,7 @@ model AdminAuditLog {
   action      String
   reason      String?
   metadata    String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([actorUserId, createdAt])
   @@index([targetUserId, createdAt])

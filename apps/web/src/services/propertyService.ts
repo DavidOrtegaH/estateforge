@@ -3,7 +3,7 @@ import { API_URL } from '@/lib/api'
 export interface PropertyItem {
   id: string
   title: string
-  price: number
+  price: string
   area: number
   city: string
   neighborhood?: string

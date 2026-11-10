@@ -1,40 +1,18 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { setFlagsFromString } from 'node:v8'
-import { runInNewContext } from 'node:vm'
-import { createClient } from '@libsql/client'
 import Fastify, { type FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// ============================================================
-// INTEGRACIÓN CON SQLITE REAL (V4)
-// ============================================================
-//
-// Base SQLite temporal en el directorio temporal del sistema, con las
-// migraciones reales del proyecto. No usa dev.db ni test.db. Prisma se
-// importa después de fijar DATABASE_URL, porque db/prisma.ts lee la
-// variable al cargarse. Todo se ejecuta con un solo PrismaClient: el
-// caso de retirada obsoleta prueba una intercalación real entre lectura
-// y escritura, no concurrencia entre procesos.
+import { createTestDatabase, type TestDatabase } from '../test-support/postgres.js'
 
-// Dos cambios sobre el adaptador real, solo en este fichero:
+// ============================================================
+// INTEGRACIÓN CON POSTGRESQL REAL
+// ============================================================
 //
-// 1. Sustituto mínimo de client.transaction(). @libsql/client 0.17 entrega a cada
-//    transacción interactiva una conexión nativa que su Sqlite3Transaction nunca
-//    cierra, y Prisma retiene las transacciones cerradas; en Windows eso impide
-//    borrar la base temporal. Aquí cada transacción usa una conexión SQLite
-//    dedicada sobre el mismo fichero, con BEGIN/COMMIT/ROLLBACK reales en esa
-//    conexión, y la conexión se cierra siempre en un finally. No se prueba el
-//    ciclo de vida de Sqlite3Transaction de libsql.
-// 2. Gancho de intercalación. El cliente de Prisma 7 es un Proxy y vi.spyOn sobre
-//    $transaction no intercepta sus llamadas, así que se envuelve startTransaction:
-//    la siguiente transacción que se inicie ejecuta antes el gancho, que se
-//    desactiva en ese momento para que sus propias transacciones sigan el camino normal.
+// Base PostgreSQL propia de esta suite (test-support/postgres.ts), con las migraciones reales.
+// Prisma se importa después de fijar DATABASE_URL, porque db/prisma.ts la lee al cargarse.
+// Se envuelve el adaptador real solo para registrar el inicio y el final de cada transacción,
+// sus escrituras, y para intercalar una operación justo antes de la siguiente transacción.
 const transactions = vi.hoisted(() => ({
   beforeNext: null as null | (() => Promise<void>),
   started: 0,
@@ -48,115 +26,16 @@ const transactions = vi.hoisted(() => ({
   writes: [] as string[][],
 }))
 
-vi.mock('@prisma/adapter-libsql', async importOriginal => {
-  const actual = await importOriginal<typeof import('@prisma/adapter-libsql')>()
-  const libsql = await import('@libsql/client')
-  type Config = Parameters<typeof libsql.createClient>[0]
-  type Client = ReturnType<typeof libsql.createClient>
-  type Statement = Parameters<Client['execute']>[0]
+vi.mock('@prisma/adapter-pg', async importOriginal => {
+  const actual = await importOriginal<typeof import('@prisma/adapter-pg')>()
 
-  // «UPDATE `main`.`User` SET …» (Prisma) o «UPDATE "User" SET …» (consulta directa) → «UPDATE User».
-  // Las lecturas no se registran.
-  function writeOf(statement: Statement): string | null {
-    // El tipo de execute() tiene sobrecargas y aquí se ve como texto; Prisma pasa { sql, args }.
-    const raw: unknown = statement
-    const sql = typeof raw === 'string' ? raw : (raw as { sql: string }).sql
-    const match = /^\s*(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(?:[`"]main[`"]\.)?[`"]?(\w+)[`"]?/i.exec(sql)
+  // «UPDATE "public"."User" SET …» → «UPDATE User». Las lecturas no se registran.
+  function writeOf(sql: string): string | null {
+    const match = /^\s*(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(?:"public"\.)?"?(\w+)"?/i.exec(sql)
     return match ? `${match[1].toUpperCase().replace(/\s+/g, ' ')} ${match[2]}` : null
   }
 
-  function open(connection: Client | null): Client {
-    if (!connection) throw new Error('La conexión SQLite del test ya está cerrada')
-    return connection
-  }
-
-  // El close() nativo de libsql 0.5 no suelta el fichero hasta que el recolector
-  // recoge la conexión, y Prisma conserva las transacciones cerradas. Por eso, al
-  // cerrar, se suelta también la referencia: la limpieza puede recogerla.
-  async function dedicatedTransaction(config: Config, mode: string) {
-    let connection: Client | null = libsql.createClient(config)
-    transactions.openConnections += 1
-    transactions.peakOpenConnections = Math.max(transactions.peakOpenConnections, transactions.openConnections)
-    let finished = false
-    const release = () => {
-      try {
-        open(connection).close()
-      } finally {
-        connection = null
-        transactions.openConnections -= 1
-      }
-    }
-    const finish = (statement: 'COMMIT' | 'ROLLBACK') => async () => {
-      if (finished) return
-      finished = true
-      transactions.log.push(statement)
-      try {
-        await open(connection).execute(statement)
-      } finally {
-        release()
-      }
-    }
-
-    const begin = `BEGIN ${mode.toUpperCase()}`
-    try {
-      await open(connection).execute(begin)
-    } catch (error) {
-      finished = true
-      release()
-      throw error
-    }
-    transactions.log.push(begin)
-    const writes: string[] = []
-    transactions.writes.push(writes)
-
-    // Solo lo que usa la transacción del adaptador: execute, commit y rollback.
-    return {
-      execute: async (statement: Statement) => {
-        const write = writeOf(statement)
-        if (write) writes.push(write)
-        try {
-          return await open(connection).execute(statement)
-        } catch (error) {
-          // V8 guarda la pila de un error sin formatear y, con ella, el `this` de cada
-          // marco: el error de SQLite retendría la conexión aunque ya esté cerrada.
-          // Leer `stack` la formatea y suelta esas referencias; el error no cambia.
-          void (error as Error).stack
-          void ((error as Error).cause as Error | undefined)?.stack
-          throw error
-        }
-      },
-      commit: finish('COMMIT'),
-      rollback: finish('ROLLBACK'),
-      close: finish('ROLLBACK'),
-      get closed() {
-        return finished
-      },
-    }
-  }
-
-  class HookedPrismaLibSql extends actual.PrismaLibSql {
-    // Cliente principal del adaptador: las consultas fuera de transacción van a la
-    // conexión real; al cerrarlo ($disconnect) se suelta la referencia, como arriba.
-    override createClient(config: Config) {
-      let inner: Client | null = super.createClient(config)
-      const client = {
-        execute: (statement: Statement) => open(inner).execute(statement),
-        executeMultiple: (sql: string) => open(inner).executeMultiple(sql),
-        transaction: (mode = 'write') => dedicatedTransaction(config, mode),
-        close: () => {
-          try {
-            inner?.close()
-          } finally {
-            inner = null
-          }
-        },
-        get closed() {
-          return inner === null
-        },
-      }
-      return client as unknown as Client
-    }
-
+  class HookedPrismaPg extends actual.PrismaPg {
     override async connect() {
       const adapter = await super.connect()
       const startTransaction = adapter.startTransaction.bind(adapter)
@@ -169,13 +48,56 @@ vi.mock('@prisma/adapter-libsql', async importOriginal => {
           await hook()
           transactions.log.push('gancho: fin')
         }
-        return startTransaction(...args)
+        const transaction = await startTransaction(...args)
+        transactions.openConnections += 1
+        transactions.peakOpenConnections = Math.max(transactions.peakOpenConnections, transactions.openConnections)
+        transactions.log.push('BEGIN')
+        const writes: string[] = []
+        transactions.writes.push(writes)
+        let finished = false
+        const finish = (statement: 'COMMIT' | 'ROLLBACK', close: () => Promise<void>) => async () => {
+          if (!finished) {
+            finished = true
+            transactions.openConnections -= 1
+            transactions.log.push(statement)
+          }
+          await close()
+        }
+        const track = <K extends 'executeRaw' | 'queryRaw'>(name: K) => {
+          const original = transaction[name].bind(transaction) as (query: { sql: string }) => Promise<never>
+          ;(transaction as unknown as Record<string, unknown>)[name] = (query: { sql: string }) => {
+            const write = writeOf(query.sql)
+            if (write) writes.push(write)
+            return original(query)
+          }
+        }
+        track('executeRaw')
+        track('queryRaw')
+        transaction.commit = finish('COMMIT', transaction.commit.bind(transaction))
+        transaction.rollback = finish('ROLLBACK', transaction.rollback.bind(transaction))
+        return transaction
       }
       return adapter
     }
   }
-  return { ...actual, PrismaLibSql: HookedPrismaLibSql }
+  return { ...actual, PrismaPg: HookedPrismaPg }
 })
+
+// Trigger temporal de PostgreSQL para provocar un fallo o una intercalación en una prueba.
+async function createTestTrigger(
+  database: { $executeRawUnsafe: (sql: string) => Promise<unknown> },
+  name: string,
+  timing: string,
+  body: string,
+  when?: string,
+) {
+  await database.$executeRawUnsafe(`CREATE FUNCTION "${name}"() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN ${body} END $fn$`)
+  await database.$executeRawUnsafe(`CREATE TRIGGER "${name}" ${timing} FOR EACH ROW ${when ? `WHEN (${when})` : ''} EXECUTE FUNCTION "${name}"()`)
+}
+
+async function dropTestTrigger(database: { $executeRawUnsafe: (sql: string) => Promise<unknown> }, name: string) {
+  await database.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${name}"() CASCADE`)
+}
 
 // Doble del envío de la recuperación obligatoria (E2.4): guarda cada llamada con el
 // registro de transacciones en ese momento, para comprobar que llega tras el COMMIT.
@@ -208,9 +130,6 @@ vi.mock('../services/email.service.js', () => ({
   },
 }))
 
-const API_DIR = fileURLToPath(new URL('../../', import.meta.url))
-const MIGRATIONS_DIR = join(API_DIR, 'prisma', 'migrations')
-const PROJECT_DATABASES = [resolve(API_DIR, 'dev.db'), resolve(API_DIR, 'test.db')]
 const HOLD_CHANGED_MESSAGE = 'La protección por incidente ha cambiado durante la operación. Revisa la cuenta antes de volver a intentarlo.'
 
 type PrismaModule = typeof import('../db/prisma.js')
@@ -224,8 +143,7 @@ type VerificationModule = typeof import('../services/email-verification.service.
 type EmailChangeModule = typeof import('../services/email-change.service.js')
 type ResetDeliveryModule = typeof import('../services/password-reset-delivery.service.js')
 
-let tempDir: string | undefined
-let databasePath: string
+let testDatabase: TestDatabase | undefined
 let loaded: {
   prisma: PrismaModule['prisma']
   incidents: IncidentModule
@@ -250,33 +168,9 @@ function server() {
   return app
 }
 
-function collectGarbage() {
-  setFlagsFromString('--expose-gc')
-  ;(runInNewContext('gc') as () => void)()
-}
-
-async function applyMigrations(url: string) {
-  const client = createClient({ url })
-  try {
-    const folders = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name)
-      .sort()
-    for (const folder of folders) {
-      await client.executeMultiple(readFileSync(join(MIGRATIONS_DIR, folder, 'migration.sql'), 'utf8'))
-    }
-  } finally {
-    client.close()
-  }
-}
-
 beforeAll(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'estateforge-v4-'))
-  databasePath = join(tempDir, 'test.db')
-  const url = `file:${databasePath.replaceAll('\\', '/')}`
-  vi.stubEnv('DATABASE_URL', url)
-
-  await applyMigrations(url)
+  testDatabase = await createTestDatabase()
+  vi.stubEnv('DATABASE_URL', testDatabase.url)
 
   loaded = {
     prisma: (await import('../db/prisma.js')).prisma,
@@ -293,53 +187,20 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  // Primero se cierran Fastify y Prisma (Windows no deja borrar un fichero abierto)
-  // y después el directorio. Los errores de limpieza no se ocultan.
-  let disconnectError: unknown
   try {
     await app?.close()
     await loaded?.prisma.$disconnect()
-  } catch (error) {
-    disconnectError = error
+  } finally {
+    app = undefined
+    loaded = undefined
+    vi.unstubAllEnvs()
+    await testDatabase?.drop()
   }
-
-  app = undefined
-  loaded = undefined
-  vi.unstubAllEnvs()
-  // Si quedara una conexión de transacción abierta, el borrado fallaría en Windows:
-  // se informa expresamente para que la causa no se confunda.
-  const leakedConnections = transactions.openConnections
-  if (!tempDir) {
-    if (disconnectError) throw disconnectError
-    return
-  }
-
-  // libsql 0.5 no libera el fichero en close(): lo hace al recoger la conexión ya
-  // cerrada y sin referencias. Se fuerza la recolección entre reintentos; si aun
-  // así no se puede borrar, el error se informa tal cual.
-  let removeError: unknown
-  for (let attempt = 1; attempt <= 10 && existsSync(tempDir); attempt++) {
-    try {
-      await rm(tempDir, { recursive: true, force: true })
-      removeError = undefined
-    } catch (error) {
-      removeError = error
-      collectGarbage()
-      await new Promise(resolveDelay => setTimeout(resolveDelay, 100))
-    }
-  }
-  const stillExists = existsSync(tempDir)
-
-  const problems = [
-    leakedConnections !== 0 && `quedan ${leakedConnections} conexiones de transacción sin cerrar`,
-    disconnectError && `no se pudo cerrar Prisma: ${String(disconnectError)}`,
-    removeError && `no se pudo borrar ${tempDir}: ${String(removeError)}`,
-    stillExists && `el directorio temporal sigue existiendo: ${tempDir}`,
-  ].filter(Boolean)
-  if (problems.length > 0) throw new Error(problems.join('\n'))
+  // Una transacción abierta aquí sería una fuga de conexión del pool.
+  expect(transactions.openConnections).toBe(0)
 })
 
-describe('versionado de la protección por incidente con SQLite real', () => {
+describe('versionado de la protección por incidente con PostgreSQL real', () => {
   let sequence = 0
   let owner: { id: string; email: string }
   let target: { id: string; email: string }
@@ -434,12 +295,10 @@ describe('versionado de la protección por incidente con SQLite real', () => {
     await database.user.deleteMany()
   })
 
-  it('usa una base temporal fuera del proyecto', () => {
-    const resolved = resolve(databasePath)
-    expect(PROJECT_DATABASES).not.toContain(resolved)
-    expect(resolved.startsWith(resolve(tmpdir()) + sep)).toBe(true)
-    expect(process.env.DATABASE_URL).toContain('estateforge-v4-')
-    expect(existsSync(resolved)).toBe(true)
+  it('usa una base temporal propia en un servidor local', () => {
+    const url = new URL(process.env.DATABASE_URL as string)
+    expect(url.pathname).toMatch(/^\/ef_test_[0-9a-f]{16}$/)
+    expect(['localhost', '127.0.0.1']).toContain(url.hostname)
   })
 
   it('1. un incidente incrementa la versión de 0 a 1', async () => {
@@ -452,7 +311,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
     expect(state.securityHoldAt).toBeInstanceOf(Date)
     expect(state.securityHoldVersion).toBe(1)
     // El informe se ejecuta en una transacción real de la conexión dedicada.
-    expect(transactions.log).toEqual(['BEGIN DEFERRED', 'COMMIT'])
+    expect(transactions.log).toEqual(['BEGIN', 'COMMIT'])
   })
 
   it('2. dos incidentes sucesivos incrementan el contador dos veces', async () => {
@@ -501,9 +360,9 @@ describe('versionado de la protección por incidente con SQLite real', () => {
     // transacción de la retirada, que termina sin error (responde 409 con COMMIT).
     expect(transactions.log).toEqual([
       'gancho: inicio',
-      'BEGIN DEFERRED', 'COMMIT',
+      'BEGIN', 'COMMIT',
       'gancho: fin',
-      'BEGIN DEFERRED', 'COMMIT',
+      'BEGIN', 'COMMIT',
     ])
     expect(response.statusCode).toBe(409)
     expect(response.json()).toEqual({ message: HOLD_CHANGED_MESSAGE })
@@ -519,10 +378,10 @@ describe('versionado de la protección por incidente con SQLite real', () => {
 
   it('5. una cuenta protegida con la versión por defecto 0 se puede retirar', async () => {
     const columns = await db().$queryRawUnsafe<{ type: string; notnull: number | bigint; dflt_value: string }[]>(
-      "SELECT type, \"notnull\", dflt_value FROM pragma_table_info('User') WHERE name = 'securityHoldVersion'",
+      `SELECT data_type AS type, CASE WHEN is_nullable = 'NO' THEN 1 ELSE 0 END AS "notnull", column_default AS dflt_value FROM information_schema.columns WHERE table_name = 'User' AND column_name = 'securityHoldVersion'`,
     )
     expect(columns).toHaveLength(1)
-    expect(columns[0].type).toBe('INTEGER')
+    expect(columns[0].type).toBe('integer')
     expect(Number(columns[0].notnull)).toBe(1)
     expect(columns[0].dflt_value).toBe('0')
 
@@ -548,20 +407,18 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       const before = await holdState(target.id)
       const database = db()
 
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "v4_fail_audit" BEFORE INSERT ON "AdminAuditLog" BEGIN SELECT RAISE(ABORT, 'fallo simulado de auditoria'); END`,
-      )
+      await createTestTrigger(database, 'v4_fail_audit', 'BEFORE INSERT ON "AdminAuditLog"', `RAISE EXCEPTION 'fallo simulado de auditoria';`)
       transactions.log.length = 0
       try {
         const response = await resolveHold(target.id)
 
         expect(response.statusCode).toBe(500)
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "v4_fail_audit"')
+        await dropTestTrigger(database, 'v4_fail_audit')
       }
 
       // La transacción de la retirada terminó con un ROLLBACK real, no con COMMIT.
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       expect(await holdState(target.id)).toEqual(before)
       expect(before.securityHoldAt).toBeInstanceOf(Date)
       expect(await database.adminAuditLog.count()).toBe(0)
@@ -577,18 +434,16 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       const userSession = await sessions.createSession(target.id)
       const { token } = await incidents.issueSecurityIncidentToken(target.id, 'anterior@estateforge.test')
 
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "v4_fail_session_delete" BEFORE DELETE ON "Session" BEGIN SELECT RAISE(ABORT, 'fallo simulado al borrar sesiones'); END`,
-      )
+      await createTestTrigger(database, 'v4_fail_session_delete', 'BEFORE DELETE ON "Session"', `RAISE EXCEPTION 'fallo simulado al borrar sesiones';`)
       transactions.log.length = 0
       try {
         await expect(incidents.reportSecurityIncident(token)).rejects.toThrow()
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "v4_fail_session_delete"')
+        await dropTestTrigger(database, 'v4_fail_session_delete')
       }
 
       // El informe terminó con un ROLLBACK real después del incremento.
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       expect(await holdState(target.id)).toEqual({ securityHoldAt: null, securityHoldVersion: 0 })
       // El destino también se deshace con el incremento.
       expect(await recoveryState(target.id)).toEqual({ email: target.email, securityRecoveryEmail: null, securityHoldVersion: 0 })
@@ -769,8 +624,8 @@ describe('versionado de la protección por incidente con SQLite real', () => {
         securityHoldVersion: 1,
       })
       // Una sola transacción, ya confirmada cuando se intenta el envío.
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'COMMIT'])
-      expect(mail.calls[0].transactionLog).toEqual(['BEGIN DEFERRED', 'COMMIT'])
+      expect(transactions.log).toEqual(['BEGIN', 'COMMIT'])
+      expect(mail.calls[0].transactionLog).toEqual(['BEGIN', 'COMMIT'])
       expect(mail.calls[0].args.to).toBe('anterior@estateforge.test')
       expect(response.body).not.toContain(sentToken())
     })
@@ -790,17 +645,15 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       const before = await accessState(target.id)
       const database = db()
 
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "e24_fail_token" BEFORE INSERT ON "PasswordResetToken" BEGIN SELECT RAISE(ABORT, 'fallo simulado del token'); END`,
-      )
+      await createTestTrigger(database, 'e24_fail_token', 'BEFORE INSERT ON "PasswordResetToken"', `RAISE EXCEPTION 'fallo simulado del token';`)
       transactions.log.length = 0
       try {
         expect((await resolveHold(target.id)).statusCode).toBe(500)
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "e24_fail_token"')
+        await dropTestTrigger(database, 'e24_fail_token')
       }
 
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       expect(await accessState(target.id)).toEqual(before)
       expect(before.securityHoldAt).toBeInstanceOf(Date)
       expect(before.passwordResetRequiredAt).toBeNull()
@@ -929,7 +782,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
 
       expect(await consume(token)).toBe('completed')
 
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'COMMIT'])
+      expect(transactions.log).toEqual(['BEGIN', 'COMMIT'])
       const state = await account(target.id)
       expect(state).toMatchObject({
         email: destination, passwordResetRequiredAt: null, securityRecoveryEmail: null,
@@ -965,7 +818,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
 
       expect(await consume(token)).toBe('email_taken')
 
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       await expectUntouched(token, before)
       expect((await account(other.id)).email).toBe(destination)
     })
@@ -976,18 +829,21 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       const database = db()
 
       // Otra cuenta ocupa el destino después de la comprobación previa y antes de la escritura.
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "e25_steal_email" BEFORE UPDATE OF "email" ON "User" WHEN NEW."email" = '${destination}' BEGIN ` +
-        `INSERT INTO "User" ("id", "email", "password", "updatedAt") VALUES ('intruso', NEW."email", 'x', CURRENT_TIMESTAMP); END`,
+      await createTestTrigger(
+        database,
+        'e25_steal_email',
+        'BEFORE UPDATE OF "email" ON "User"',
+        `INSERT INTO "User" ("id", "email", "password", "updatedAt") VALUES ('intruso', NEW."email", 'x', CURRENT_TIMESTAMP); RETURN NEW;`,
+        `NEW."email" = '${destination}'`,
       )
       transactions.log.length = 0
       try {
         expect(await consume(token)).toBe('email_taken')
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "e25_steal_email"')
+        await dropTestTrigger(database, 'e25_steal_email')
       }
 
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       await expectUntouched(token, before)
       expect(await database.user.count({ where: { id: 'intruso' } })).toBe(0)
     })
@@ -1038,17 +894,15 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       const database = db()
       await modules().sessions.createSession(target.id)
       const before = await account(target.id)
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "e25_fail_session_delete" BEFORE DELETE ON "Session" BEGIN SELECT RAISE(ABORT, 'fallo simulado al borrar sesiones'); END`,
-      )
+      await createTestTrigger(database, 'e25_fail_session_delete', 'BEFORE DELETE ON "Session"', `RAISE EXCEPTION 'fallo simulado al borrar sesiones';`)
       transactions.log.length = 0
       try {
         await expect(consume(token)).rejects.toThrow()
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "e25_fail_session_delete"')
+        await dropTestTrigger(database, 'e25_fail_session_delete')
       }
 
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       await expectUntouched(token, before)
       expect(await database.session.count({ where: { userId: target.id } })).toBe(1)
       // Sin el trigger, el mismo token completa.
@@ -1207,8 +1061,8 @@ describe('versionado de la protección por incidente con SQLite real', () => {
 
       expect(response.statusCode).toBe(200)
       expect(response.json()).toMatchObject({ success: true, changed: true, recoveryEmailSent: true })
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'COMMIT'])
-      expect(mail.calls.at(-1)!.transactionLog).toEqual(['BEGIN DEFERRED', 'COMMIT'])
+      expect(transactions.log).toEqual(['BEGIN', 'COMMIT'])
+      expect(mail.calls.at(-1)!.transactionLog).toEqual(['BEGIN', 'COMMIT'])
       expect(mail.calls.at(-1)!.args.to).toBe('corregido@estateforge.test')
       // Solo cambia el destino: misma versión, contraseña, email y obligación.
       expect(await account()).toEqual({ ...before, securityRecoveryEmail: 'corregido@estateforge.test' })
@@ -1344,16 +1198,14 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       const before = await account()
       const mailsBefore = mail.calls.length
       const database = db()
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "e25f_fail_token" BEFORE INSERT ON "PasswordResetToken" BEGIN SELECT RAISE(ABORT, 'fallo simulado del token'); END`,
-      )
+      await createTestTrigger(database, 'e25f_fail_token', 'BEFORE INSERT ON "PasswordResetToken"', `RAISE EXCEPTION 'fallo simulado del token';`)
       try {
         expect((await adminAction('recovery-destination', { recoveryEmail: 'corregido@estateforge.test' })).statusCode).toBe(500)
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "e25f_fail_token"')
+        await dropTestTrigger(database, 'e25f_fail_token')
       }
 
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       expect(await account()).toEqual(before)
       expect(await pendingRecoveryTokens()).toEqual([expect.objectContaining({ tokenHash: hashOf(firstToken) })])
       expect(await database.adminAuditLog.count({ where: { action: 'SECURITY_RECOVERY_DESTINATION_CHANGED' } })).toBe(0)
@@ -1599,17 +1451,15 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       await passCooldown()
       const database = db()
       const mailsBefore = mail.calls.length
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "e26_fail_audit" BEFORE INSERT ON "AdminAuditLog" BEGIN SELECT RAISE(ABORT, 'fallo simulado de auditoria'); END`,
-      )
+      await createTestTrigger(database, 'e26_fail_audit', 'BEFORE INSERT ON "AdminAuditLog"', `RAISE EXCEPTION 'fallo simulado de auditoria';`)
       transactions.log.length = 0
       try {
         expect((await requestLink(target.email)).json()).toEqual(GENERIC)
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "e26_fail_audit"')
+        await dropTestTrigger(database, 'e26_fail_audit')
       }
 
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
       expect(mail.calls.length).toBe(mailsBefore)
       expect(await pendingRecoveryTokens()).toEqual([expect.objectContaining({ tokenHash: hashOf(firstToken) })])
       expect(await consume(firstToken)).toBe('completed')
@@ -1725,12 +1575,12 @@ describe('versionado de la protección por incidente con SQLite real', () => {
 
   describe('13. auditoría con actor opcional', () => {
     it('a. tras todas las migraciones, actorUserId admite NULL y se conservan los dos índices', async () => {
-      const columns = await db().$queryRawUnsafe<{ name: string; notnull: number | bigint }[]>('PRAGMA table_info("AdminAuditLog")')
+      const columns = await db().$queryRawUnsafe<{ name: string; notnull: number | bigint }[]>(`SELECT column_name AS name, CASE WHEN is_nullable = 'NO' THEN 1 ELSE 0 END::int AS "notnull" FROM information_schema.columns WHERE table_name = 'AdminAuditLog'`)
       expect(Object.fromEntries(columns.map(column => [column.name, Number(column.notnull)]))).toEqual({
         id: 1, actorUserId: 0, targetUserId: 0, action: 1, reason: 0, metadata: 0, createdAt: 1,
       })
       const indexes = await db().$queryRawUnsafe<{ name: string; sql: string | null }[]>(
-        `SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'AdminAuditLog' AND sql IS NOT NULL ORDER BY name`,
+        `SELECT indexname AS name, indexdef AS sql FROM pg_indexes WHERE tablename = 'AdminAuditLog' AND indexname NOT LIKE '%_pkey' ORDER BY indexname COLLATE "C"`,
       )
       expect(indexes.map(index => index.name)).toEqual(['AdminAuditLog_actorUserId_createdAt_idx', 'AdminAuditLog_targetUserId_createdAt_idx'])
     })
@@ -1747,14 +1597,10 @@ describe('versionado de la protección por incidente con SQLite real', () => {
   // ============================================================
   // 14. VERIFICACIÓN DEL EMAIL (Fase 0) — SQLite real, base temporal
   // ============================================================
-  // Operaciones lanzadas a la vez (Fase 0.3b). Cada una abre su transacción real (BEGIN y
-  // COMMIT o ROLLBACK en una conexión SQLite propia). El adaptador de Prisma para libsql
-  // serializa las transacciones de un mismo cliente con un Mutex, que se mantiene desde
-  // startTransaction hasta el COMMIT o el ROLLBACK, igual que en producción. Por eso las
-  // operaciones se lanzan a la vez pero se ejecutan de una en una (se mide: como mucho una
-  // transacción abierta). Se demuestra el resultado de negocio con la serialización real de la
-  // API, no un entrelazado dentro de SQLite.
-  // Cualquier rechazo (SQLITE_BUSY, bloqueo, conexión, excepción inesperada) es un error técnico:
+  // Operaciones lanzadas a la vez (Fase 0.3b). Cada una abre su transacción real en su propia
+  // conexión del pool de PostgreSQL, y pueden solaparse de verdad: se demuestra el resultado de
+  // negocio con bloqueos reales de fila.
+  // Cualquier rechazo (interbloqueo, conexión, excepción inesperada) es un error técnico:
   // no cuenta como rechazo de negocio y hace fallar la prueba con su detalle.
   describe('14. verificación del email (Fase 0)', () => {
     const POLICY = { requiredFrom: null, graceUntil: null, tokenTtlMs: 24 * 60 * 60 * 1000 }
@@ -1816,12 +1662,12 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       (result.issued ? 'issued' : result.reason)
 
     it('a. la migración añade las columnas y la tabla, con el índice único del hash', async () => {
-      const columns = await db().$queryRawUnsafe<{ name: string; notnull: number }[]>(`PRAGMA table_info("User")`)
+      const columns = await db().$queryRawUnsafe<{ name: string; notnull: number }[]>(`SELECT column_name AS name, CASE WHEN is_nullable = 'NO' THEN 1 ELSE 0 END::int AS "notnull" FROM information_schema.columns WHERE table_name = 'User'`)
       const byName = new Map(columns.map(column => [column.name, column.notnull]))
       expect(byName.get('emailVerifiedAt')).toBe(0)
       expect(byName.get('emailVerificationSentAt')).toBe(0)
       const indexes = await db().$queryRawUnsafe<{ name: string; sql: string | null }[]>(
-        `SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'EmailVerificationToken' AND sql IS NOT NULL ORDER BY name`,
+        `SELECT indexname AS name, indexdef AS sql FROM pg_indexes WHERE tablename = 'EmailVerificationToken' AND indexname NOT LIKE '%_pkey' ORDER BY indexname COLLATE "C"`,
       )
       expect(indexes.map(index => index.name)).toEqual([
         'EmailVerificationToken_expiresAt_idx',
@@ -1839,7 +1685,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       // 5 lanzadas: 1 emitida y 4 rechazadas por el intervalo, ninguna por un error técnico.
       expect(tally(run.values, issueOutcome)).toEqual({ issued: 1, cooldown: 4 })
       expect(run.transactionsStarted).toBe(5)
-      expect(run.peakOpenTransactions).toBe(1)
+      expect(run.peakOpenTransactions).toBeGreaterThanOrEqual(1)
       // Estado final: un solo token, sin usar, para el email de la cuenta, y la reserva en T0.
       const issued = run.values.find(value => value.issued)
       const tokens = await tokensOf(user.id)
@@ -1871,7 +1717,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       // reserva en T0 y se rechazan por el intervalo. Ninguna por un error técnico.
       expect(tally(run.values, issueOutcome)).toEqual({ issued: 1, cooldown: 3 })
       expect(run.transactionsStarted).toBe(4)
-      expect(run.peakOpenTransactions).toBe(1)
+      expect(run.peakOpenTransactions).toBeGreaterThanOrEqual(1)
       const tokens = await tokensOf(user.id)
       expect(tokens).toHaveLength(5)
       // Los 4 históricos siguen como estaban; solo el nuevo queda sin usar.
@@ -1915,7 +1761,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       // 3 lanzadas: 1 verifica y 2 encuentran el token ya usado. Ninguna por un error técnico.
       expect(tally(run.values, value => value)).toEqual({ verified: 1, invalid: 2 })
       expect(run.transactionsStarted).toBe(3)
-      expect(run.peakOpenTransactions).toBe(1)
+      expect(run.peakOpenTransactions).toBeGreaterThanOrEqual(1)
       // Estado final: verificado una sola vez, en `at`, con el mismo email; el token, usado en `at`.
       expect(await accountState(user.id)).toMatchObject({ email: user.email, emailVerifiedAt: at, emailVerificationSentAt: T0 })
       const tokens = await tokensOf(user.id)
@@ -1954,7 +1800,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
 
     // ConsumeAbort con un ROLLBACK real (Fase 0.3b). Un trigger temporal, solo en esta base,
     // hace que la escritura que marca el email como verificado no afecte a ninguna fila
-    // (RAISE(IGNORE)), pero únicamente si en la misma transacción ya es visible la reclamación
+    // (el trigger devuelve NULL), pero únicamente si en la misma transacción ya es visible la reclamación
     // del token (usedAt con valor). Así, la primera escritura (la reclamación) se ha hecho antes
     // del fallo: si no se hubiera hecho, el trigger no actuaría y el consumo verificaría. El
     // servicio recibe count = 0, relee la cuenta, la ve sin verificar y lanza ConsumeAbort.
@@ -1973,25 +1819,26 @@ describe('versionado de la protección por incidente con SQLite real', () => {
 
       const database = db()
       // tokenHash son 64 caracteres hexadecimales: se puede incluir en el SQL sin riesgo.
-      await database.$executeRawUnsafe(
-        `CREATE TRIGGER "f0_3b_ignore_verification" BEFORE UPDATE OF "emailVerifiedAt" ON "User"
-         WHEN NEW."emailVerifiedAt" IS NOT NULL
-           AND EXISTS (SELECT 1 FROM "EmailVerificationToken" WHERE "tokenHash" = '${tokenHash}' AND "usedAt" IS NOT NULL)
-         BEGIN SELECT RAISE(IGNORE); END`,
+      await createTestTrigger(
+        database,
+        'f0_3b_ignore_verification',
+        'BEFORE UPDATE OF "emailVerifiedAt" ON "User"',
+        `IF EXISTS (SELECT 1 FROM "EmailVerificationToken" WHERE "tokenHash" = '${tokenHash}' AND "usedAt" IS NOT NULL) THEN RETURN NULL; END IF; RETURN NEW;`,
+        `NEW."emailVerifiedAt" IS NOT NULL`,
       )
       transactions.log.length = 0
       let result: string
       try {
         result = await verification().consumeEmailVerificationToken(issued.token, at)
       } finally {
-        await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "f0_3b_ignore_verification"')
+        await dropTestTrigger(database, 'f0_3b_ignore_verification')
       }
 
       // El servicio responde como un enlace no válido y la transacción termina con ROLLBACK:
       // las salidas de 'invalid' sin escrituras confirman con COMMIT; solo ConsumeAbort deshace.
       expect(result).toBe('invalid')
-      expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
-      expect(await database.$queryRawUnsafe(`SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'f0_3b_ignore_verification'`)).toEqual([])
+      expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
+      expect(await database.$queryRawUnsafe(`SELECT tgname FROM pg_trigger WHERE tgname = 'f0_3b_ignore_verification'`)).toEqual([])
       // Después de la transacción, nada de lo escrito dentro sigue en la base: el token sigue sin
       // usar, el email es el mismo, no está verificado y la cuenta está como antes.
       expect(await tokensOf(user.id)).toEqual(tokensBefore)
@@ -2032,7 +1879,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
       const changeResult = run.values[order === 'verify-first' ? 1 : 0]
 
       expect(run.transactionsStarted).toBe(2)
-      expect(run.peakOpenTransactions).toBe(1)
+      expect(run.peakOpenTransactions).toBeGreaterThanOrEqual(1)
       expect(changeResult).toEqual({ success: true, email: newEmail, oldEmail: user.email })
       const account = await accountState(user.id)
       const tokens = await tokensOf(user.id)
@@ -2099,7 +1946,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
           const after = new Date()
 
           expect(result).toEqual({ success: true, email: newEmail, oldEmail: user.email })
-          expect(transactions.log).toEqual(['BEGIN DEFERRED', 'COMMIT'])
+          expect(transactions.log).toEqual(['BEGIN', 'COMMIT'])
           const account = await accountState(user.id)
           expect(account.email).toBe(newEmail)
           within(account.emailVerifiedAt, before, after)
@@ -2144,17 +1991,15 @@ describe('versionado de la protección por incidente con SQLite real', () => {
           const accountBefore = await accountState(user.id)
           const tokensBefore = await verificationTokenRows(user.id)
           const database = db()
-          await database.$executeRawUnsafe(
-            `CREATE TRIGGER "d1_fail_invalidation" BEFORE UPDATE ON "EmailVerificationToken" BEGIN SELECT RAISE(ABORT, 'fallo simulado al invalidar enlaces'); END`,
-          )
+          await createTestTrigger(database, 'd1_fail_invalidation', 'BEFORE UPDATE ON "EmailVerificationToken"', `RAISE EXCEPTION 'fallo simulado al invalidar enlaces';`)
           transactions.log.length = 0
           try {
             await expect(modules().emailChange.consumeEmailChangeCode(user.id, code)).rejects.toThrow()
           } finally {
-            await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "d1_fail_invalidation"')
+            await dropTestTrigger(database, 'd1_fail_invalidation')
           }
 
-          expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+          expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
           expect(await accountState(user.id)).toEqual(accountBefore)
           expect(await verificationTokenRows(user.id)).toEqual(tokensBefore)
           expect(await database.emailChangeVerification.findMany({ where: { userId: user.id }, select: { usedAt: true } })).toEqual([{ usedAt: null }])
@@ -2175,21 +2020,24 @@ describe('versionado de la protección por incidente con SQLite real', () => {
           const intruderId = `intruso-${user.id}`
           const database = db()
           // newEmail solo contiene el id (cuid) y texto fijo: se puede incluir en el SQL sin riesgo.
-          await database.$executeRawUnsafe(
-            `CREATE TRIGGER "f0_003_take_email" BEFORE UPDATE OF "email" ON "User" WHEN NEW."email" = '${newEmail}'
-             BEGIN INSERT INTO "User" ("id", "email", "password", "updatedAt") VALUES ('${intruderId}', NEW."email", 'no-usado', CURRENT_TIMESTAMP); END`,
+          await createTestTrigger(
+            database,
+            'f0_003_take_email',
+            'BEFORE UPDATE OF "email" ON "User"',
+            `INSERT INTO "User" ("id", "email", "password", "updatedAt") VALUES ('${intruderId}', NEW."email", 'no-usado', CURRENT_TIMESTAMP); RETURN NEW;`,
+            `NEW."email" = '${newEmail}'`,
           )
           transactions.log.length = 0
           let result: unknown
           try {
             result = await modules().emailChange.consumeEmailChangeCode(user.id, code)
           } finally {
-            await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "f0_003_take_email"')
+            await dropTestTrigger(database, 'f0_003_take_email')
           }
 
           expect(result).toEqual({ success: false, reason: 'email_taken' })
           // Antes de F0-003 la transacción terminaba en COMMIT con el código reclamado.
-          expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+          expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
           expect(await accountState(user.id)).toEqual(accountBefore)
           expect(await verificationTokenRows(user.id)).toEqual(tokensBefore)
           expect(await database.emailChangeVerification.findMany({ where: { userId: user.id } })).toEqual(codesBefore)
@@ -2309,7 +2157,7 @@ describe('versionado de la protección por incidente con SQLite real', () => {
           expect(await complete(token)).toBe('completed')
           const after = new Date()
 
-          expect(transactions.log).toEqual(['BEGIN DEFERRED', 'COMMIT'])
+          expect(transactions.log).toEqual(['BEGIN', 'COMMIT'])
           const account = await accountState(target.id)
           expect(account).toMatchObject({ email: destination, emailVerifiedAt: expected, passwordResetRequiredAt: null })
           const rows = await verificationTokenRows(target.id)
@@ -2331,17 +2179,15 @@ describe('versionado de la protección por incidente con SQLite real', () => {
           const accountBefore = await db().user.findUniqueOrThrow({ where: { id: target.id } })
           const tokensBefore = await verificationTokenRows(target.id)
           const database = db()
-          await database.$executeRawUnsafe(
-            `CREATE TRIGGER "d2_fail_invalidation" BEFORE UPDATE ON "EmailVerificationToken" BEGIN SELECT RAISE(ABORT, 'fallo simulado al invalidar enlaces'); END`,
-          )
+          await createTestTrigger(database, 'd2_fail_invalidation', 'BEFORE UPDATE ON "EmailVerificationToken"', `RAISE EXCEPTION 'fallo simulado al invalidar enlaces';`)
           transactions.log.length = 0
           try {
             await expect(complete(token)).rejects.toThrow()
           } finally {
-            await database.$executeRawUnsafe('DROP TRIGGER IF EXISTS "d2_fail_invalidation"')
+            await dropTestTrigger(database, 'd2_fail_invalidation')
           }
 
-          expect(transactions.log).toEqual(['BEGIN DEFERRED', 'ROLLBACK'])
+          expect(transactions.log).toEqual(['BEGIN', 'ROLLBACK'])
           // La cuenta entera (contraseña, email, verificación, E2) y los enlaces quedan como antes.
           expect(await database.user.findUniqueOrThrow({ where: { id: target.id } })).toEqual(accountBefore)
           expect(await verificationTokenRows(target.id)).toEqual(tokensBefore)

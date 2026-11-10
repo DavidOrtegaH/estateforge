@@ -95,3 +95,14 @@ export const providerLabels: Record<
   gemini: 'Gemini',
   openai: 'OpenAI',
 }
+
+/**
+ * Presentación de un importe. Solo para mostrar: nunca se usa en cálculos.
+ */
+export function formatMoneyAmount(
+  value: string | number,
+): string {
+  return new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: 2,
+  }).format(Number(value))
+}
