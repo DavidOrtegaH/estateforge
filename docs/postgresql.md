@@ -4,13 +4,32 @@ EstateForge usa PostgreSQL 17 mediante Prisma y `@prisma/adapter-pg`. La versió
 
 ## Puesta en marcha en desarrollo
 
-1. Inicia un servidor PostgreSQL 17 local y crea una base y un usuario para el proyecto.
-2. Copia `apps/api/.env.example` a `apps/api/.env` y define `DATABASE_URL`, por ejemplo `postgresql://usuario:contraseña@localhost:5432/estateforge`.
-3. Instala las dependencias: `pnpm install`.
-4. Genera el cliente: `pnpm --filter api db:generate`.
-5. Aplica las migraciones: `pnpm --filter api db:migrate`.
-6. Opcional, crea datos de ejemplo. Define `SEED_USER_PASSWORD` y ejecuta `pnpm --filter api db:seed`. La cuenta es `demo@estateforge.test`, el comando es repetible y se niega a actuar fuera de localhost.
-7. Arranca la API y la web: `pnpm dev`.
+La API no usa SQLite: sin una `DATABASE_URL` `postgresql://` válida no arranca. Las migraciones SQLite antiguas están archivadas en `prisma/sqlite-history` y no se aplican.
+
+### PostgreSQL de desarrollo en WSL (Ubuntu)
+
+Los scripts de `scripts/wsl/` se ejecutan con el usuario Linux normal, sin `sudo`, y no tocan Windows:
+
+1. **Herramientas (una vez):** `bash scripts/wsl/instalar-herramientas.sh` instala en `~/.local/ef-tools` Node.js 24.19.0, pnpm 11.20.0 y PostgreSQL 17 de PGDG. Verifica cada descarga: la firma GPG de las sumas de Node, la huella de la clave de PGDG y la firma de su índice, y el SHA-256 de cada paquete. El detalle queda en `~/.local/ef-tools/verificacion.txt`. Si ya tienes PostgreSQL 17 instalado con `apt` (`/usr/lib/postgresql/17/bin`), los scripts lo usan y este paso no hace falta.
+2. **Clúster (una vez):** `bash scripts/wsl/postgres-dev.sh init` crea los datos en `~/.local/share/estateforge/pg17-dev` y lo deja escuchando solo en `127.0.0.1:55432`. Crea:
+   - el rol `estateforge_app`, sin superusuario, `CREATEDB` ni `CREATEROLE`, propietario de `estateforge_dev` y de la base de sombra `estateforge_shadow`;
+   - el rol `estateforge_test`, con `CREATEDB` y `CREATEROLE` pero sin superusuario, para las pruebas de integración.
+
+   Las contraseñas son aleatorias y se guardan en `~/.config/estateforge/postgres-dev.env` (permisos 600). El administrador solo entra por un socket local privado (autenticación `peer`).
+3. **Uso diario:** `bash scripts/wsl/postgres-dev.sh start | stop | status`. El servidor se detiene al apagarse WSL; vuelve a arrancarlo con `start`.
+
+Desde Windows, `127.0.0.1:55432` llega al servidor de WSL 2 gracias al reenvío de `localhost`, sin abrir ningún puerto a la red.
+
+### Aplicación
+
+1. Copia `apps/api/.env.example` a `apps/api/.env` (ignorado por Git). Copia en él `DATABASE_URL`, `SHADOW_DATABASE_URL`, `TEST_POSTGRES_ADMIN_URL` y `SEED_USER_PASSWORD` desde `~/.config/estateforge/postgres-dev.env`. Desde Windows, ese archivo está en `\\wsl.localhost\Ubuntu\home\<usuario>\.config\estateforge\postgres-dev.env`. No los copies a ningún archivo versionado.
+2. Instala las dependencias: `pnpm install --frozen-lockfile`.
+3. Genera el cliente: `pnpm --filter api db:generate`.
+4. Aplica las migraciones: `pnpm --filter api db:migrate`.
+5. Crea los datos de ejemplo con `pnpm --filter api db:seed`. Crea `demo@estateforge.test` y `otra@estateforge.test`, cuya contraseña es `SEED_USER_PASSWORD`. Los datos incluyen inmuebles en los cuatro estados, uno antiguo sin estado y un Checklist con portales y filas «Otro/a». El comando es repetible, no duplica nada y se niega a actuar fuera de localhost.
+6. Arranca la API y la web: `pnpm dev`.
+
+**Reconstruir la base de desarrollo:** con el servidor en marcha, elimina y crea de nuevo `estateforge_dev`; puedes hacerlo como administrador por el socket o con `bash scripts/wsl/postgres-dev.sh stop`, borrando el directorio de datos y repitiendo `init`. Después repite los pasos 4 y 5.
 
 ## Pruebas
 
@@ -83,7 +102,7 @@ La respuesta no incluye detalles: el motivo se registra en el log, sin datos de 
 
 Ante la primera señal, la API deja de aceptar peticiones, espera hasta 6 s a las que están en curso, después al trabajo que siga en marcha y a los envíos de correo, y **solo entonces** cierra el pool de PostgreSQL (DA-38). Antes se cerraba en un hook `onClose`, que se ejecuta sin esperar a ese trabajo: una consulta posterior abría un pool nuevo que nadie cerraba. Una segunda señal fuerza la salida con código 1.
 
-Comprobado en Windows con un Ctrl+C real de consola, que Node recibe como `SIGINT`:
+Comprobado en Windows con un Ctrl+C real de consola, que Node recibe como `SIGINT`, y en Linux (Ubuntu 26.04 sobre WSL 2, kernel 6.18) con `kill -TERM`, en 12 situaciones: en reposo, con una petición en curso, dentro y fuera del plazo de drenaje, con una transacción abierta, con una consulta esperando un bloqueo, con cinco conexiones ocupadas, con una segunda señal, con PostgreSQL detenido, con errores de arranque, tras un cierre normal y al reiniciar en el mismo puerto:
 
 | Situación | Resultado |
 |---|---|
@@ -94,7 +113,8 @@ Comprobado en Windows con un Ctrl+C real de consola, que Node recibe como `SIGIN
 | Terminación abrupta del proceso (`TerminateProcess`) | PostgreSQL deshace la transacción |
 
 **Limitaciones:**
-- **SIGTERM:** Windows no lo entrega a un proceso, y las señales reales de Linux están sin probar (sin entorno Linux, DA-10).
+- **SIGTERM en Windows:** Windows no lo entrega a un proceso; allí solo se prueba Ctrl+C (SIGINT). En Linux, SIGTERM está probado (WSL 2). Un orquestador concreto (Docker o systemd) no se ha probado.
+- **Una petición que espera un bloqueo más de 5 s** caduca dentro de su transacción interactiva (`P2028`) y el Checklist responde 409. El cierre ordenado no cambia este comportamiento.
 - **Conexión huérfana:** si el proceso muere con una transacción esperando un bloqueo, PostgreSQL mantiene esa conexión hasta que el bloqueo se libera; entonces la descarta sin escribir. En las pruebas tardó hasta 6 s.
 - **Generación con IA en curso:** no se puede cancelar (M-3, DA-3).
 

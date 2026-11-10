@@ -10,5 +10,7 @@ export default defineConfig({
 
   datasource: {
     url: env('DATABASE_URL'),
+    // Base de sombra de `migrate dev` creada de antemano: el rol de desarrollo no necesita CREATEDB.
+    ...(process.env.SHADOW_DATABASE_URL && { shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL }),
   },
 })
