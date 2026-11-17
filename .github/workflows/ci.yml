@@ -4,6 +4,12 @@
 name: CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or commit to validate (empty uses the selected branch)'
+        required: false
+        type: string
   push:
     branches: [main, develop, release, feature]
   pull_request:
@@ -44,6 +50,7 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
