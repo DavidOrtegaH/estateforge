@@ -7,3 +7,6 @@ allowBuilds:
   esbuild: true
   prisma: true
   protobufjs: true
+# Type declarations for third-party packages (react-router and others) are resolved from the root.
+publicHoistPattern:
+  - '@types/*'
