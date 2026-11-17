@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "fastify",
+  "regions": ["fra1"],
+  "buildCommand": "pnpm --filter api db:generate",
+  "installCommand": "pnpm install --frozen-lockfile --prod=false"
+}

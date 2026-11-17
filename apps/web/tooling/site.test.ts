@@ -131,14 +131,18 @@ describe('rutas de la aplicación', () => {
 describe('vercel.json', () => {
   it('reescribe a la SPA exactamente los prefijos de la aplicación, y nada más', () => {
     expect(vercel.cleanUrls).toBe(true)
-    expect((vercel.rewrites ?? []).map(rule => rule.source)).toEqual(APP_ROUTE_PREFIXES.map(prefix => `${prefix}/:path*`))
-    expect(new Set((vercel.rewrites ?? []).map(rule => rule.destination))).toEqual(new Set(['/app']))
+    const appRewrites = (vercel.rewrites ?? []).filter(rule => rule.destination === '/app')
+    expect(appRewrites.map(rule => rule.source)).toEqual(APP_ROUTE_PREFIXES.map(prefix => `${prefix}/:path*`))
+    const apiRewrites = (vercel.rewrites ?? []).filter(rule => rule.destination !== '/app')
+    expect(apiRewrites).toEqual([{ source: '/api/:path*', destination: 'https://estateforge-api.vercel.app/api/:path*' }])
+    expect(vercel.rewrites?.[0]).toEqual(apiRewrites[0])
   })
 
   it('no reescribe las páginas públicas, la API, robots.txt ni sitemap.xml a la SPA', () => {
-    for (const pathname of ['/', '/privacidad', '/condiciones', '/api/auth/me', '/robots.txt', '/sitemap.xml', '/no-existe']) {
+    for (const pathname of ['/', '/privacidad', '/condiciones', '/robots.txt', '/sitemap.xml', '/no-existe']) {
       expect(rewriteFor(vercel, pathname), pathname).toBeNull()
     }
+    expect(rewriteFor(vercel, '/api/auth/me')).toBe('https://estateforge-api.vercel.app/api/:path*')
   })
 
   it('las rutas privadas y la API llevan X-Robots-Tag; las públicas no', () => {
@@ -171,8 +175,10 @@ describe('vercel.json', () => {
     expect(headersFor(vercel, '/').has('Cache-Control')).toBe(false)
   })
 
-  it('no contiene URLs de despliegue ni marcadores por rellenar', () => {
-    expect(read('vercel.json')).not.toMatch(/<[^>]+>|vercel\.app|localhost/)
+  it('usa solo el dominio estable de la API, sin marcadores ni destinos locales', () => {
+    const text = read('vercel.json')
+    expect(text).not.toMatch(/<[^>]+>|localhost/)
+    expect(text.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/g)).toEqual(['https://estateforge-api.vercel.app'])
   })
 
   it('el lector solo acepta los patrones que entiende', () => {

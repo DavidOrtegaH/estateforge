@@ -36,3 +36,4 @@ codigo_proyecto.txt
 
 # Base de datos SQLite local de desarrollo (se recrea con las migraciones de Prisma)
 apps/api/dev.db*
+.vercel/
