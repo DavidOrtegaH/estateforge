@@ -10,12 +10,14 @@ const sdk = vi.hoisted(() => ({
   constructed: [] as Record<string, unknown>[],
 }))
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(function (options: Record<string, unknown>) {
+vi.mock('openai', () => {
+  const OpenAI = vi.fn().mockImplementation(function (options: Record<string, unknown>) {
     sdk.constructed.push(options)
     return { responses: { create: sdk.create } }
-  }),
-}))
+  })
+  // El proveedor usa el export nombrado; se mantiene `default` como en el SDK real.
+  return { OpenAI, default: OpenAI }
+})
 
 import { createOpenAIAdapter } from '../ai-media/adapters/openai.adapter.js'
 import { findProvider, publicProvider, resolveModel } from '../ai-media/registry.js'

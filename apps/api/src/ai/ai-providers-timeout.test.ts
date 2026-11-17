@@ -28,19 +28,19 @@ vi.mock('@google/genai', () => {
 
 // Mock del SDK de OpenAI
 vi.mock('openai', () => {
-  return {
-    default: vi.fn().mockImplementation(function () {
-      return {
-        responses: {
-          create: vi.fn().mockImplementation(() => {
-            const error = new Error('Request timed out.')
-            error.name = 'APIConnectionTimeoutError'
-            return Promise.reject(error)
-          }),
-        },
-      }
-    }),
-  }
+  const OpenAI = vi.fn().mockImplementation(function () {
+    return {
+      responses: {
+        create: vi.fn().mockImplementation(() => {
+          const error = new Error('Request timed out.')
+          error.name = 'APIConnectionTimeoutError'
+          return Promise.reject(error)
+        }),
+      },
+    }
+  })
+  // El proveedor usa el export nombrado; se mantiene `default` como en el SDK real.
+  return { OpenAI, default: OpenAI }
 })
 
 const dummyPrompt = `

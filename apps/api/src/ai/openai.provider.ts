@@ -1,4 +1,7 @@
-import OpenAI from 'openai'
+// Import nombrado: el SDK exporta `OpenAI` con nombre tanto en index.d.ts (CJS) como en index.d.mts (ESM).
+// El import por defecto depende de cómo el compilador interprete el `default` de un paquete CommonJS y
+// falla en el builder de Vercel (TS2709/TS2351) aunque pase con `tsc` NodeNext.
+import { OpenAI } from 'openai'
 
 import {
   GeneratedListingSchema,
