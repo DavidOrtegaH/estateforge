@@ -1,6 +1,6 @@
 # Documentación de EstateForge
 
-Instalación, configuración, variables de entorno y scripts: [README principal](../README.md). Aplicación web: [apps/web/README.md](../apps/web/README.md).
+Presentación y uso: [README principal](../README.md). Instalación, arquitectura, variables y scripts: [desarrollo y configuración](desarrollo.md). Aplicación web: [apps/web/README.md](../apps/web/README.md).
 
 ## Base de datos
 

@@ -1,6 +1,6 @@
 # EstateForge — aplicación web
 
-Interfaz de EstateForge: cuentas, inmuebles, generación de anuncios, historial, cuenta del usuario y panel de administración. La instalación general, la API y sus variables están en el [README principal](../../README.md).
+Interfaz de EstateForge: cuentas, inmuebles, generación de anuncios, historial, cuenta del usuario y panel de administración. La instalación general, la API y sus variables están en la [guía de desarrollo y configuración](../../docs/desarrollo.md).
 
 ## Tecnologías
 
