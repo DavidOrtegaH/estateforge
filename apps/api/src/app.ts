@@ -22,6 +22,7 @@ import { mediaRoutes } from './routes/media.routes.js'
 import { aiMediaRoutes } from './routes/ai-media.routes.js'
 
 import { trackRequestWork } from './request-work.js'
+import { keepsRouteCacheControl } from './cache-control.js'
 import { configureClientIp, requestClientIp } from './client-ip.js'
 import { storageDriverOf } from './storage/object-storage.js'
 import {
@@ -138,6 +139,14 @@ export async function buildApp() {
         'X-Robots-Tag',
         'noindex, nofollow',
       )
+
+      // Caché (cache-control.ts): no-store salvo que la ruta ya haya fijado una política privada.
+      if (!keepsRouteCacheControl(reply.getHeader('Cache-Control'))) {
+        reply.header(
+          'Cache-Control',
+          'no-store',
+        )
+      }
 
       done()
     },

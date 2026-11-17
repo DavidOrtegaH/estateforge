@@ -459,6 +459,8 @@ const REVIEWED_ENTRIES: Record<string, 'peticion' | 'aplicacion' | 'plugin' | 'c
   // ya leído por Fastify (con el bodyLimit de cada ruta) y llama a done sin trabajo pendiente.
   'routes/media.routes.ts | addContentTypeParser | callback': 'peticion',
   'server.ts | register:readinessRoutes | referencia': 'plugin',
+  // Vercel Cron: un GET autenticado con CRON_SECRET que procesa un lote de StorageCleanup.
+  'server.ts | register:maintenanceRoutes | referencia': 'plugin',
 }
 
 const SOURCE_DIR = fileURLToPath(new URL('.', import.meta.url))
@@ -587,10 +589,20 @@ describe('T8-2: contrato del onSend global', () => {
 
     expect(last?.getText()).toBe('done()')
     expect(statements.length).toBeGreaterThan(0)
-    expect(statements.filter(statement => !ts.isExpressionStatement(statement)
-      || !ts.isCallExpression(statement.expression)
-      || statement.expression.expression.getText() !== 'reply.header'
-      || !statement.expression.arguments.every(ts.isStringLiteralLike)).map(statement => statement.getText())).toEqual([])
+    const literalHeader = (statement: ts.Statement) => ts.isExpressionStatement(statement)
+      && ts.isCallExpression(statement.expression)
+      && statement.expression.expression.getText() === 'reply.header'
+      && statement.expression.arguments.every(ts.isStringLiteralLike)
+    // Única excepción revisada: la política de caché (cache-control.ts), una condición síncrona y pura
+    // sobre la cabecera ya fijada por la ruta, que solo pone otra cabecera literal.
+    const reviewedCacheControl = (statement: ts.Statement) => ts.isIfStatement(statement)
+      && statement.expression.getText() === "!keepsRouteCacheControl(reply.getHeader('Cache-Control'))"
+      && statement.elseStatement === undefined
+      && ts.isBlock(statement.thenStatement)
+      && statement.thenStatement.statements.length === 1
+      && literalHeader(statement.thenStatement.statements[0])
+    expect(statements.filter(statement => !literalHeader(statement) && !reviewedCacheControl(statement)).map(statement => statement.getText())).toEqual([])
+    expect(statements.filter(reviewedCacheControl)).toHaveLength(1)
   })
 
   it.each([
@@ -608,7 +620,27 @@ describe('T8-2: contrato del onSend global', () => {
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=()',
       'x-robots-tag': 'noindex, nofollow',
+      // Endurecimiento: sin esta cabecera, Vercel añade `public, max-age=0, must-revalidate`.
+      'cache-control': 'no-store',
     })
+  })
+
+  it('una respuesta autenticada con datos de la cuenta se envía con Cache-Control: no-store', async () => {
+    const response = await within(app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: COOKIE } }), 'la respuesta')
+
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.headers['x-content-type-options']).toBe('nosniff')
+  })
+
+  it('la respuesta preliminar de CORS también lleva no-store', async () => {
+    const response = await within(app.inject({
+      method: 'OPTIONS', url: '/api/auth/me',
+      headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
+    }), 'la respuesta')
+
+    expect(response.statusCode).toBeLessThan(300)
+    expect(response.headers['cache-control']).toBe('no-store')
   })
 })
 

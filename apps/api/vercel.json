@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "fastify",
   "regions": ["fra1"],
-  "buildCommand": "pnpm --filter api db:generate",
-  "installCommand": "pnpm install --frozen-lockfile --prod=false"
+  "buildCommand": "pnpm --filter @estateforge/shared build && pnpm --filter api check:shared-runtime && pnpm --filter api db:generate && pnpm --filter api build",
+  "installCommand": "pnpm install --frozen-lockfile --prod=false",
+  "crons": [
+    { "path": "/api/internal/cron/storage-cleanup", "schedule": "0 4 * * *" }
+  ]
 }
