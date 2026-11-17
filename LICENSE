@@ -1,0 +1,65 @@
+EstateForge — Proprietary License (All Rights Reserved)
+
+Copyright (c) 2026 davidortegah, author of EstateForge.
+[Full legal name, postal address and governing jurisdiction: pending, to be completed by the
+copyright holder before distribution outside GitHub.]
+
+All rights reserved.
+
+1. Ownership
+
+   The source code, documentation, user interface, visual design, the EstateForge name and logos,
+   and all other material in this repository that is not identified as third-party material (the
+   "Software") are the exclusive property of the copyright holder and are protected by copyright
+   and other intellectual property laws.
+
+2. What you may do
+
+   The Software is published so that it can be read and evaluated. You may view the source code
+   through the GitHub website. If you access it on GitHub, you also have only the limited rights
+   that the GitHub Terms of Service grant to other GitHub users for public repositories, namely to
+   view the repository and to fork it within GitHub through GitHub's functionality.
+
+3. What you may not do
+
+   Except as stated in section 2, or with the prior written permission of the copyright holder,
+   you may not, in whole or in part:
+
+   a. use, run, install, deploy or host the Software, or offer it as a service to anyone;
+   b. copy, reproduce or download it for any purpose other than viewing it;
+   c. modify, adapt, translate or create derivative works based on it;
+   d. distribute, publish, sublicense, sell, rent, lend or otherwise make it available;
+   e. use it, or any part of it, to train, fine-tune or evaluate machine learning models;
+   f. remove or alter any copyright, license or attribution notice.
+
+   No license or other right is granted by implication, estoppel or otherwise.
+
+4. Trademarks
+
+   The EstateForge name and logos are not licensed under any terms. Names and logos of third
+   parties shown in the Software belong to their respective owners and are used only to identify
+   their products or services.
+
+5. Third-party material
+
+   Third-party software, fonts, icons and other material included in or used by the Software
+   remain subject to their own licenses, listed in THIRD_PARTY_NOTICES.md. Nothing in this license
+   restricts the rights you have under those licenses for that material.
+
+6. Contributions
+
+   The copyright holder does not accept contributions (see CONTRIBUTING.md). Submitting an issue,
+   pull request or other content does not create any license to the Software.
+
+7. No warranty
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+   NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR
+   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+   CONNECTION WITH THE SOFTWARE OR THE USE OF OR OTHER DEALINGS IN THE SOFTWARE.
+
+8. Permissions
+
+   Requests for permission beyond section 2 must be made to the copyright holder in writing.
+   [Contact channel: pending.]
