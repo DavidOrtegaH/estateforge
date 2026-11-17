@@ -37,16 +37,15 @@ Navegador ──► proyecto web (Vercel, estático: apps/web/dist)
 - `*.vercel.app` está en la Public Suffix List. Por eso `web.vercel.app` y `api.vercel.app` son sitios distintos: el navegador no enviaría la cookie en las peticiones `fetch` de la web a la API, y la sesión no funcionaría.
 - Con la reescritura, todas las peticiones a la API son del mismo origen.
 
-Plantilla de `apps/web/vercel.json`. No se incluye en el repositorio porque necesita la URL real del proyecto api:
+**`apps/web/vercel.json` (en el repositorio).** Define las URLs limpias, la SPA acotada a las rutas de la aplicación (cualquier otra ruta es un 404 real, no `index.html`), las cabeceras de seguridad, la CSP, la caché de los recursos con huella y `X-Robots-Tag` en las rutas privadas. Detalle en [la aplicación web](../../apps/web/README.md) y en [Search Console](search-console.md).
+
+Falta solo la reescritura hacia la API, porque necesita su dominio real. Al desplegar, se añade como **primera** regla de `rewrites` (Vercel sirve antes los archivos estáticos y después aplica las reescrituras en orden):
 
 ```json
-{
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "https://<proyecto-api>.vercel.app/api/:path*" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
-}
+{ "source": "/api/:path*", "destination": "https://<dominio-del-proyecto-api>/api/:path*" }
 ```
+
+Sin ella, `/api/*` responde 404: la web no funciona, pero tampoco cae en la SPA ni expone nada.
 
 ### Transferencias directas (DA-58)
 
@@ -129,16 +128,13 @@ Solo para desarrollo o pruebas (no se definen en Vercel):
 | --- | --- |
 | `VITE_API_URL` | **Vacía** (rutas relativas `/api/...`, mismo origen) |
 | `VITE_TURNSTILE_SITE_KEY` | Opcional |
+| `SITE_URL` | Opcional: origen canónico (dominio propio). Solo en la construcción; ver [Search Console](search-console.md) |
 
 Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el JavaScript público. La web no recibe ningún token de Blob: solo URLs firmadas de una única operación.
 
 ### Cabeceras del navegador (CSP y CORS)
 
-- **CSP.** La web no define una Content-Security-Policy. Si se añade, debe permitir el dominio del store:
-  - `connect-src` para el `PUT` y las lecturas con `fetch`;
-  - `img-src` y `media-src` para las imágenes y el vídeo tras la redirección.
-
-  El dominio exacto se fija tras el despliegue: es `https://<store>.private.blob.vercel-storage.com`, y la URL de `PUT` firmada puede ser de `vercel.com`.
+- **CSP.** Definida en `apps/web/vercel.json`. Permite `https://*.blob.vercel-storage.com` en `connect-src`, `img-src` y `media-src`, `https://vercel.com` en `connect-src` (la URL de `PUT` firmada puede ser de ese dominio), Turnstile (`https://challenges.cloudflare.com` en `script-src` y `frame-src`), `blob:` y `data:` para el material generado en el navegador, y `worker-src 'self' blob:`. No admite scripts en línea ni `eval`. Probada en local (Edge, Chrome y Firefox) sin ninguna violación en las E2E de subidas, galería, cartel, vídeo con audio, ajustes de IA y formulario; **pendiente de verificar** con los dominios reales del store. No incluye `upgrade-insecure-requests`: Vercel ya fuerza HTTPS y la directiva rompía en local las redirecciones firmadas.
 - **CORS de Blob.** La documentación consultada **no indica** si las URLs prefirmadas admiten CORS desde cualquier origen.
 
   El navegador necesita CORS en estos casos:
@@ -149,15 +145,18 @@ Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el 
 
 ## Construcción y migraciones
 
+- **Versiones:** Node.js 24.x (`engines` en `package.json`) y pnpm 11.20.0 (`packageManager`). Instalación con `pnpm install --frozen-lockfile`.
 - **api**:
-  - comando de construcción: `pnpm --filter api db:generate && pnpm --filter api db:migrate && pnpm --filter api build`;
-  - el cliente de Prisma se genera en `src/generated/prisma`, que no está en el repositorio;
-  - `db:migrate` es `prisma migrate deploy`: aplica solo migraciones revisadas y nunca crea ni reinicia datos;
-  - para las migraciones conviene la URL **directa** (sin `-pooler`) de Neon.
+  - comando de construcción: `pnpm --filter api db:generate && pnpm --filter api build` (genera el cliente de Prisma en `src/generated/prisma`, que no está en el repositorio, y comprueba los tipos);
+  - **las migraciones no se ejecutan en la construcción**: así una vista previa nunca modifica la base de producción. El titular las aplica a mano, antes de promover una versión que las necesite, con `prisma migrate deploy` y la URL **directa** (sin `-pooler`) de Neon (`DATABASE_URL=<directa> pnpm --filter api db:migrate`). `migrate deploy` aplica solo migraciones revisadas y nunca crea ni reinicia datos;
+  - las vistas previas usan una base o una rama de Neon propia, nunca la de producción (variables del entorno Preview distintas de las de Production).
 - **web**:
-  - raíz `apps/web`;
-  - comando `pnpm --filter web build`;
-  - salida `dist`.
+  - raíz `apps/web`; `vercel.json` fija `buildCommand` (`pnpm run build`) y `outputDirectory` (`dist`);
+  - opcional: `SITE_URL` con el dominio propio; si no, en producción se usa `VERCEL_PROJECT_PRODUCTION_URL` (activar el acceso a las variables de sistema).
+- **Comprobaciones de salud:** `GET /health` (el proceso responde) y `GET /health/ready` (además, PostgreSQL disponible).
+- **Vuelta atrás:** «Instant Rollback» de Vercel a la implementación anterior. Las migraciones son aditivas, así que una versión anterior funciona con el esquema nuevo; si alguna deja de serlo, hay que documentar su reversión antes de aplicarla.
+- **Copias de seguridad y restauración:** ver [docs/postgresql.md](../postgresql.md); en Neon, además, la restauración a un punto en el tiempo de su plan.
+- **Observabilidad:** los registros de las funciones de Vercel. La API solo registra campos cerrados (sin destinatarios, tokens ni SQL).
 - Migraciones actuales, todas aditivas:
   - `0_postgresql_baseline`;
   - `20261110120000_add_property_photos_and_listing_media`;
@@ -267,6 +266,9 @@ Detalle en [Carteles y vídeos con IA (BYOK)](../producto-ia-byok.md) y en el [c
 2. Crear dos proyectos de Vercel desde el repositorio (raíces `apps/api` y `apps/web`).
 3. En el proyecto api, conectar un Blob store **privado**.
 4. Definir las variables de las tablas anteriores en cada proyecto (entorno Production), sin copiarlas del `.env` de desarrollo.
-5. Desplegar la api, comprobar `/health` y ejecutar las comprobaciones 1 a 8.
-6. Añadir `apps/web/vercel.json` con la URL real de la api y desplegar la web.
-7. Recorrer el procedimiento de evaluación de [producto-galeria-cartel-video.md](../producto-galeria-cartel-video.md#cómo-evaluarlo) y anotar los resultados como evidencia.
+5. Aplicar las migraciones con la URL directa, desplegar la api, comprobar `/health` y `/health/ready` y ejecutar las comprobaciones 1 a 8.
+6. Añadir a `apps/web/vercel.json` la reescritura `/api/*` con el dominio real de la api y desplegar la web.
+7. Crear el primer OWNER: registrar una cuenta y ejecutar `scripts/promote-owner.ts` contra la base de producción desde un equipo de confianza (no hay credenciales por defecto ni cuentas sembradas en producción; `db:seed` solo funciona contra localhost).
+8. Decidir la política de registro antes de anunciar la web: el registro está abierto; Turnstile y la verificación del email (`EMAIL_VERIFICATION_REQUIRED_FROM`) son las medidas disponibles.
+9. Seguir [Search Console](search-console.md) para la indexación.
+10. Recorrer el procedimiento de evaluación de [producto-galeria-cartel-video.md](../producto-galeria-cartel-video.md#cómo-evaluarlo) y anotar los resultados como evidencia.

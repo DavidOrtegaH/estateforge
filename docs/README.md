@@ -25,4 +25,13 @@ Instalación, configuración, variables de entorno y scripts: [README principal]
 
 - [Preparación para Vercel (Hobby), Neon (Free) y Vercel Blob](despliegue/vercel-neon-blob.md): arquitectura con la API bajo el mismo dominio, variables, construcción y migraciones, cuotas, comprobaciones pendientes y procedimiento. Preparado, no desplegado ni verificado contra los servicios reales.
 
+- [Indexación y Google Search Console](despliegue/search-console.md): qué se indexa y cómo (página pública estática, `noindex` en la aplicación, `robots.txt`, mapa del sitio y canónica), comprobaciones tras el despliegue y alta de la propiedad. Preparado, no realizado.
+
 - [Fase 0 — Checklist y procedimiento de despliegue (v6)](despliegue/fase0_checklist_despliegue_v6.md): procedimiento y condiciones para desplegar la verificación del email de la Fase 0. No autoriza ninguna integración ni despliegue y no está aprobado para producción; la limitación L-2 sigue abierta.
+
+## Publicación y licencia
+
+- [Política de mensajes de commit](commit-message-policy.md): Conventional Commits en inglés, sin atribución a herramientas de IA, comprobada en CI.
+- [Normalización del historial antes de la versión 1.0.0](release/history-rewrite.md): procedimiento, comprobaciones y [correspondencia de mensajes](release/commit-message-map.json).
+- [Notas de la versión 1.0.0](release/v1.0.0.md) y [registro de cambios](../CHANGELOG.md).
+- [Licencia](../LICENSE) (propietaria), [avisos de terceros](../THIRD_PARTY_NOTICES.md) e [inventario de dependencias](legal/dependency-licenses.json); [contribuciones](../CONTRIBUTING.md) y [seguridad](../SECURITY.md).
