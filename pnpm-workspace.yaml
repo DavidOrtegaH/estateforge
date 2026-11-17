@@ -10,3 +10,29 @@ allowBuilds:
 # Type declarations for third-party packages (react-router and others) are resolved from the root.
 publicHoistPattern:
   - '@types/*'
+# Security fixes for transitive dependencies, kept within each package's major version (release 1.0.0 audit).
+overrides:
+  'fast-uri@>=3.0.0 <3.1.9': '^3.1.9'
+  'fast-uri@>=4.0.0 <4.2.3': '^4.2.3'
+  'zod@>=4.0.0 <4.6.6': '^4.6.6'
+  '@modelcontextprotocol/sdk@<1.32.0': '^1.32.2'
+  'proxy-addr@<2.0.8': '^2.0.8'
+  'body-parser@>=2.0.0 <2.4.0': '^2.4.0'
+  'undici@>=7.0.0 <7.30.1': '^7.30.1'
+  'brace-expansion@>=5.0.0 <5.0.12': '^5.0.12'
+  'js-yaml@>=4.0.0 <4.3.2': '^4.3.2'
+  'systeminformation@<5.33.16': '^5.33.16'
+  'source-map-js@>=1.0.0 <1.2.2': '^1.2.2'
+  'lodash@<4.17.24': '^4.17.24'
+  'mysql2@<3.23.1': '^3.23.1'
+  'hono@<4.13.16': '^4.13.16'
+  '@hono/node-server@>=2.0.0 <2.1.6': '^2.1.6'
+  'qs@>=6.0.0 <6.16.1': '^6.16.1'
+  'ip-address@>=10.0.0 <10.7.4': '^10.7.4'
+  'postcss-selector-parser@>=7.0.0 <7.1.6': '^7.1.6'
+# Accepted advisories, reviewed for release 1.0.0 (see docs/release/v1.0.0.md):
+# - GHSA-ggr8-5vv4-36mx (deepmerge-ts 7): only in the Prisma CLI configuration loader, used at
+#   generate and migrate time, never on a request path; the fix needs a new major of deepmerge-ts.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-ggr8-5vv4-36mx
