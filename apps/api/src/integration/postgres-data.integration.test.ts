@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -161,6 +162,35 @@ describe('fechas', () => {
     expect((rows[0].at as Date).toISOString()).toBe(instant.toISOString())
     expect(rows[0].offset).toBe('+09')
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).securityHoldAt).toEqual(instant)
+  })
+
+  // Con una zona horaria por defecto del servidor o de la base distinta de UTC, Prisma (adapter-pg)
+  // perdía el desplazamiento al leer timestamptz y desplazaba los instantes (caducidades incluidas).
+  // El pool fija la zona de cada sesión en UTC; aquí la base tiene otra por defecto.
+  it('el instante no cambia aunque la zona horaria por defecto de la base no sea UTC', async () => {
+    const name = `ef-test-tz-${randomBytes(4).toString('hex')}`
+    await client.query(`ALTER DATABASE "${database.name}" SET timezone TO 'Europe/Madrid'`)
+    vi.resetModules()
+    vi.stubEnv('DATABASE_APPLICATION_NAME', name)
+    const own = await import('../db/prisma.js')
+    try {
+      // La base tiene otra zona por defecto, pero cada sesión del pool trabaja en UTC.
+      expect((await own.prisma.$queryRaw<{ tz: string }[]>`SELECT current_setting('TimeZone') AS tz`)[0].tz).toBe('UTC')
+      const instant = new Date('2026-07-01T10:00:00.000Z')
+      const user = await own.prisma.user.create({ data: { email: 'zona-base@example.test', password: 'x', securityHoldAt: instant } })
+      const raw = (await client.query(`SELECT "securityHoldAt" AS at FROM "User" WHERE id = $1`, [user.id])).rows[0].at as Date
+      expect(raw.toISOString()).toBe(instant.toISOString())
+      expect((await own.prisma.user.findUniqueOrThrow({ where: { id: user.id } })).securityHoldAt).toEqual(instant)
+
+      await client.query(`INSERT INTO "User" (id, email, password, "updatedAt", "securityHoldAt") VALUES ('offset-tz', 'offset-tz@example.test', 'x', now(), '2026-07-01 12:00:00+02')`)
+      expect((await own.prisma.user.findUniqueOrThrow({ where: { id: 'offset-tz' } })).securityHoldAt?.toISOString()).toBe('2026-07-01T10:00:00.000Z')
+      // Comparaciones en SQL contra now(): un registro que caduca dentro de 30 minutos sigue vigente.
+      await own.prisma.user.update({ where: { id: user.id }, data: { securityHoldAt: new Date(Date.now() + 30 * 60_000) } })
+      expect(await own.prisma.user.count({ where: { id: user.id, securityHoldAt: { gt: new Date() } } })).toBe(1)
+    } finally {
+      await own.closeDatabase()
+      await client.query(`ALTER DATABASE "${database.name}" RESET timezone`)
+    }
   })
 
   it('un valor con desplazamiento se guarda como el mismo instante', async () => {

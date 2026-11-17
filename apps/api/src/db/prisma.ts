@@ -4,12 +4,14 @@ import pg from 'pg'
 import { PrismaClient } from '../generated/prisma/client.js'
 
 import { buildPoolConfig } from './connection-config.js'
+import { UtcClient } from './utc-client.js'
 
 // Cliente único por proceso. El pool es propio, no del adaptador (DA-38): con un pool del
 // adaptador, $disconnect lo cierra pero la siguiente consulta abre otro, de modo que el trabajo
 // que llega después del cierre volvía a conectar. Un pool propio cerrado rechaza ese trabajo
 // («Cannot use a pool after calling end on the pool»), que se responde como 503.
-const pool = new pg.Pool(buildPoolConfig(process.env))
+// Cada conexión trabaja en UTC (ver utc-client.ts).
+const pool = new pg.Pool({ ...buildPoolConfig(process.env), Client: UtcClient })
 
 // Un error de una conexión inactiva (por ejemplo, el servidor la corta) no debe tumbar el proceso:
 // el pool la descarta y la siguiente consulta usa otra. Sin el mensaje, que puede citar el host.
