@@ -111,7 +111,9 @@ describe('seed de desarrollo', () => {
 
   it('como script (db:seed) termina por sí solo: cierra el pool propio (DA-38)', () => {
     const api = resolve(import.meta.dirname, '../..')
-    const run = spawnSync(process.execPath, [resolve(api, 'node_modules/tsx/dist/cli.mjs'), 'prisma/seed.ts'], {
+    // Los mismos argumentos que el script db:seed: sin la condición development, @estateforge/shared
+    // resolvería a dist, que en un clon limpio no existe al probar.
+    const run = spawnSync(process.execPath, [resolve(api, 'node_modules/tsx/dist/cli.mjs'), '--conditions=development', 'prisma/seed.ts'], {
       cwd: api,
       env: { ...process.env, DATABASE_URL: database.url, SEED_USER_PASSWORD: 'Clave-De-Prueba-Del-Seed-1', NODE_OPTIONS: '' },
       encoding: 'utf8',

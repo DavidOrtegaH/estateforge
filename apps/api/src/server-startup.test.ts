@@ -22,7 +22,9 @@ function start(overrides: Record<string, string | undefined>) {
   delete env.GEMINI_API_KEY
   delete env.OPENAI_API_KEY
   for (const [key, value] of Object.entries(overrides)) if (value === undefined) delete env[key]
-  const run = spawnSync(process.execPath, [TSX, SERVER], { cwd: EMPTY_DIR, env, encoding: 'utf8', timeout: 30_000 })
+  // Igual que `pnpm dev`: con la condición development, @estateforge/shared resuelve a src y la prueba
+  // no depende de que packages/shared/dist exista (en un clon limpio de CI no existe al probar).
+  const run = spawnSync(process.execPath, [TSX, '--conditions=development', SERVER], { cwd: EMPTY_DIR, env, encoding: 'utf8', timeout: 30_000 })
   return { status: run.status, output: `${run.stdout}${run.stderr}` }
 }
 
