@@ -23,7 +23,9 @@
     "test:api": "pnpm --filter api test",
     "test:web": "pnpm --filter web test",
     "test:shared": "pnpm --filter @estateforge/shared test",
-    "test:dev": "vitest run --root scripts/dev"
+    "test:dev": "vitest run --root scripts/dev",
+    "test:scripts": "vitest run --root scripts",
+    "check:commits": "node scripts/git/check-commit-messages.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

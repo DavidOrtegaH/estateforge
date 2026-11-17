@@ -1,0 +1,740 @@
+{
+ "description": "Commit messages of the history before version 1.0.0, rewritten in English following Conventional Commits. Keyed by the original commit hash. Commits not listed keep their message. Trailers attributing commits to AI tools are removed from every message.",
+ "commits": [
+  {
+   "n": 1,
+   "old": "15552226425fce048d40f85f798f340f791c2c52",
+   "date": "2026-08-09",
+   "oldHeader": "chore: inicializado EstateForge repository",
+   "message": "chore: initialize the EstateForge repository"
+  },
+  {
+   "n": 2,
+   "old": "0f35d574c264ab260d73cb8bc390032af240a0f3",
+   "date": "2026-08-09",
+   "oldHeader": "chore: paqueteria actualizada",
+   "message": "chore: update package dependencies"
+  },
+  {
+   "n": 3,
+   "old": "8bc553caafa4a15d21c9055f45dda9ac73b7b364",
+   "date": "2026-08-09",
+   "oldHeader": "feat(web): inicializada app de React",
+   "message": "feat(web): scaffold the React application"
+  },
+  {
+   "n": 4,
+   "old": "de71ede48d37650a04b7ed63631164b74823b613",
+   "date": "2026-08-09",
+   "oldHeader": "feat(web): configurados Tailwind y shadcn/ui",
+   "message": "feat(web): configure Tailwind CSS and shadcn/ui"
+  },
+  {
+   "n": 5,
+   "old": "ea5670f10f8800ed68af7bab0f6beec831de2a3b",
+   "date": "2026-08-10",
+   "oldHeader": "feat(web/api) mock de formulario de publi en web y api",
+   "message": "feat: add a mock listing form in the web app and the API"
+  },
+  {
+   "n": 6,
+   "old": "275e8affdc7f228f38541df4e20aaf5ead329795",
+   "date": "2026-08-10",
+   "oldHeader": "feat(web/api): front y back comunicados mediante fastify/cors",
+   "message": "feat: connect the web app and the API through @fastify/cors"
+  },
+  {
+   "n": 7,
+   "old": "7740e4f0b21ead8f2414626c23e9fa150995e01b",
+   "date": "2026-08-10",
+   "oldHeader": "feat: he conectado frontend con api y shared",
+   "message": "feat: connect the frontend with the API and the shared package"
+  },
+  {
+   "n": 8,
+   "old": "4d7b67a2a3eef5587f8d32a1ef7b219053f038f7",
+   "date": "2026-08-12",
+   "oldHeader": "refactor: separada la ruta de generación y el servicio",
+   "message": "refactor: split the generation route from its service"
+  },
+  {
+   "n": 9,
+   "old": "f00aada162a584762075fffa9a4ee336eb88b882",
+   "date": "2026-08-13",
+   "oldHeader": "feat: Integrado el uso de IA mediante la api key de openai",
+   "message": "feat: generate listings with the OpenAI API key"
+  },
+  {
+   "n": 10,
+   "old": "2eb5976a7caa3adb5a071486b8f165b4db2b74b3",
+   "date": "2026-08-13",
+   "oldHeader": "feat: outputs estructurados que regulan las salidas de la IA",
+   "message": "feat: constrain AI output with structured outputs"
+  },
+  {
+   "n": 11,
+   "old": "a62d606e0277b7b25c8ad5d1af4f1bfd70397492",
+   "date": "2026-08-14",
+   "oldHeader": "feat: creada base de datos sqlite y con ORM prisma",
+   "message": "feat: add a SQLite database with the Prisma ORM"
+  },
+  {
+   "n": 12,
+   "old": "54a3eebeddeb01b900ba917adbbcdad5c7a22a8f",
+   "date": "2026-08-14",
+   "oldHeader": "feat: Incluido un menú con las propiedades existentes",
+   "message": "feat: add a menu with the existing properties"
+  },
+  {
+   "n": 13,
+   "old": "fb760e8cabc2f34c6b0d76ffef31efdca71ddb2d",
+   "date": "2026-08-14",
+   "oldHeader": "feat: mejorada la pantalla general de inmuebles",
+   "message": "feat: improve the properties overview page"
+  },
+  {
+   "n": 14,
+   "old": "cec9247f5adf3941dd4c17e56e964bbf91320957",
+   "date": "2026-08-14",
+   "oldHeader": "feat: pantalla de detalles del inmuebles mejorada",
+   "message": "feat: improve the property details page"
+  },
+  {
+   "n": 15,
+   "old": "423df997c141df81e861b905cff90a0964fdddd6",
+   "date": "2026-08-16",
+   "oldHeader": "feat: historial ya funciona",
+   "message": "feat: make the generation history work"
+  },
+  {
+   "n": 16,
+   "old": "6a435bfcd96debe5a371d241fb285d67e6acf292",
+   "date": "2026-08-16",
+   "oldHeader": "feat: ya pueden crearse nuevos anuncios para un mismo inmueble",
+   "message": "feat: allow several listings for the same property"
+  },
+  {
+   "n": 17,
+   "old": "dcaeadc38a850b0630d6487cc9dba2d922cb4113",
+   "date": "2026-08-16",
+   "oldHeader": "feat: Incluidos los inmuebles y anuncios más recientes al dashboard",
+   "message": "feat: show the latest properties and listings on the dashboard"
+  },
+  {
+   "n": 18,
+   "old": "0929f288e2e119e286428cfd7a09bf20036f5439",
+   "date": "2026-08-16",
+   "oldHeader": "feat: ya se pueden borrar inmuebles",
+   "message": "feat: allow deleting properties"
+  },
+  {
+   "n": 19,
+   "old": "6d03392689a61782401b553750cb4b75da5b17eb",
+   "date": "2026-08-16",
+   "oldHeader": "feat: ya se pueden copiar los anuncios",
+   "message": "feat: allow copying listings"
+  },
+  {
+   "n": 20,
+   "old": "e3659f75ce2924994d82dd44d2d41b6481f4be87",
+   "date": "2026-08-16",
+   "oldHeader": "feat: ahora se puede copiar entrando por historial",
+   "message": "feat: allow copying listings from the history"
+  },
+  {
+   "n": 21,
+   "old": "40a4b04af3087a086bdadecc85fec24838d72d7d",
+   "date": "2026-08-16",
+   "oldHeader": "feat: mejorado el selector de idioma de los anuncios",
+   "message": "feat: improve the listing language selector"
+  },
+  {
+   "n": 22,
+   "old": "10af70692c4c3efa14a574be406ce1d4d8801ba3",
+   "date": "2026-08-17",
+   "oldHeader": "feat: generación mock más certera",
+   "message": "feat: make the mock generation more accurate"
+  },
+  {
+   "n": 23,
+   "old": "f25579e2c3270e45e97490c7bea8cb163202fbda",
+   "date": "2026-08-17",
+   "oldHeader": "feat: incluida la IA de Goggle, Gemini",
+   "message": "feat: add Google Gemini as an AI provider"
+  },
+  {
+   "n": 24,
+   "old": "4f92943a7a111a46d0828cbd00ab8b3bde2e7302",
+   "date": "2026-08-18",
+   "oldHeader": "feat: mejorada la validación de la generación de anuncios",
+   "message": "feat: improve the validation of listing generation"
+  },
+  {
+   "n": 25,
+   "old": "bcac0af455d79edc760e36e38e6d228040edb0e2",
+   "date": "2026-08-18",
+   "oldHeader": "refactor: creada la factoría de IAs para gestionarlas mejor",
+   "message": "refactor: add an AI provider factory"
+  },
+  {
+   "n": 26,
+   "old": "d1e0e32dd905323edbc78486e0966936193dc6e6",
+   "date": "2026-08-19",
+   "oldHeader": "feat: paginación en el historial incluida",
+   "message": "feat: paginate the history"
+  },
+  {
+   "n": 27,
+   "old": "499ee234c6bd6e217a93195431b506438e901f32",
+   "date": "2026-08-19",
+   "oldHeader": "feat: selector de modelo y tono en la generacion incluido",
+   "message": "feat: add model and tone selectors to the generation form"
+  },
+  {
+   "n": 28,
+   "old": "e95ecdffe8d390a69730a2320a3e1f58a2d7d44f",
+   "date": "2026-08-19",
+   "oldHeader": "fix: la generacion Mockvuelve a funcionar",
+   "message": "fix: restore the mock generation"
+  },
+  {
+   "n": 29,
+   "old": "059d89497fde36c6eacda3b508e7e4d82fb057d0",
+   "date": "2026-08-20",
+   "oldHeader": "feat: agregadas paginaciones y mejoras en los idiomas",
+   "message": "feat: add pagination and improve language handling"
+  },
+  {
+   "n": 30,
+   "old": "d6cb606bec47471b2148f3e0b583d88fffe2b982",
+   "date": "2026-08-20",
+   "oldHeader": "feat: agregado el borrado simultaneo de varios inmuebles",
+   "message": "feat: allow deleting several properties at once"
+  },
+  {
+   "n": 31,
+   "old": "0ff3171d1ae7dc097350a77f04528cb2eeab6342",
+   "date": "2026-08-20",
+   "oldHeader": "feat/fix: arreglada la generacion nuevamente y mejorado el aspecto visual",
+   "message": "fix: repair listing generation again and polish the layout"
+  },
+  {
+   "n": 32,
+   "old": "1db681f87566db5112a01dbd281ad0afe25ba4af",
+   "date": "2026-08-21",
+   "oldHeader": "feat: traducciones varias",
+   "message": "feat: translate several interface texts"
+  },
+  {
+   "n": 33,
+   "old": "8a7ab2380ffa0be86c7d2bd5398b644682a04e2e",
+   "date": "2026-08-21",
+   "oldHeader": "feat: edicion y eliminacion de anuncios",
+   "message": "feat: allow editing and deleting listings"
+  },
+  {
+   "n": 34,
+   "old": "f137f0ea7d8f0114346ece5cd7e39b1b74a00f5e",
+   "date": "2026-08-23",
+   "oldHeader": "feat: Integrada la eliminación en grupo de inmuebles y anuncios en todas las páginas",
+   "message": "feat: add bulk deletion of properties and listings on every page"
+  },
+  {
+   "n": 35,
+   "old": "835709f48b27567ad185cd4d096a1b897fc27a48",
+   "date": "2026-08-23",
+   "oldHeader": "feat: en inmuebles se mejoró la navegación",
+   "message": "feat: improve navigation on the properties pages"
+  },
+  {
+   "n": 36,
+   "old": "ec05e330e0a94133afe2d65f9ba952c1a33be18d",
+   "date": "2026-08-24",
+   "oldHeader": "feat: mejorados los botones de Dashboard y NewProperty",
+   "message": "feat: improve the dashboard and new property buttons"
+  },
+  {
+   "n": 37,
+   "old": "b65d7f2c47c3d17c38a67b9e7125893b4c001396",
+   "date": "2026-08-24",
+   "oldHeader": "fix: ya no queda un espacio vacio extraño cuando las tarjetas son de distintas alturas en PropertiesPage",
+   "message": "fix: remove the empty gap between cards of different heights on the properties page"
+  },
+  {
+   "n": 38,
+   "old": "3d572d340f0f7197f37b6d098974ad540b269458",
+   "date": "2026-08-24",
+   "oldHeader": "fix: arreglado un desplazamiento indeseado en los botones de eliminaciones múltiples",
+   "message": "fix: prevent an unwanted shift of the bulk deletion buttons"
+  },
+  {
+   "n": 39,
+   "old": "622513347ceab0d9d988a3d9b794e73af5018a3f",
+   "date": "2026-08-25",
+   "oldHeader": "feat: tarjetas mejoradas visualmente",
+   "message": "feat: improve the look of the cards"
+  },
+  {
+   "n": 40,
+   "old": "7589baae77a3f8f33654df5a5d673a9513a1454b",
+   "date": "2026-08-25",
+   "oldHeader": "feat: introducida la búsqueda, la ordenación y el filtrado",
+   "message": "feat: add search, sorting and filtering"
+  },
+  {
+   "n": 41,
+   "old": "678affbe4c71436c8af1c2529e9bd535909718a3",
+   "date": "2026-08-26",
+   "oldHeader": "feat:mejoradas nuevamente las tarjetas",
+   "message": "feat: improve the cards again"
+  },
+  {
+   "n": 42,
+   "old": "9bddfa9e86153f13dbb67291ebcd07ed788db600",
+   "date": "2026-08-26",
+   "oldHeader": "style: auto formateo del código",
+   "message": "style: apply automatic code formatting"
+  },
+  {
+   "n": 43,
+   "old": "56c263ec2a3e89e8a19adf5d0e8f58084cf8259c",
+   "date": "2026-08-26",
+   "oldHeader": "fix: el tipo de operación ya se muestra bien y no todo mayusculas",
+   "message": "fix: display the operation type correctly instead of in upper case"
+  },
+  {
+   "n": 44,
+   "old": "4aed19b3ac9b86456950c4721856936c48c17e89",
+   "date": "2026-08-26",
+   "oldHeader": "feat: mejorada la función de filtrado",
+   "message": "feat: improve filtering"
+  },
+  {
+   "n": 45,
+   "old": "16a9d15e2777dab50175c2f9320c2eb53f4b96f9",
+   "date": "2026-08-26",
+   "oldHeader": "feat: formato de las tarjetas mejorado",
+   "message": "feat: improve the card layout"
+  },
+  {
+   "n": 46,
+   "old": "44c98b6f011a51d261055227135dba8051beba94",
+   "date": "2026-08-28",
+   "oldHeader": "feat/fix: tarjetas mejoradas y errores menores corregidos",
+   "message": "fix: improve the cards and fix minor errors"
+  },
+  {
+   "n": 47,
+   "old": "e444717e18cb2263e62b9eb660d4379920676791",
+   "date": "2026-09-01",
+   "oldHeader": "feat: incluido el trastero al sistema",
+   "message": "feat: add the storage room feature to properties"
+  },
+  {
+   "n": 48,
+   "old": "1b8ded54567c7338a5901925edaef6b41b14675d",
+   "date": "2026-09-02",
+   "oldHeader": "chore: gitignore con el código del proyecto en txt",
+   "message": "chore: ignore the exported project source text file"
+  },
+  {
+   "n": 49,
+   "old": "fc43b79c51a6a7229c7419676c494aabd94969b2",
+   "date": "2026-09-02",
+   "oldHeader": "feat: mejora la validacion del sistema",
+   "message": "feat: improve validation across the system"
+  },
+  {
+   "n": 50,
+   "old": "beedd5e3998eafe3f81529016802ac809835b429",
+   "date": "2026-09-03",
+   "oldHeader": "feat: incluye tests sobre el proyecto",
+   "message": "test: add tests for the project"
+  },
+  {
+   "n": 51,
+   "old": "8244b3fc7a82336959c6c3ddfdabb2ec616f75ad",
+   "date": "2026-09-03",
+   "oldHeader": "refactor(api): modifica las rutas de la API",
+   "message": "refactor(api): reorganize the API routes"
+  },
+  {
+   "n": 52,
+   "old": "67677c675ce6bf2b5d8654421e41de22050d1628",
+   "date": "2026-09-04",
+   "oldHeader": "test(api): añade pruebas de cabeceras de seguridad para /health",
+   "message": "test(api): add security header tests for /health"
+  },
+  {
+   "n": 53,
+   "old": "e0d3338b312dc3538da91f8f58116e45aaa51273",
+   "date": "2026-09-04",
+   "oldHeader": "security(api): añade rate limiting a generación",
+   "message": "fix(api): add rate limiting to listing generation"
+  },
+  {
+   "n": 54,
+   "old": "363080114cd0ca75d6215eee57d907370ef59ff0",
+   "date": "2026-09-04",
+   "oldHeader": "security(api): endurece CORS y extrae origen a variables de entorno",
+   "message": "fix(api): harden CORS and read the allowed origin from environment variables"
+  },
+  {
+   "n": 55,
+   "old": "2885b8ca6d86ffcef15efa698ffe72e9a22b467d",
+   "date": "2026-09-04",
+   "oldHeader": "security(api): valida orígenes CORS estrictos y añade tests",
+   "message": "fix(api): validate strict CORS origins and add tests"
+  },
+  {
+   "n": 56,
+   "old": "38047bef09f8b0cf0bf947eed861863c18065450",
+   "date": "2026-09-06",
+   "oldHeader": "security: mejora los handlers de IA",
+   "message": "fix: harden the AI provider handlers"
+  },
+  {
+   "n": 57,
+   "old": "9ab472e3425e6ce451edd79dca51a40077576c15",
+   "date": "2026-09-08",
+   "oldHeader": "feat: incluye la generación por API KEY del usuario si la de la app se gastó",
+   "message": "feat: fall back to the user's API key when the application key is exhausted"
+  },
+  {
+   "n": 58,
+   "old": "464e059f5c83c3a60ad9e61737b88815e81f93fb",
+   "date": "2026-09-13",
+   "oldHeader": "feat: incluye los logos de la app",
+   "message": "feat: add the application logos"
+  },
+  {
+   "n": 59,
+   "old": "63137adba1a9417a36febefd455e83ae736f2d84",
+   "date": "2026-09-13",
+   "oldHeader": "fix(ui): arregla el texto de los botones de volver a anuncios/inmuebles",
+   "message": "fix(web): correct the labels of the back to listings and properties buttons"
+  },
+  {
+   "n": 60,
+   "old": "42878c1e0b06a07352d8fc50b2872399298ba35f",
+   "date": "2026-09-13",
+   "oldHeader": "feat: mejora la barra lateral y la navegación del header dandoles un mejor aspecto y animaciones, así como adaptación a pantallas móviles. Integra el logo también",
+   "message": "feat(web): redesign the sidebar and header navigation with animations, mobile layout and the logo"
+  },
+  {
+   "n": 61,
+   "old": "6235869d1eaa7756869f8ab9cc80eacc704afc5d",
+   "date": "2026-09-13",
+   "oldHeader": "style(ui): cambiar la fuente de los títulos a Manrope y la de los textos a Inter",
+   "message": "style(web): use Manrope for headings and Inter for body text"
+  },
+  {
+   "n": 62,
+   "old": "a51377f68aa43170e9540c79e3a8eed212903fe7",
+   "date": "2026-09-14",
+   "oldHeader": "fix(config): arregla el inicio de vite que se duplicaba",
+   "message": "fix: stop Vite from starting twice"
+  },
+  {
+   "n": 63,
+   "old": "9015c0570a95975200eedc4ebf8857f4339c372f",
+   "date": "2026-09-14",
+   "oldHeader": "style: ajusta la presentación con el modo oscuro y logos adaptados a ello",
+   "message": "style: adapt the layout and logos to dark mode"
+  },
+  {
+   "n": 64,
+   "old": "87e640a736fdf96b9f4efdf90a6f0e3e5129c517",
+   "date": "2026-09-14",
+   "oldHeader": "feat(ui): hace que el texto de la pestaña sea más descriptivo",
+   "message": "feat(web): use more descriptive browser tab titles"
+  },
+  {
+   "n": 65,
+   "old": "60b731298dc24bfea40454c9d1a6d0976a6d9556",
+   "date": "2026-09-14",
+   "oldHeader": "style: mejor separación de los elementos con respecto al fondo",
+   "message": "style: separate elements more clearly from the background"
+  },
+  {
+   "n": 66,
+   "old": "c0381b5231935c54c4f649c161aa45e8ee4ddbcc",
+   "date": "2026-09-14",
+   "oldHeader": "fix: textos erroneos y mal codificados corregidos",
+   "message": "fix: correct wrong and badly encoded texts"
+  },
+  {
+   "n": 67,
+   "old": "93af999b9d159c1c6db7cd35281cca8cc8ee2560",
+   "date": "2026-09-15",
+   "oldHeader": "fix: las tarjetas de inmueble y anuncio ya no presentan anomalias como tags extraños o palabras incorrectas",
+   "message": "fix: remove stray tags and wrong words from property and listing cards"
+  },
+  {
+   "n": 68,
+   "old": "bb083820858046c46ee32acacf1bff5099a7a8e3",
+   "date": "2026-09-16",
+   "oldHeader": "build: corrige las dependencias del proyecto para permitir testing",
+   "message": "build: fix project dependencies to enable testing"
+  },
+  {
+   "n": 69,
+   "old": "ea8eec7ed79552d1ff93bb263f9d0339970da4a3",
+   "date": "2026-09-16",
+   "oldHeader": "fix: errores de generación de anuncios y de uso del front",
+   "message": "fix: correct listing generation errors and frontend issues"
+  },
+  {
+   "n": 70,
+   "old": "a73ba3a4457bd8cdc67765d66f2d4cfd3d7d88b0",
+   "date": "2026-09-16",
+   "oldHeader": "test: corrige y amplia los test",
+   "message": "test: fix and extend the tests"
+  },
+  {
+   "n": 71,
+   "old": "eefbf85b4fa592c233d64f808069031d438c6466",
+   "date": "2026-09-21",
+   "oldHeader": "feat(auth) prepara el sistema para tener usuarios que más adelante puedan iniciar sesión",
+   "message": "feat(auth): prepare the data model for user accounts"
+  },
+  {
+   "n": 72,
+   "old": "a6bbed602bcbe618541fbec7082228f3f2f0f046",
+   "date": "2026-09-22",
+   "oldHeader": "feat: prepara los servcios y rutas para habilitar el login/auth",
+   "message": "feat(auth): add the services and routes for login"
+  },
+  {
+   "n": 73,
+   "old": "86ce1ee28f6251a76adef1b0ae985350199677d6",
+   "date": "2026-09-22",
+   "oldHeader": "feat: integra el login en el frontend",
+   "message": "feat(auth): integrate login in the frontend"
+  },
+  {
+   "n": 74,
+   "old": "6ffd77aeacb41caefc4a75bb901b34bb5b8c549c",
+   "date": "2026-09-22",
+   "oldHeader": "build(package): actualizado el package para levantar api y web a la vez con pnpm.cmd dev",
+   "message": "build: start the API and the web app together with pnpm dev"
+  },
+  {
+   "n": 75,
+   "old": "7dd8b1cbaaf7624e7c6fbb9d1bdc2ac9c6526d2d",
+   "date": "2026-09-25",
+   "oldHeader": "feat: recuperación de contraseñas y gestión de cuenta",
+   "message": "feat: add password recovery and account management"
+  },
+  {
+   "n": 76,
+   "old": "b880060550a78c9c54a9066e3d55738c66ec8313",
+   "date": "2026-09-25",
+   "oldHeader": "feat: integrar protección contra bots",
+   "message": "feat: add bot protection"
+  },
+  {
+   "n": 77,
+   "old": "9cffa44667aac43c162f9eeeb2358354855032e1",
+   "date": "2026-09-29",
+   "oldHeader": "feat(db): incluye las parte de User AI Key en el modelo",
+   "message": "feat(db): add user AI keys to the data model"
+  },
+  {
+   "n": 78,
+   "old": "bb13e820125f4028cb80d8da783b2c576f5d3169",
+   "date": "2026-09-29",
+   "oldHeader": "feat: integra el flujo de la AI API Keys de usuario en el sistema",
+   "message": "feat: integrate the user AI API key flow"
+  },
+  {
+   "n": 79,
+   "old": "ec00af0c575484fd31af5b32eb3edda17efa3fca",
+   "date": "2026-09-29",
+   "oldHeader": "style: mejora la presentación general de la app",
+   "message": "style: improve the overall presentation of the app"
+  },
+  {
+   "n": 80,
+   "old": "f92a743cbe84f79953d8223e434b6deb520fa537",
+   "date": "2026-10-30",
+   "oldHeader": "feat: recuperación y cambios en contraseñas",
+   "message": "feat: improve password recovery and password changes"
+  },
+  {
+   "n": 81,
+   "old": "d219fb2d2fcd8a05c5844ad92fb4045194a7030d",
+   "date": "2026-10-31",
+   "oldHeader": "feat: nuevo sistema de cambio de email",
+   "message": "feat: add a new email change flow"
+  },
+  {
+   "n": 82,
+   "old": "5c2a06acf14f5f9659b91c42182a772540459f2a",
+   "date": "2026-11-01",
+   "oldHeader": "feat: incluye panel de administración",
+   "message": "feat: add an administration panel"
+  },
+  {
+   "n": 83,
+   "old": "cd5c3710344707b6c5ea454ce44b285eadca619f",
+   "date": "2026-11-01",
+   "oldHeader": "refactor: centraliza la URL de la API en el frontend",
+   "message": "refactor(web): centralize the API URL"
+  },
+  {
+   "n": 84,
+   "old": "7732b3c70aebcf642ef6b0b77fcdf3e2f85c12ea",
+   "date": "2026-11-01",
+   "oldHeader": "style: remueve redundancias de css",
+   "message": "style: remove redundant CSS"
+  },
+  {
+   "n": 85,
+   "old": "c39fdb13a02fcc92f4b38780a9f1a0cdb5f7302c",
+   "date": "2026-11-01",
+   "oldHeader": "test: añade más tests de routes",
+   "message": "test: add more route tests"
+  },
+  {
+   "n": 86,
+   "old": "c596fc056e8bc1f0a8125d1b28b42d6d9f7c97aa",
+   "date": "2026-11-01",
+   "oldHeader": "feat: mejora de routes de la app",
+   "message": "feat: improve the application routes"
+  },
+  {
+   "n": 87,
+   "old": "976108f56d8d8653c1b4c65dc3edf447fc87a5f8",
+   "date": "2026-11-01",
+   "oldHeader": "feat(web): panel de admin mejorado con paginación y filtros optimizados",
+   "message": "feat(web): improve the admin panel with pagination and faster filters"
+  },
+  {
+   "n": 88,
+   "old": "d01fb2e4a1649cad806f9f77d50d399a3b3407b5",
+   "date": "2026-11-01",
+   "oldHeader": "feat(web): mejora la sección de auditorias de panel de admin con la columna motivos optimizada visualmente y un el campo de qué admin hizo el cambio",
+   "message": "feat(web): improve the admin audit section with a clearer reason column and the acting admin"
+  },
+  {
+   "n": 89,
+   "old": "e50a07db1dd07c569fce533a661a7bf0ea78e1a8",
+   "date": "2026-11-01",
+   "oldHeader": "feat(web): Introduce filtros en el historial de auditoria",
+   "message": "feat(web): add filters to the audit history"
+  },
+  {
+   "n": 90,
+   "old": "618ecb099f6e8dcc7f6eb91c2d0e155d437c6440",
+   "date": "2026-11-02",
+   "oldHeader": "feat(seguridad): añadir resolución versionada de bloqueos por incidente",
+   "message": "feat(security): add versioned resolution of incident holds\n\n- Add securityHoldVersion to the User model through an additive migration\n- Increment the version on every new security incident\n- Reject stale resolutions with version checks\n- Add an OWNER-only endpoint to resolve holds\n- Prevent suspending accounts with an active security hold\n- Add unit and integration tests with SQLite\n- Document the incident protection and resolution flow"
+  },
+  {
+   "n": 91,
+   "old": "d32ff42f77e242b955d0f818f26c249e52476d09",
+   "date": "2026-11-04",
+   "oldHeader": "feat(seguridad): añadir recuperación obligatoria tras un incidente (E2)",
+   "message": "feat(security): require account recovery after an incident (E2)\n\n- Schema and migrations: mandatory recovery fields (passwordResetRequiredAt,\n  securityRecoveryEmail, notifiedEmail), tokens with a SELF_SERVICE or\n  SECURITY_RECOVERY purpose bound to a destination and version, and an\n  optional actorUserId in AdminAuditLog (20261102090000 and 20261103120000).\n- An incident report proposes the notified email as the destination; while\n  recovery is pending, login (423) and sessions are blocked.\n- When an OWNER lifts the protection, mandatory recovery starts and the link\n  is sent to the authorized destination; the OWNER can correct the\n  destination or resend the link.\n- Link consumption (POST /api/auth/security-recovery/complete) and the\n  /recuperar-cuenta page.\n- Public request for a new link (POST /api/auth/security-recovery/request):\n  always sent to the stored destination, generic response, per-IP limit and\n  per-account cooldown; delivery in the background with graceful shutdown.\n- New actions are audited without destination, token or link; the public\n  request is recorded without an actor and the panel shows it as an\n  unauthenticated request.\n- Unit and integration tests with SQLite and documentation in docs/seguridad.\n\nPending: web page to request the link and panel labels (E4)."
+  },
+  {
+   "n": 92,
+   "old": "e9afe292845bffde1e0e96662383d267bb72d504",
+   "date": "2026-11-05",
+   "oldHeader": "feat(web): recuperación desde el login, auditoría, diálogos accesibles y panel admin móvil (E4, F1a, M1)",
+   "message": "feat(web): add recovery from login, audit labels, accessible dialogs and a mobile admin panel\n\nE4 - Mandatory recovery (web and documentation)\n- New public page /recuperar-cuenta/solicitar to request a new recovery\n  link, linked from the login (423) and from a closed link.\n- Audit: centralized labels for the 8 actions, origin of the recovery\n  destination and a filter for the new actions.\n- Documentation of incident protection and mandatory recovery.\n\nF1a - Accessible dialogs in the administration panel\n- useModalDialog hook: initial focus, native Tab confined at the edges,\n  Escape according to canClose and focus restoration; pure logic in\n  dialogFocus.\n- Scrolling that honours prefers-reduced-motion and an aria-label on the\n  remove filter button.\n\nM1 - Administration panel on mobile (< 768 px; desktop unchanged)\n- No duplicated padding, summary in two columns and details in one.\n- Users and audit entries as cards with touch actions; action availability\n  moves to userActionsAvailability, shared with the table.\n\nTests: web 155/155, typecheck, oxlint and build pass."
+  },
+  {
+   "n": 93,
+   "old": "536009c59bb8edf685c10f393f038957490adc1a",
+   "date": "2026-11-05",
+   "oldHeader": "chore: dejar de versionar la base de datos local de desarrollo",
+   "message": "chore: stop tracking the local development database\n\n- Add apps/api/dev.db* to .gitignore (including -journal, -wal and -shm).\n- Remove apps/api/dev.db from the index with git rm --cached; the local\n  file is kept. The database is recreated with the Prisma migrations."
+  },
+  {
+   "n": 94,
+   "old": "f4a5c9b7497b2150ffb34732d6ae44d41e3c84b5",
+   "date": "2026-11-05",
+   "oldHeader": "feat(web): improve dialogs, session protection and admin async states",
+   "message": "feat(web): improve dialogs, session protection and admin async states"
+  },
+  {
+   "n": 95,
+   "old": "c05ed36e86df22080939530083b12724ab2a1943",
+   "date": "2026-11-05",
+   "oldHeader": "feat(security): add account recovery administration and documentation",
+   "message": "feat(security): add account recovery administration and documentation"
+  },
+  {
+   "n": 96,
+   "old": "67c0ebf2d724b0f716cde4d40d2a92a52c213623",
+   "date": "2026-11-05",
+   "oldHeader": "docs: update security documentation after R1-R3",
+   "message": "docs: update security documentation after R1-R3"
+  },
+  {
+   "n": 97,
+   "old": "831466894dafa9558e738946a5e006bfafbcfed5",
+   "date": "2026-11-05",
+   "oldHeader": "feat: add numeric page navigation",
+   "message": "feat: add numeric page navigation"
+  },
+  {
+   "n": 98,
+   "old": "127a0a61d30d27f1e699e83274255777d6b31047",
+   "date": "2026-11-05",
+   "oldHeader": "fix: stabilize admin pagination scroll position",
+   "message": "fix: stabilize admin pagination scroll position"
+  },
+  {
+   "n": 99,
+   "old": "42e780003443bb0b94f4263ac3a6128f9d084e57",
+   "date": "2026-11-10",
+   "oldHeader": "feat(auth): add email verification and background recovery delivery",
+   "message": "feat(auth): add email verification and background recovery delivery\n\nConsolidates the Fase 0 work that was pending in the working tree before\nthe PostgreSQL integration:\n\n- Email verification: single-use tokens, date-based policy with a grace\n  period, verification page, resend form and session notices.\n- Self-service password reset issued and delivered in the background,\n  with the same generic response for every account.\n- Hardened email change and mandatory security recovery flows, with\n  route and service tests.\n- SQLite migration for email verification.\n- Security documentation for email verification and the Fase 0\n  deployment checklist."
+  },
+  {
+   "n": 100,
+   "old": "e1e46a3fbbc909ff0395855a0ddb7502167468a8",
+   "date": "2026-11-10",
+   "oldHeader": "feat: add publication checklist, property status and request lifecycle hardening",
+   "message": "feat: add publication checklist, property status and request lifecycle hardening\n\nPublication checklist:\n- Manual checklist for Idealista, Fotocasa, Pisos.com, Yaencontre and\n  Habitaclia with local logos, a link to each portal home page and a\n  link to the listing only when it is marked with a valid URL.\n- Up to five custom \"Otro/a\" rows with name and home page, at least\n  one always present.\n- Centralised URL validation shared by web and API, server-side\n  ownership checks and integrity constraints.\n- No automatic publishing from EstateForge.\n\nProperty status:\n- Commercial status (for sale, sold, for rent, rented) kept separate\n  from the physical condition; older properties without a status keep\n  working.\n\nValidation and generation:\n- Numeric listing validator accepts thousands separators, decimals,\n  signs and negative floors while still flagging real inconsistencies.\n- Controlled responses for AI provider errors.\n\nRequest lifecycle and security:\n- Request work tracking, graceful shutdown that waits for in-flight\n  work and background deliveries, idle connection handling.\n- Closed-field logging that never writes recipients, tokens or SQL.\n- Single lock order for account rows.\n- Logout warns about unsaved checklist changes."
+  },
+  {
+   "n": 101,
+   "old": "42ec14e58ed95d69f8a730f6005571368c55a625",
+   "date": "2026-11-10",
+   "oldHeader": "feat: migrate persistence from SQLite to PostgreSQL",
+   "message": "feat: migrate persistence from SQLite to PostgreSQL\n\n- PostgreSQL 17 through Prisma 7.9.1 and @prisma/adapter-pg; the\n  libsql adapter is removed and DATABASE_URL must be postgresql://,\n  with no silent fallback to SQLite.\n- Single baseline migration (0_postgresql_baseline) with CHECK\n  constraints and the partial unique index of the checklist; the SQLite\n  migration history is archived unchanged in prisma/sqlite-history.\n- Exact prices as Decimal(12,2), lowercase email identity enforced in\n  the database, timestamptz dates.\n- Configurable connection pool, PORT and HOST, connection\n  application_name and /health/ready readiness check.\n- Row locks for concurrent recovery (PG-20, PG-21) and checklist saves.\n- Repeatable localhost-only development seed.\n- Integration tests against a real local PostgreSQL server and\n  operational documentation (migrations, backup and restore, recovery)."
+  },
+  {
+   "n": 102,
+   "old": "8cdf9cf6fec196d1ceadd5f709bab0af2fd582d0",
+   "date": "2026-11-10",
+   "oldHeader": "fix: return 503 when PostgreSQL is unavailable and revoke undelivered recovery links",
+   "message": "fix: return 503 when PostgreSQL is unavailable and revoke undelivered recovery links\n\nDatabase availability:\n- Central classification of availability errors (pool timeout,\n  connection limit, unreachable or restarting server, closed pool).\n- These now answer 503 with Retry-After and a generic body; integrity,\n  validation and programming errors keep their 4xx or 500 responses.\n- Only closed fields are logged.\n\nConnection pool:\n- The application owns the pg pool and closes it at the end of the\n  graceful shutdown, after pending work and deliveries.\n- Queries after the pool is closed fail instead of reconnecting.\n\nPassword recovery:\n- When delivery of a reset or recovery link is known to have failed,\n  only that unused token is revoked, so no useless active link is left\n  and the recovery cooldown is released.\n- An unconfirmed delivery keeps its token.\n- Bounded SMTP timeouts."
+  },
+  {
+   "n": 103,
+   "old": "bbdab1ed4431da5d5e00fb76d413a4dd5828050e",
+   "date": "2026-11-10",
+   "oldHeader": "fix(api): answer 503 for checklist pool saturation and make the dev seed reusable",
+   "message": "fix(api): answer 503 for checklist pool saturation and make the dev seed reusable\n\n- The checklist save treated P2028 \"Unable to start a transaction in the\n  given time\" as a write conflict (409). Availability errors now reach\n  the global handler (503); a transaction expired while waiting for a\n  lock is still a conflict.\n- The development seed closed only the Prisma client, so with the\n  application-owned pool the process stayed alive. It now closes the\n  pool, runs in one transaction per account, is idempotent and creates\n  representative data: two accounts, the four commercial statuses, a\n  property without status and a checklist with \"Otro/a\" rows.\n- The seed is now type-checked and covered by integration tests,\n  including running it as a script."
+  },
+  {
+   "n": 104,
+   "old": "43ba1beee35ad53dd699b894000ce9a51a898cc2",
+   "date": "2026-11-10",
+   "oldHeader": "test(api): cover startup without database configuration and fix shutdown test timing",
+   "message": "test(api): cover startup without database configuration and fix shutdown test timing\n\n- New startup test runs the real server from an empty directory, so\n  dotenv cannot load a developer .env. It checks that a missing, empty,\n  SQLite or MySQL DATABASE_URL and an invalid PORT exit with code 1 for\n  that reason, without printing the URL.\n- The shutdown test for idle versus active connections waited 1 s for\n  the exit. The shutdown contract places it at the end of the total\n  timeout. It only passed on Windows because idle sockets are reported\n  closed later there; measured behaviour is identical on Windows and\n  Linux."
+  },
+  {
+   "n": 105,
+   "old": "1a08635eb11635790e766c244aeaa462a57f602d",
+   "date": "2026-11-10",
+   "oldHeader": "chore(dev): add WSL PostgreSQL setup scripts and document the development database",
+   "message": "chore(dev): add WSL PostgreSQL setup scripts and document the development database\n\n- scripts/wsl/instalar-herramientas.sh installs Node.js 24.19.0,\n  pnpm 11.20.0 and PostgreSQL 17 from PGDG in user space without sudo.\n  It verifies the Node GPG signature, the PGDG key fingerprint and the\n  signed index, and the SHA-256 of every package.\n- scripts/wsl/postgres-dev.sh init/start/stop/status sets up a local-only\n  cluster on 127.0.0.1:55432. It uses an unprivileged application role\n  that owns the development and shadow databases and a separate test\n  role; random credentials stay outside the repository.\n- Optional SHADOW_DATABASE_URL so migrate dev does not need CREATEDB.\n- New .env.example entries for the shadow database, connection name,\n  PORT and HOST.\n- .gitattributes keeps shell scripts in LF.\n- PostgreSQL development, testing and graceful shutdown documentation,\n  including the Linux SIGTERM results."
+  }
+ ]
+}
