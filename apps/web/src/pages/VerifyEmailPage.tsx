@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router'
 import { ResendVerificationForm } from '@/components/auth/ResendVerificationForm'
 import { useAuth } from '@/hooks/useAuth'
 import { verifyEmail, type VerifyEmailResult } from '@/services/authService'
+import { APP_HOME } from '@/lib/routes'
 
 // Formato del token del enlace (64 caracteres hexadecimales), como lo comprueba la API.
 const TOKEN_FORMAT = /^[0-9a-f]{64}$/
@@ -60,7 +61,7 @@ function VerifyEmailPage() {
             {user ? (
               // Recarga completa: la sesión abierta vuelve a leer el estado del email.
               <a
-                href="/"
+                href={APP_HOME}
                 className="flex h-10 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90"
               >
                 Ir a EstateForge

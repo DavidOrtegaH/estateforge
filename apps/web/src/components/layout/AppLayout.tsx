@@ -14,6 +14,7 @@ import appIconWhite from '@/assets/appIconWhite.svg'
 import appLogo from '@/assets/appLogo.svg'
 import appLogoWhite from '@/assets/appLogoWhite.svg'
 import { EmailVerificationNotice } from '@/components/auth/EmailVerificationNotice'
+import { APP_HOME } from '@/lib/routes'
 
 type NavigationItem = {
   label: string
@@ -292,7 +293,7 @@ function MoonIcon({
 const navigationItems: NavigationItem[] = [
   {
     label: 'Dashboard',
-    to: '/',
+    to: APP_HOME,
     icon: 'dashboard',
   },
   {
@@ -315,7 +316,7 @@ const navigationItems: NavigationItem[] = [
 function getBreadcrumbs(
   pathname: string,
 ): BreadcrumbItem[] {
-  if (pathname === '/') {
+  if (pathname === APP_HOME) {
     return [
       {
         label: 'Dashboard',
@@ -327,7 +328,7 @@ function getBreadcrumbs(
     return [
       {
         label: 'Dashboard',
-        to: '/',
+        to: APP_HOME,
       },
       {
         label: 'Inmuebles',
@@ -339,7 +340,7 @@ function getBreadcrumbs(
     return [
       {
         label: 'Dashboard',
-        to: '/',
+        to: APP_HOME,
       },
       {
         label: 'Inmuebles',
@@ -355,7 +356,7 @@ function getBreadcrumbs(
     return [
       {
         label: 'Dashboard',
-        to: '/',
+        to: APP_HOME,
       },
       {
         label: 'Inmuebles',
@@ -371,7 +372,7 @@ function getBreadcrumbs(
     return [
       {
         label: 'Dashboard',
-        to: '/',
+        to: APP_HOME,
       },
       {
         label: 'Anuncios',
@@ -380,14 +381,14 @@ function getBreadcrumbs(
   }
 
   if (pathname === '/admin') {
-    return [{ label: 'Dashboard', to: '/' }, { label: 'Administración' }]
+    return [{ label: 'Dashboard', to: APP_HOME }, { label: 'Administración' }]
   }
 
   if (pathname === '/cuenta') {
     return [
       {
         label: 'Dashboard',
-        to: '/',
+        to: APP_HOME,
       },
       {
         label: 'Cuenta',
@@ -399,7 +400,7 @@ function getBreadcrumbs(
     return [
       {
         label: 'Dashboard',
-        to: '/',
+        to: APP_HOME,
       },
       {
         label: 'Anuncios',
@@ -414,13 +415,13 @@ function getBreadcrumbs(
   return [
     {
       label: 'Dashboard',
-      to: '/',
+      to: APP_HOME,
     },
   ]
 }
 
 function getPageTitle(pathname: string) {
-  if (pathname === '/') {
+  if (pathname === APP_HOME) {
     return 'Dashboard - EstateForge'
   }
 
@@ -721,7 +722,7 @@ function AppLayout() {
           ].join(' ')}
         >
           <NavLink
-            to="/"
+            to={APP_HOME}
             onClick={closeMobileMenu}
             aria-label="Ir al Dashboard"
             title="Dashboard"
@@ -827,7 +828,7 @@ function AppLayout() {
               key={item.to}
               to={item.to}
               end={
-                item.to === '/' ||
+                item.to === APP_HOME ||
                 item.to === '/inmuebles' ||
                 item.to === '/historial'
               }

@@ -17,6 +17,8 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { isEmailNotVerifiedMessage, isSecurityRecoveryRequiredMessage } from '@/services/authService'
 import { ResendVerificationForm } from '@/components/auth/ResendVerificationForm'
 import { sessionEndedNotice } from '@/lib/sessionAccess'
+import { APP_HOME } from '@/lib/routes'
+import LegalLinks from '@/components/layout/LegalLinks'
 
 interface LocationState {
   from?: {
@@ -137,7 +139,7 @@ function LoginPage() {
       | LocationState
       | undefined
 
-    const target = state?.from?.pathname ?? '/'
+    const target = state?.from?.pathname ?? APP_HOME
 
     return <Navigate to={target} replace />
   }
@@ -335,6 +337,8 @@ function LoginPage() {
             Crear una cuenta
           </Link>
         </p>
+
+        <LegalLinks />
       </div>
     </div>
   )

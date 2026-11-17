@@ -15,6 +15,8 @@ import {
 
 import { PasswordInput } from '@/components/ui/PasswordInput'
 import { ResendVerificationForm } from '@/components/auth/ResendVerificationForm'
+import { APP_HOME } from '@/lib/routes'
+import LegalLinks from '@/components/layout/LegalLinks'
 import {
   getPasswordValidationErrors,
   MAX_PASSWORD_LENGTH,
@@ -131,7 +133,7 @@ function RegisterPage() {
   }
 
   if (user) {
-    return <Navigate to="/" replace />
+    return <Navigate to={APP_HOME} replace />
   }
 
   async function handleSubmit() {
@@ -354,6 +356,8 @@ function RegisterPage() {
             Iniciar sesión
           </Link>
         </p>
+
+        <LegalLinks />
       </div>
     </div>
   )

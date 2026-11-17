@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacidad y cookies — EstateForge</title>
+    <meta
+      name="description"
+      content="Qué datos guarda EstateForge, para qué, con qué servicios se tratan, qué cookie usa y cómo borrar tu cuenta."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--seo:head-->
+    <link rel="stylesheet" href="/src/site/site.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="site-header">
+      <div class="container">
+        <a class="brand" href="/" aria-label="EstateForge, página principal">
+          <img src="/favicon.svg" alt="" width="36" height="22" />
+          <span>EstateForge</span>
+        </a>
+        <nav class="header-actions" aria-label="Acceso">
+          <a class="button button-secondary" href="/login">Iniciar sesión</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="contenido" class="container prose">
+      <h1>Privacidad y cookies</h1>
+      <p class="updated">Última revisión: 17 de noviembre de 2026.</p>
+      <p>
+        Esta página describe cómo funciona EstateForge hoy. Es información técnica sobre el
+        tratamiento de datos y no sustituye a un texto jurídico revisado, que deberá completarse
+        antes de abrir el servicio al público.
+      </p>
+
+      <h2>Qué datos se guardan</h2>
+      <ul>
+        <li>
+          <strong>Cuenta:</strong> tu email, la contraseña (solo su resumen con un algoritmo de
+          derivación; nunca la contraseña en claro), la fecha de alta y el estado de verificación
+          del email.
+        </li>
+        <li>
+          <strong>Sesiones:</strong> un identificador de sesión (se guarda solo su resumen) y su
+          caducidad.
+        </li>
+        <li>
+          <strong>Tu contenido:</strong> los inmuebles, sus fotografías, los anuncios, carteles,
+          vídeos y pistas de audio que creas o subes, y los enlaces de publicación que anotas.
+        </li>
+        <li>
+          <strong>Conexiones de IA:</strong> si conectas un proveedor, su clave se guarda cifrada y
+          solo la descifra el servidor al hacer una operación que tú confirmas. También se guarda
+          el historial de esas operaciones (modelo, estado y coste estimado).
+        </li>
+        <li>
+          <strong>Registro de seguridad:</strong> acciones administrativas y de seguridad (por
+          ejemplo, una suspensión o una solicitud de recuperación), con la cuenta afectada y la
+          fecha.
+        </li>
+      </ul>
+      <p>
+        La dirección IP se usa en memoria para limitar el número de intentos (inicio de sesión,
+        registro y operaciones costosas) y, si está activada, para la verificación contra bots. No
+        se guarda en la base de datos.
+      </p>
+
+      <h2>Para qué</h2>
+      <p>
+        Para prestarte el servicio: identificarte, guardar tu trabajo, generar el material que
+        pides, enviarte los correos de verificación y de recuperación de la cuenta y proteger la
+        cuenta frente a abusos. No se usan tus datos para publicidad, perfiles ni analítica, ni se
+        venden.
+      </p>
+
+      <h2>Servicios que intervienen</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Servicio</th>
+              <th scope="col">Cuándo</th>
+              <th scope="col">Qué recibe</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Alojamiento de la aplicación, base de datos y almacenamiento de archivos</td>
+              <td>Siempre</td>
+              <td>Los datos descritos arriba, para guardarlos y servirlos</td>
+            </tr>
+            <tr>
+              <td>Proveedor de correo</td>
+              <td>Al verificar el email o recuperar la cuenta</td>
+              <td>Tu email y el contenido del mensaje</td>
+            </tr>
+            <tr>
+              <td>Cloudflare Turnstile (si está activado)</td>
+              <td>En los formularios de acceso y registro</td>
+              <td>Los datos técnicos del navegador que necesita la verificación contra bots</td>
+            </tr>
+            <tr>
+              <td>El proveedor de IA que tú conectes</td>
+              <td>Solo en las operaciones de IA que confirmas</td>
+              <td>
+                Los datos del inmueble y, si la operación lo requiere, las fotografías elegidas. Se
+                tratan según las condiciones de tu cuenta con ese proveedor
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Los carteles y los vídeos clásicos se componen en tu navegador y no se envían a ningún
+        proveedor de IA.
+      </p>
+
+      <h2>Cookies y almacenamiento del navegador</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Nombre</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Finalidad</th>
+              <th scope="col">Duración</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>estateforge_session</code></td>
+              <td>Cookie técnica (<code>HttpOnly</code>, <code>SameSite=Lax</code>, <code>Secure</code> con HTTPS)</td>
+              <td>Mantener la sesión iniciada</td>
+              <td>Hasta 7 días o hasta cerrar la sesión</td>
+            </tr>
+            <tr>
+              <td><code>estateforge-theme</code></td>
+              <td>Almacenamiento local</td>
+              <td>Recordar el modo claro u oscuro</td>
+              <td>Hasta que lo borres</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Son necesarias para el funcionamiento del servicio. No hay cookies de publicidad,
+        seguimiento ni analítica. Si alguna vez se añadieran, esta página se actualizaría y se
+        pediría tu consentimiento antes de activarlas.
+      </p>
+
+      <h2>Cuánto tiempo y cómo borrarlos</h2>
+      <p>
+        Los datos se conservan mientras tengas la cuenta. Desde «Cuenta» puedes borrar tus claves
+        de IA y eliminar la cuenta: al hacerlo se borran tus inmuebles, fotografías, material,
+        conexiones y sesiones, y sus archivos quedan en la cola de borrado del almacenamiento, que los elimina en la siguiente limpieza. Las entradas del
+        registro de seguridad se conservan para poder investigar abusos.
+      </p>
+
+      <h2>Contacto</h2>
+      <p>
+        Los datos de contacto del responsable y el procedimiento para ejercer tus derechos se
+        publicarán aquí antes de que el servicio esté abierto al público.
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>© 2026 EstateForge. Todos los derechos reservados.</p>
+        <nav aria-label="Información legal">
+          <a href="/">Inicio</a>
+          <a href="/condiciones">Condiciones de uso</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

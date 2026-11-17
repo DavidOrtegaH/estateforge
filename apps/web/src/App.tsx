@@ -2,6 +2,7 @@
 import {
   createBrowserRouter,
   createRoutesFromElements,
+  Navigate,
   Route,
   RouterProvider,
 } from 'react-router'
@@ -25,6 +26,8 @@ import VerifyEmailPage from '@/pages/VerifyEmailPage'
 import AccountPage from '@/pages/AccountPage'
 import AdminPage from '@/pages/AdminPage'
 import { OwnerRoute } from '@/components/auth/OwnerRoute'
+import NotFoundPage from '@/pages/NotFoundPage'
+import { APP_HOME } from '@/lib/routes'
 
 // Router de datos: useBlocker, que protege los cambios sin guardar, no funciona con BrowserRouter.
 const router = createBrowserRouter(
@@ -37,10 +40,12 @@ const router = createBrowserRouter(
       <Route path="/recuperar-cuenta" element={<RecoverAccountPage />} />
       <Route path="/recuperar-cuenta/solicitar" element={<RequestRecoveryLinkPage />} />
       <Route path="/verificar-email" element={<VerifyEmailPage />} />
+      {/* «/» es la página pública estática; dentro de la SPA lleva al panel. */}
+      <Route path="/" element={<Navigate to={APP_HOME} replace />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path={APP_HOME} element={<DashboardPage />} />
           <Route path="/inmuebles" element={<PropertiesPage />} />
           <Route path="/inmuebles/nuevo" element={<NewPropertyPage />} />
           <Route path="/inmuebles/:id" element={<PropertyDetailPage />} />
@@ -52,6 +57,7 @@ const router = createBrowserRouter(
           </Route>
         </Route>
       </Route>
+      <Route path="*" element={<NotFoundPage />} />
     </>,
   ),
 )

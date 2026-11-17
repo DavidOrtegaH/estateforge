@@ -2,12 +2,170 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/src/assets/appIcon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EstateForge</title>
+    <title>EstateForge — Anuncios, carteles y vídeos para inmuebles</title>
+    <meta
+      name="description"
+      content="Organiza las fichas de tus inmuebles y prepara sus anuncios, carteles y vídeos. Registra dónde los publicas. IA opcional con tu propia clave."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#1d2027" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:site_name" content="EstateForge" />
+    <meta property="og:title" content="EstateForge — Anuncios inmobiliarios, carteles y vídeos" />
+    <meta
+      property="og:description"
+      content="Fichas de inmuebles, anuncios revisados por ti, carteles y vídeos clásicos y un registro de publicación por portal. IA opcional con tu propia clave."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!--seo:head-->
+    <link rel="stylesheet" href="/src/site/site.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="site-header">
+      <div class="container">
+        <a class="brand" href="/" aria-label="EstateForge, página principal">
+          <img src="/favicon.svg" alt="" width="36" height="22" />
+          <span>EstateForge</span>
+        </a>
+        <nav class="header-actions" aria-label="Acceso">
+          <a class="button button-secondary" href="/login">Iniciar sesión</a>
+          <a class="button button-primary" href="/registro">Crear cuenta</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="contenido">
+      <div class="hero">
+        <div class="container">
+          <h1>Prepara los anuncios de tus inmuebles en un solo sitio</h1>
+          <p class="lead">
+            EstateForge reúne la ficha de cada inmueble, sus fotografías y todo lo necesario para
+            anunciarlo: el texto del anuncio, un cartel, un vídeo corto y el registro
+            de los portales donde lo publicas. Tú revisas y decides qué se publica.
+          </p>
+          <div class="header-actions">
+            <a class="button button-primary" href="/registro">Crear una cuenta</a>
+            <a class="button button-secondary" href="/login">Ya tengo cuenta</a>
+          </div>
+          <p class="note">
+            Proyecto personal en desarrollo activo (versión 1.0.0). La interfaz está en español.
+          </p>
+        </div>
+      </div>
+
+      <section aria-labelledby="funciones">
+        <div class="container">
+          <h2 id="funciones">Qué puedes hacer</h2>
+          <ul class="grid">
+            <li class="card">
+              <h3>Fichas de inmuebles</h3>
+              <p>
+                Tipo, operación, superficie, estado, precio y características de cada inmueble, con
+                su estado comercial (en venta, vendido, en alquiler o alquilado).
+              </p>
+            </li>
+            <li class="card">
+              <h3>Galería de fotografías</h3>
+              <p>
+                Hasta 50 fotografías por inmueble, con orden y portada. Las imágenes se comprueban
+                al subirlas y se guardan de forma privada.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Anuncios en español o inglés</h3>
+              <p>
+                Borradores con el tono que elijas (profesional, de lujo, casual o persuasivo) que
+                revisas y editas antes de darlos por buenos. Hay una plantilla local que no usa IA.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Carteles y vídeos clásicos</h3>
+              <p>
+                Plantillas de cartel y un vídeo de fotografías con música que se componen en tu
+                navegador, sin IA y sin coste.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Registro de publicación por portal</h3>
+              <p>
+                Apunta en qué portales (Idealista, Fotocasa, Pisos.com, Yaencontre, Habitaclia u
+                otros) has publicado cada anuncio y guarda su enlace. EstateForge no publica por ti.
+              </p>
+            </li>
+            <li class="card">
+              <h3>IA opcional con tu propia clave</h3>
+              <p>
+                Si quieres usar IA para textos, imágenes o vídeos, conectas tu cuenta del proveedor.
+                Antes de cada operación de pago ves el coste estimado y confirmas.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section aria-labelledby="como-funciona">
+        <div class="container">
+          <h2 id="como-funciona">Cómo funciona</h2>
+          <ol class="grid steps">
+            <li class="card">
+              <h3>Crea la ficha</h3>
+              <p>Añade los datos del inmueble y sube sus fotografías.</p>
+            </li>
+            <li class="card">
+              <h3>Prepara el material</h3>
+              <p>Genera el anuncio, el cartel y el vídeo, y edítalos hasta que te convenzan.</p>
+            </li>
+            <li class="card">
+              <h3>Revisa y publica</h3>
+              <p>
+                Descarga el material, publícalo en los portales que elijas y anota dónde está.
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section aria-labelledby="claves">
+        <div class="container">
+          <h2 id="claves">Tus claves y tus datos</h2>
+          <ul class="grid">
+            <li class="card">
+              <h3>Sin claves compartidas</h3>
+              <p>
+                EstateForge no usa una clave de IA propia: cada operación con IA se hace con la
+                tuya y la factura tu proveedor. Sin clave, todo lo demás funciona igual.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Claves cifradas</h3>
+              <p>
+                Las claves se guardan cifradas, solo las usa el servidor y nunca se vuelven a
+                mostrar en el navegador.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Cada cuenta ve lo suyo</h3>
+              <p>
+                Inmuebles, fotografías, anuncios y claves pertenecen a su cuenta. Solo se usa una
+                cookie técnica para mantener la sesión; no hay publicidad ni analítica.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>© 2026 EstateForge. Todos los derechos reservados.</p>
+        <nav aria-label="Información legal">
+          <a href="/privacidad">Privacidad y cookies</a>
+          <a href="/condiciones">Condiciones de uso</a>
+        </nav>
+      </div>
+    </footer>
   </body>
 </html>
