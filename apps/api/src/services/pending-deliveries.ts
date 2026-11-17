@@ -4,7 +4,14 @@
 // envían algunos correos sin que la respuesta HTTP los espere. Cada servicio registra aquí sus
 // envíos, y el cierre ordenado de la API (hook onClose de authRoutes) espera a que terminen, con un
 // plazo máximo común.
+//
+// En Vercel no hay cierre ordenado: la función puede congelarse en cuanto se envía la respuesta.
+// Por eso cada envío registrado se entrega también a `waitUntil` del SDK oficial
+// (@vercel/functions), que prolonga la vida de la invocación hasta que termine, sin que la
+// respuesta HTTP lo espere (anti-enumeración). Fuera de Vercel no hay contexto de petición y
+// `waitUntil` no hace nada: solo queda el seguimiento local de siempre.
 
+import { waitUntil } from '@vercel/functions'
 // Plazo máximo de espera al cerrar. Un envío SMTP normal tarda pocos segundos, pero los tiempos de
 // espera por defecto de nodemailer son mucho mayores (2 minutos para conectar y 10 de inactividad
 // del socket), así que sin un plazo el cierre podría alargarse minutos. Se elige por debajo de los
@@ -53,6 +60,17 @@ export function deliveryWaitBudgetMs(maxMs: number): number {
   return deliveryWaitLimitAt === null ? maxMs : Math.min(maxMs, Math.max(0, deliveryWaitLimitAt - Date.now()))
 }
 
+// Se entrega la promesa protegida (nunca rechaza), no la original: un fallo SMTP no puede llegar al
+// runtime como rechazo sin gestionar. Si `waitUntil` fallara, el envío sigue en el seguimiento local
+// y `track` no lanza: la respuesta HTTP no puede depender de esto.
+function extendInvocationLifetime(tracked: Promise<void>): void {
+  try {
+    waitUntil(tracked)
+  } catch {
+    // Sin contexto útil: se mantiene solo el seguimiento local.
+  }
+}
+
 export function createDeliveryTracker(): DeliveryTracker {
   const pending = new Set<Promise<void>>()
 
@@ -65,6 +83,7 @@ export function createDeliveryTracker(): DeliveryTracker {
           pending.delete(tracked)
         })
       pending.add(tracked)
+      extendInvocationLifetime(tracked)
     },
 
     count() {

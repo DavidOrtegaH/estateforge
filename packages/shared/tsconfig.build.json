@@ -1,0 +1,12 @@
+{
+  // JavaScript ejecutable para producción (Node sin cargador, p. ej. la función de Vercel de la API).
+  // Los tipos y el desarrollo usan src/ (condiciones "types" y "development" de package.json).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

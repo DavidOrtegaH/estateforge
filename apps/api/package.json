@@ -5,8 +5,9 @@
   "license": "SEE LICENSE IN ../../LICENSE",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --conditions=development src/server.ts",
     "build": "tsc",
+    "check:shared-runtime": "node scripts/check-shared-runtime.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --no-file-parallelism",
     "test:unit": "vitest run --no-file-parallelism --exclude \"src/integration/**\"",
@@ -15,8 +16,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:status": "prisma migrate status",
     "db:generate": "prisma generate",
-    "db:seed": "tsx prisma/seed.ts",
-    "storage:cleanup": "tsx scripts/storage-cleanup.ts"
+    "db:seed": "tsx --conditions=development prisma/seed.ts",
+    "storage:cleanup": "tsx --conditions=development scripts/storage-cleanup.ts"
   },
   "dependencies": {
     "@estateforge/shared": "workspace:*",
@@ -26,6 +27,7 @@
     "@prisma/adapter-pg": "7.9.1",
     "@prisma/client": "7.9.1",
     "@vercel/blob": "2.8.2",
+    "@vercel/functions": "3.11.3",
     "dotenv": "^17.4.2",
     "fastify": "^5.12.8",
     "nodemailer": "^10.6.0",

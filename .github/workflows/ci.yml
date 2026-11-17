@@ -87,6 +87,13 @@ jobs:
       - name: Tests of the repository scripts
         run: pnpm test:scripts
 
+      - name: Build the shared package (compiled JavaScript for production)
+        run: pnpm --filter @estateforge/shared build
+
+      - name: Import the compiled shared package with plain Node (no loader)
+        run: pnpm --filter api check:shared-runtime
+
+      # Topological order: shared is built again before the API and the web.
       - name: Build
         run: pnpm build
 

@@ -184,6 +184,18 @@ describe('createDeliveryTracker', () => {
     await new Promise(resolve => setTimeout(resolve, 30))
   })
 
+  it('fuera de Vercel (SDK real, sin contexto de petición) track no lanza, no espera y conserva el seguimiento local', async () => {
+    const tracker = createDeliveryTracker()
+    const failing = deferred()
+
+    expect(tracker.track(failing.promise)).toBeUndefined()
+    expect(tracker.count()).toBe(1)
+
+    failing.reject(new Error('SMTP caído'))
+    await expect(tracker.waitForAll(1_000)).resolves.toEqual({ timedOut: false, pending: 0 })
+    expect(tracker.count()).toBe(0)
+  })
+
   it('el temporizador del plazo se cancela cuando la espera termina antes', async () => {
     const tracker = createDeliveryTracker()
     const delivery = deferred()
