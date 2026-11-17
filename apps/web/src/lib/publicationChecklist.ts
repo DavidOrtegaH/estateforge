@@ -27,8 +27,6 @@ export interface PortalRow extends BaseRow {
   kind: 'portal'
   platform: PublicationPlatformId
   name: string
-  logo: string
-  logoPx: number
   homeUrl: string
 }
 
@@ -133,8 +131,6 @@ export function buildChecklistRows(
         key: platform.id,
         platform: platform.id,
         name: platform.name,
-        logo: platform.logo,
-        logoPx: platform.logoPx,
         homeUrl: platform.homeUrl,
         url: item?.url ?? '',
         savedUrl: item?.url ?? '',

@@ -316,9 +316,9 @@ describe('PublicationChecklistUpdateSchema', () => {
 })
 
 describe('catálogo: datos de cada portal', () => {
-  it.each([...PUBLICATION_PLATFORMS])('$name tiene página oficial válida para su propio validador y logotipo local', (platform) => {
+  it.each([...PUBLICATION_PLATFORMS])('$name tiene página oficial válida para su propio validador y ningún logotipo de marca', (platform) => {
     expect(validatePublicationUrl(platform.id, platform.homeUrl).status).toBe('valid')
-    expect(platform.logo).toMatch(/^\/portales\/[a-z]+\.(svg|png|ico)$/)
+    expect(Object.keys(platform).sort()).toEqual(['domains', 'homeUrl', 'id', 'name'])
   })
 })
 

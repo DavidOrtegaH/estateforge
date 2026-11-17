@@ -13,48 +13,37 @@
 /**
  * Para añadir, cambiar o retirar un portal basta con editar esta lista.
  * `domains` contiene los dominios registrables; se admiten sus subdominios.
- * `logo` es una ruta de apps/web/public y `logoPx` el tamaño máximo al que se
- * muestra sin ampliar un recurso de poca resolución.
+ * Los portales se identifican por su nombre, sin logotipos de marca (DA-102).
  */
 export const PUBLICATION_PLATFORMS = [
   {
     id: 'idealista',
     name: 'Idealista',
     homeUrl: 'https://www.idealista.com/',
-    logo: '/portales/idealista.ico',
-    logoPx: 24,
     domains: ['idealista.com'],
   },
   {
     id: 'fotocasa',
     name: 'Fotocasa',
     homeUrl: 'https://www.fotocasa.es/',
-    logo: '/portales/fotocasa.svg',
-    logoPx: 24,
     domains: ['fotocasa.es'],
   },
   {
     id: 'pisos',
     name: 'Pisos.com',
     homeUrl: 'https://www.pisos.com/',
-    logo: '/portales/pisos.png',
-    logoPx: 24,
     domains: ['pisos.com'],
   },
   {
     id: 'yaencontre',
     name: 'Yaencontre',
     homeUrl: 'https://www.yaencontre.com/',
-    logo: '/portales/yaencontre.ico',
-    logoPx: 16,
     domains: ['yaencontre.com'],
   },
   {
     id: 'habitaclia',
     name: 'Habitaclia',
     homeUrl: 'https://www.habitaclia.com/',
-    logo: '/portales/habitaclia.svg',
-    logoPx: 24,
     domains: ['habitaclia.com'],
   },
 ] as const

@@ -10,7 +10,7 @@ Al adoptar este enfoque se revisaron el código, el historial de Git y todas las
 
 ## Checklist
 
-La sección **Checklist** está en la ficha de cada anuncio (`Generation`). El catálogo de portales (identificador, nombre, página principal, logotipo y dominios) y los acortadores están solo en `packages/shared/src/publications.ts`, que usan la web y la API.
+La sección **Checklist** está en la ficha de cada anuncio (`Generation`). El catálogo de portales (identificador, nombre, página principal y dominios) y los acortadores están solo en `packages/shared/src/publications.ts`, que usan la web y la API.
 
 ### Cada fila
 
@@ -108,21 +108,11 @@ Prisma no modela los `CHECK` ni los índices parciales. Si una migración futura
 | Sin marcar, enlace válido | Se guarda normalizado |
 | Sin marcar, enlace no válido | 400 |
 
-## Logotipos
+## Identificación de los portales
 
-Están en `apps/web/public/portales/` y se sirven desde la propia aplicación. Son los iconos publicados por cada portal en su web oficial, descargados el 9 de noviembre de 2026. Son marcas de sus titulares y se usan solo para identificar cada portal.
+Desde la versión 1.0.0 la checklist no muestra logotipos de marca. Cada fila, de un portal del catálogo o «Otro/a», lleva el mismo icono genérico de Lucide (`Globe`, licencia ISC, decorativo y oculto a los lectores de pantalla) en una casilla de 32×32 y el nombre visible del portal, que también nombra la casilla («Publicado en Idealista»). Los enlaces, la validación por dominio y el tamaño de los controles no cambian.
 
-Todos se muestran en una casilla igual de 32×32 con fondo blanco, junto al nombre del portal, sin deformarse. `logoPx` limita su tamaño para no ampliar los recursos pequeños. Si un archivo no carga, aparece un icono genérico accesible y el nombre se mantiene.
-
-| Portal | Origen | Formato |
-|---|---|---|
-| Idealista | `https://www.idealista.com/favicon.ico` | ICO 32×32, mostrado a 24 |
-| Fotocasa | `https://frtassets.fotocasa.es/statics/img/favicon.svg` | SVG con imagen PNG de 128×128 incrustada, mostrado a 24 |
-| Pisos.com | `https://statics.imghs.net/dist/img/favicon/apple-touch-icon-120x120.png` | PNG 120×120, mostrado a 24 |
-| Yaencontre | `https://www.yaencontre.com/favicon.ico` | ICO 16×16, mostrado a 16 sin ampliar |
-| Habitaclia | `https://assets.gw.habitaclia.com/statics/favicon.svg` | SVG con imagen PNG de 300×300 incrustada, mostrado a 24 |
-
-Las filas «Otro/a» usan un icono genérico.
+Hasta entonces se usaban los favicons publicados por cada portal en su web (descargados el 9 de noviembre de 2026). Eran marcas y obras de sus titulares sin una licencia que permitiera redistribuirlos, así que se retiraron del árbol y del historial publicado (DA-102).
 
 ## Estado del inmueble
 

@@ -58,47 +58,6 @@ const linkClass =
 const logoTileClass =
   'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border'
 
-function PortalLogo({
-  name,
-  logo,
-  size,
-}: {
-  name: string
-  logo: string
-  size: number
-}) {
-  const [failed, setFailed] = useState(false)
-
-  if (failed) {
-    return (
-      <span
-        role="img"
-        aria-label={`Logotipo de ${name} no disponible`}
-        className={`${logoTileClass} bg-muted/70 text-muted-foreground`}
-      >
-        <Globe
-          aria-hidden="true"
-          className="h-4 w-4"
-        />
-      </span>
-    )
-  }
-
-  return (
-    <span className={`${logoTileClass} bg-white`}>
-      <img
-        src={logo}
-        alt={`Logotipo de ${name}`}
-        width={size}
-        height={size}
-        style={{ width: size, height: size }}
-        className="object-contain"
-        onError={() => setFailed(true)}
-      />
-    </span>
-  )
-}
-
 export interface ChecklistRowHandlers {
   onToggle: (key: string) => void
   onUrl: (key: string, value: string) => void
@@ -164,22 +123,16 @@ function ChecklistRowItem({
             className="h-4 w-4 shrink-0"
           />
 
-          {row.kind === 'portal' ? (
-            <PortalLogo
-              name={row.name}
-              logo={row.logo}
-              size={row.logoPx}
+          {/* Icono genérico para todas las filas: los portales se identifican por su nombre, sin
+              logotipos de marca (DA-102). */}
+          <span
+            className={`${logoTileClass} bg-muted/70 text-muted-foreground`}
+          >
+            <Globe
+              aria-hidden="true"
+              className="h-5 w-5"
             />
-          ) : (
-            <span
-              className={`${logoTileClass} bg-muted/70 text-muted-foreground`}
-            >
-              <Globe
-                aria-hidden="true"
-                className="h-5 w-5"
-              />
-            </span>
-          )}
+          </span>
 
           <span className="break-words text-sm font-medium">
             {row.kind === 'portal'

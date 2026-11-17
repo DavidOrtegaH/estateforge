@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -192,11 +192,16 @@ describe('portales del catálogo', () => {
     expect(toChecklistPayload(rows).items.every((item) => !item.isPublished)).toBe(true)
   })
 
-  it('muestra logotipo con texto alternativo', () => {
+  it('identifica cada portal por su nombre visible, con un icono genérico y sin logotipos de marca', () => {
     const markup = html(fresh())
 
-    expect(markup).toContain('alt="Logotipo de Idealista"')
-    expect(markup).toContain('src="/portales/idealista.ico"')
+    expect(markup).not.toContain('<img')
+    for (const { name } of PUBLICATION_PLATFORMS) {
+      expect(markup).toContain(`aria-label="Publicado en ${name}"`)
+      expect(markup).toContain(`>${name}<`)
+    }
+    // Un icono decorativo por fila (portales y «Otro/a»), oculto a los lectores de pantalla.
+    expect(markup.match(/<svg[^>]*aria-hidden="true"/g)?.length).toBeGreaterThanOrEqual(PUBLICATION_PLATFORMS.length)
   })
 
   it('el campo sigue el estado de la casilla', () => {
@@ -413,34 +418,9 @@ describe('detección de cambios sin guardar', () => {
   })
 })
 
-describe('recursos de logotipo', () => {
-  const file = (logo: string) => readFileSync(resolve(import.meta.dirname, '../../../public', logo.slice(1)))
-
-  const intrinsicWidth = (logo: string, data: Buffer) => {
-    if (logo.endsWith('.ico')) return data[6] || 256
-    if (logo.endsWith('.png')) return data.readUInt32BE(16)
-    return Number.POSITIVE_INFINITY
-  }
-
-  it.each([...PUBLICATION_PLATFORMS])('$name existe en local y no se amplía por encima de su resolución', ({ logo, logoPx }) => {
-    const data = file(logo)
-
-    expect(data.length).toBeGreaterThan(0)
-    expect(logoPx).toBeLessThanOrEqual(intrinsicWidth(logo, data))
-  })
-
-  it('los SVG no contienen código activo ni referencias externas', () => {
-    for (const { logo } of PUBLICATION_PLATFORMS.filter((item) => item.logo.endsWith('.svg'))) {
-      expect(file(logo).toString()).not.toMatch(/<script|\son\w+=|foreignObject|href=.https?:/i)
-    }
-  })
-
-  it('cada logotipo declara su tamaño para no deformarse', () => {
-    const markup = html(fresh())
-
-    expect(markup).toMatch(/<img src="\/portales\/yaencontre\.ico"[^>]*width="16"[^>]*height="16"/)
-    expect(markup).toMatch(/<img src="\/portales\/idealista\.ico"[^>]*width="24"[^>]*height="24"/)
-    expect(markup.match(/object-contain/g)).toHaveLength(PUBLICATION_PLATFORMS.length)
+describe('sin recursos de marca de terceros', () => {
+  it('no se distribuyen logotipos de portales', () => {
+    expect(existsSync(resolve(import.meta.dirname, '../../../public/portales'))).toBe(false)
   })
 })
 
