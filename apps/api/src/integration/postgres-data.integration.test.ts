@@ -232,30 +232,41 @@ describe('emails', () => {
 })
 
 describe('pool de conexiones', () => {
+  // Solo se cuentan las conexiones del pool probado, identificadas por su application_name. Contar
+  // todas las de la base mezclaba las del pool del resto del archivo y procesos del servidor que no son
+  // de ningún pool (en el primer CI de GitHub, 4 frente a 2 tras cerrar).
+  const POOL_NAME = `ef-test-pool-${randomBytes(4).toString('hex')}`
   const connections = async () =>
-    (await client.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`)).rows[0].n as number
+    (await client.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND application_name = $1`, [POOL_NAME])).rows[0].n as number
 
   it('no abre una conexión por petición, y closeDatabase cierra el pool sin que el trabajo posterior reconecte (DA-38)', async () => {
     vi.resetModules()
+    vi.stubEnv('DATABASE_APPLICATION_NAME', POOL_NAME)
 
     const own = await import('../db/prisma.js')
-    const before = await connections()
+    expect(await connections()).toBe(0)
 
     await Promise.all(Array.from({ length: 60 }, () => own.prisma.user.count()))
 
-    expect((await connections()) - before).toBeLessThanOrEqual(10)
+    const open = await connections()
+    expect(open).toBeGreaterThan(0)
+    expect(open).toBeLessThanOrEqual(10)
 
     await own.closeDatabase()
 
-    expect(await connections()).toBeLessThanOrEqual(before)
+    // El cliente ya ha cerrado sus conexiones; el servidor retira cada proceso de pg_stat_activity al
+    // terminar, de forma asíncrona. Se espera a que no quede ninguna, con un límite: una fuga real no
+    // llegaría a cero y la prueba fallaría.
+    await expect.poll(connections, { timeout: 5_000, interval: 25 }).toBe(0)
 
     // Trabajo que llega después del cierre: falla como base no disponible y no abre conexiones.
     const late = await own.prisma.user.count().then(() => null, (error: unknown) => error)
     expect(databaseUnavailableKind(late)).toBe('pool_closed')
-    expect(await connections()).toBeLessThanOrEqual(before)
+    expect(await connections()).toBe(0)
 
     // Idempotente: una segunda llamada no falla.
     await expect(own.closeDatabase()).resolves.toBeUndefined()
+    expect(await connections()).toBe(0)
   })
 
   it('el arranque cierra el pool al final del cierre ordenado, no en un hook onClose', () => {

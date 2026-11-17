@@ -56,15 +56,19 @@ describe('seed de desarrollo', () => {
   })
 
   it('añade fotografías sintéticas válidas a los inmuebles de ejemplo y deja uno sin ninguna', async () => {
-    const rows = (await admin.query(`SELECT p.title, count(f.id)::int AS n, count(*) FILTER (WHERE f."isPrimary")::int AS primaries FROM "Property" p LEFT JOIN "PropertyPhoto" f ON f."propertyId" = p.id GROUP BY p.title ORDER BY p.title`)).rows
-    expect(rows).toEqual([
-      { title: 'Estudio por alquilar', n: 2, primaries: 1 },
-      { title: 'Inmueble antiguo sin estado', n: 0, primaries: 0 },
-      { title: 'Inmueble de otra cuenta', n: 0, primaries: 0 },
-      { title: 'Piso alquilado junto al parque', n: 3, primaries: 1 },
-      { title: 'Piso en venta en el centro', n: 4, primaries: 1 },
-      { title: 'Ático vendido con terraza', n: 3, primaries: 1 },
-    ])
+    // Una fila por inmueble (no por título: dos inmuebles con el mismo título se detectarían). El orden
+    // no importa aquí y depende de la collation de la base (en en_US «Ático» va antes que «Estudio»; en
+    // C, después de «Piso»), así que el resultado se compara como un mapa por título.
+    const rows = (await admin.query(`SELECT p.id, p.title, count(f.id)::int AS n, count(*) FILTER (WHERE f."isPrimary")::int AS primaries FROM "Property" p LEFT JOIN "PropertyPhoto" f ON f."propertyId" = p.id GROUP BY p.id, p.title`)).rows
+    expect(new Set(rows.map(row => row.title)).size).toBe(rows.length)
+    expect(Object.fromEntries(rows.map(row => [row.title, { n: row.n, primaries: row.primaries }]))).toEqual({
+      'Estudio por alquilar': { n: 2, primaries: 1 },
+      'Inmueble antiguo sin estado': { n: 0, primaries: 0 },
+      'Inmueble de otra cuenta': { n: 0, primaries: 0 },
+      'Piso alquilado junto al parque': { n: 3, primaries: 1 },
+      'Piso en venta en el centro': { n: 4, primaries: 1 },
+      'Ático vendido con terraza': { n: 3, primaries: 1 },
+    })
     expect(await count(`SELECT count(*) AS n FROM "PropertyPhoto" WHERE "contentType" = 'image/png' AND width = 1200 AND height = 900`)).toBe(12)
     // Los archivos existen en el almacenamiento y coinciden con lo registrado.
     const { getStorage } = await import('../storage/object-storage.js')
