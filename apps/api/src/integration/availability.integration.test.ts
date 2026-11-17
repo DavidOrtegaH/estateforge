@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import dns from 'node:dns'
 import net from 'node:net'
 
 import type { FastifyInstance } from 'fastify'
@@ -181,31 +182,58 @@ describe('tiempo agotado del pool', () => {
 describe('servidor inaccesible', () => {
   it('503 sin datos de conexión, /health 200 y /health/ready 503 en menos de 3 s', async () => {
     const port = await closedPort()
-    const { app } = await load({ DATABASE_URL: urlFor('nadie', 'nada', port), DATABASE_CONNECT_TIMEOUT_MS: '1000' })
+    await expectUnreachable(urlFor('nadie', 'nada', port), port)
+  })
 
-    const response = await me(app)
-    expect(response.statusCode).toBe(503)
-    expectNoLeak(response.body)
-    expect(response.body).not.toContain(String(port))
-
-    // Recuperación de contraseña: 503 igual exista o no la cuenta, sin enumeración (DA-37).
-    const bodies = new Set<string>()
-    for (const url of ['/api/auth/forgot-password', '/api/auth/security-recovery/request']) {
-      for (const email of ['existe@example.test', 'nadie@example.test']) {
-        const recovery = await app.inject({ method: 'POST', url, payload: { email } })
-        expect(recovery.statusCode).toBe(503)
-        expect(recovery.headers['retry-after']).toBe('5')
-        bodies.add(recovery.body)
-      }
+  // En los runners de Ubuntu `localhost` resuelve a ::1 y a 127.0.0.1. Node prueba las dos direcciones
+  // y, si ambas rechazan la conexión, pg recibe un AggregateError que adapter-pg no convierte: el error
+  // llegaba como 500 (primer CI de GitHub). Aquí se fuerza esa resolución en cualquier sistema.
+  it('igual cuando `localhost` resuelve a IPv6 e IPv4 y fallan las dos', async () => {
+    const port = await closedPort()
+    const lookup = dns.lookup
+    const dualStack = ((host: string, options: unknown, callback?: unknown) => {
+      const done = (typeof options === 'function' ? options : callback) as (...args: unknown[]) => void
+      const all = typeof options === 'object' && options !== null && (options as { all?: boolean }).all
+      if (host !== 'localhost') return (lookup as (...args: unknown[]) => void)(host, options, callback)
+      const addresses = [{ address: '::1', family: 6 }, { address: '127.0.0.1', family: 4 }]
+      return all ? done(null, addresses) : done(null, addresses[0].address, addresses[0].family)
+    }) as typeof dns.lookup
+    Object.assign(dns, { lookup: dualStack })
+    try {
+      const url = new URL(urlFor('nadie', 'nada', port))
+      url.hostname = 'localhost'
+      await expectUnreachable(url.toString(), port)
+    } finally {
+      Object.assign(dns, { lookup })
     }
-    expect(bodies.size).toBe(1)
-
-    expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200)
-    const started = Date.now()
-    expect((await app.inject({ method: 'GET', url: '/health/ready' })).statusCode).toBe(503)
-    expect(Date.now() - started).toBeLessThan(3_000)
   })
 })
+
+async function expectUnreachable(databaseUrl: string, port: number) {
+  const { app } = await load({ DATABASE_URL: databaseUrl, DATABASE_CONNECT_TIMEOUT_MS: '1000' })
+
+  const response = await me(app)
+  expect(response.statusCode).toBe(503)
+  expectNoLeak(response.body)
+  expect(response.body).not.toContain(String(port))
+
+  // Recuperación de contraseña: 503 igual exista o no la cuenta, sin enumeración (DA-37).
+  const bodies = new Set<string>()
+  for (const url of ['/api/auth/forgot-password', '/api/auth/security-recovery/request']) {
+    for (const email of ['existe@example.test', 'nadie@example.test']) {
+      const recovery = await app.inject({ method: 'POST', url, payload: { email } })
+      expect(recovery.statusCode).toBe(503)
+      expect(recovery.headers['retry-after']).toBe('5')
+      bodies.add(recovery.body)
+    }
+  }
+  expect(bodies.size).toBe(1)
+
+  expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200)
+  const started = Date.now()
+  expect((await app.inject({ method: 'GET', url: '/health/ready' })).statusCode).toBe(503)
+  expect(Date.now() - started).toBeLessThan(3_000)
+}
 
 describe('errores que no son de disponibilidad', () => {
   afterEach(async () => {

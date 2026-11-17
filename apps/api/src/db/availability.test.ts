@@ -34,6 +34,11 @@ describe('errores de disponibilidad de la base (DA-37)', () => {
     ['error de pg con SQLSTATE 08006', Object.assign(new Error('connection failure'), { name: 'error', code: '08006' }), 'connection_lost'],
     ['error del adaptador sin envolver', Object.assign(new Error('x'), { name: 'DriverAdapterError', cause: { kind: 'DatabaseNotReachable' } }), 'unreachable'],
     ['error envuelto en otro (cause)', new Error('envoltorio', { cause: new Error('timeout exceeded when trying to connect') }), 'pool_timeout'],
+    // Forma observada en Linux con `localhost` resuelto a ::1 y 127.0.0.1 (AggregateError de pg que
+    // adapter-pg no convierte): Prisma expone el código de red de Node, sin driverAdapterError.
+    ['servidor inaccesible por las dos familias de direcciones (ECONNREFUSED)', Object.assign(new Error('x'), { name: 'PrismaClientKnownRequestError', code: 'ECONNREFUSED', meta: { modelName: 'Session' } }), 'unreachable'],
+    ['primer intento por una red IPv6 no disponible (EADDRNOTAVAIL)', Object.assign(new Error('x'), { name: 'PrismaClientKnownRequestError', code: 'EADDRNOTAVAIL', meta: { modelName: 'Session' } }), 'unreachable'],
+    ['conexión cortada (ECONNRESET)', Object.assign(new Error('x'), { name: 'PrismaClientKnownRequestError', code: 'ECONNRESET', meta: { modelName: 'User' } }), 'connection_lost'],
   ])('%s → 503', (_label, error, kind) => {
     expect(databaseUnavailableKind(error)).toBe(kind)
     expect(isDatabaseUnavailableError(error)).toBe(true)
@@ -52,6 +57,12 @@ describe('errores de disponibilidad de la base (DA-37)', () => {
     ['error de programación', new TypeError('Cannot read properties of undefined')],
     ['error genérico con un mensaje parecido', new Error('timeout exceeded when trying to connect to SMTP')],
     ['error con código propio y el mensaje de pg-pool', Object.assign(new Error('timeout exceeded when trying to connect'), { code: 'ETIMEDOUT' })],
+    // Los códigos de red de Node solo cuentan en un error de Prisma: un error de red de otro servicio
+    // (SMTP, un proveedor de IA) conserva su tratamiento aunque lleve el mismo código o la misma causa.
+    ['error de red sin envolver (no es de la base)', Object.assign(new Error('connect'), { code: 'ECONNREFUSED', errno: -111, syscall: 'connect' })],
+    ['AggregateError de red sin envolver', Object.assign(new AggregateError([Object.assign(new Error('a'), { code: 'ECONNREFUSED' })], 'x'), { code: 'ECONNREFUSED' })],
+    ['error del SMTP con causa de red', Object.assign(new Error('Connection error', { cause: Object.assign(new Error('connect'), { code: 'ECONNREFUSED', syscall: 'connect', errno: -111 }) }), { code: 'ESOCKET', command: 'CONN' })],
+    ['código de Prisma desconocido', Object.assign(new Error('x'), { name: 'PrismaClientKnownRequestError', code: 'EACCES', meta: {} })],
     ['un valor que no es un error', 'P1001'],
     ['nulo', null],
   ])('%s → no es de disponibilidad', (_label, error) => {

@@ -6,7 +6,8 @@
 // disponibilidad y conservan su tratamiento (400, 409 o 500).
 //
 // Solo se reconocen formas comprobadas con PostgreSQL 17.11, Prisma 7.9.1, @prisma/adapter-pg 7.9.1
-// y pg-pool 3.14 (diagnóstico de la Fase de resiliencia). Al actualizar cualquiera de ellos hay que
+// y pg-pool 3.14 (diagnóstico de la Fase de resiliencia y, para los códigos de red de Node, el primer
+// CI en Linux). Al actualizar cualquiera de ellos hay que
 // repetir las pruebas de integración de disponibilidad: si cambia una forma, el error vuelve a ser
 // un 500 genérico, nunca un 503 indebido.
 
@@ -23,6 +24,18 @@ const PRISMA_CODES: ReadonlySet<string> = new Set([
   'P2024', // tiempo agotado esperando una conexión del pool
   'P2037', // demasiadas conexiones
 ])
+
+// Códigos de red de Node con los que Prisma crea el PrismaClientKnownRequestError cuando el adaptador no
+// reconoce el error de conexión. Observado (Node 24, pg 8.23, adapter-pg 7.9.1): si `localhost` resuelve
+// a ::1 y a 127.0.0.1, Node prueba las dos direcciones y, si ambas fallan, pg recibe un AggregateError con
+// `code` pero sin `syscall` ni `errno`; adapter-pg no lo convierte en DatabaseNotReachable y Prisma lo
+// expone con code 'ECONNREFUSED' y sin driverAdapterError. El código del AggregateError es el del primer
+// intento, por eso se aceptan también los de una red IPv6 no disponible. Solo cuentan en un error de
+// Prisma (la consulta a la base): un error de red de otro servicio, como el SMTP, no llega con esta forma.
+const NODE_UNREACHABLE_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'EADDRNOTAVAIL',
+])
+const NODE_CONNECTION_LOST_CODES: ReadonlySet<string> = new Set(['ECONNRESET', 'EPIPE'])
 
 // Clases de error del adaptador (DriverAdapterError.cause.kind) que son de conexión.
 const ADAPTER_KINDS: ReadonlySet<string> = new Set([
@@ -88,6 +101,8 @@ export function databaseUnavailableKind(error: unknown, depth = 0): Availability
     if (code === 'P2028') return error.message.includes(TRANSACTION_START_TIMEOUT) ? 'pool_timeout' : null
     const fromAdapter = kindOfAdapterCause(own(own(own(error, 'meta'), 'driverAdapterError'), 'cause'))
     if (fromAdapter) return fromAdapter
+    if (NODE_UNREACHABLE_CODES.has(code)) return 'unreachable'
+    if (NODE_CONNECTION_LOST_CODES.has(code)) return 'connection_lost'
     // Un código de integridad (P2002, P2003...) nunca es de disponibilidad, aunque se reciba junto a
     // otro dato; uno de conexión lo es aunque falte el detalle del adaptador.
     return PRISMA_CODES.has(code) ? kindOfPrismaCode(code) : null
