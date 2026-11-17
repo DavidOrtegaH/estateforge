@@ -160,6 +160,9 @@ describe('vercel.json', () => {
     expect(scripts).not.toMatch(/unsafe-inline|unsafe-eval|\*(?!\.)/)
     expect(csp).toContain("frame-ancestors 'none'")
     expect(csp).toContain("object-src 'none'")
+    // Vercel ya fuerza HTTPS; en http://localhost la directiva convertía en https las redirecciones
+    // firmadas de las fotografías y estas dejaban de cargarse.
+    expect(csp).not.toContain('upgrade-insecure-requests')
     expect(headers.get('Permissions-Policy')).toContain('microphone=()')
   })
 
