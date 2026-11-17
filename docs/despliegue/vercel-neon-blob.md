@@ -130,7 +130,7 @@ Solo para desarrollo o pruebas (no se definen en Vercel):
 | `VITE_TURNSTILE_SITE_KEY` | Opcional |
 | `SITE_URL` | Opcional: origen canónico (dominio propio). Solo en la construcción; ver [Search Console](search-console.md) |
 
-Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el JavaScript público. La web no recibe ningún token de Blob: solo URLs firmadas de una única operación.
+Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el JavaScript público. La web no recibe ningún token de Blob: solo URLs firmadas para un tipo de operación (lectura o escritura) sobre una ruta, con caducidad corta; la de escritura, además, limitada al tipo y al tamaño declarados y sin sobrescritura.
 
 ### Cabeceras del navegador (CSP y CORS)
 

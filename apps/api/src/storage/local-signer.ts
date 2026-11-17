@@ -2,9 +2,9 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 // URLs firmadas del almacenamiento local (DA-58): simulan, en desarrollo y en las pruebas, las URLs
 // firmadas de Vercel Blob para que el navegador suba y descargue directamente del almacenamiento sin
-// pasar por las rutas de la API que comprueban la sesión. Cada URL autoriza una sola operación
-// (put, get o head) sobre una sola clave hasta una fecha; el tipo y el tamaño máximo de un PUT
-// también van firmados. El secreto se genera al arrancar (o STORAGE_LOCAL_SIGNING_SECRET) y nunca
+// pasar por las rutas de la API que comprueban la sesión. Cada URL autoriza un solo tipo de operación
+// (put, get o head) sobre una sola clave hasta una fecha, y puede repetirse mientras no caduque; el
+// tipo y el tamaño máximo de un PUT también van firmados y un PUT no sobrescribe un archivo existente. El secreto se genera al arrancar (o STORAGE_LOCAL_SIGNING_SECRET) y nunca
 // sale del servidor. Solo existe con STORAGE_DRIVER=local: en Vercel no se registran estas rutas.
 
 export type LocalOperation = 'put' | 'get' | 'head'

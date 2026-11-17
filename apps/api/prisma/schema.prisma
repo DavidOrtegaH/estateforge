@@ -371,7 +371,7 @@ model AdminAuditLog {
 }
 
 /// Intento de subida directa (DA-58): el navegador sube el archivo al almacenamiento con una URL
-/// firmada de un solo uso y después lo confirma. Mientras está pendiente reserva su tamaño en la
+/// firmada (su clave, tipo, tamaño máximo y 15 minutos, sin sobrescribir) y después lo confirma. Mientras está pendiente reserva su tamaño en la
 /// cuota del usuario y su hueco en la galería. La clave la genera la API; nunca el navegador.
 model UploadAttempt {
   id           String    @id @default(cuid())

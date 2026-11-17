@@ -4,7 +4,7 @@ Aplicación web para preparar el material de los anuncios inmobiliarios: la fich
 
 Proyecto personal. Versión **1.0.0**. La interfaz está en español.
 
-> **Estado:** el código está listo para publicarse y probado en local. El despliegue en Vercel, Neon y Vercel Blob está preparado pero **no se ha realizado**, y ningún proveedor de IA real se ha llamado todavía: esas integraciones solo se han validado con simuladores locales. Detalle en [Limitaciones conocidas](#limitaciones-conocidas).
+> **Estado:** el código de la versión 1.0.0 está probado en local y preparado para publicarse como repositorio de solo lectura. El despliegue en Vercel, Neon y Vercel Blob está preparado pero **no se ha realizado**, y ningún proveedor de IA real se ha llamado todavía: esas integraciones solo se han validado con simuladores locales. Detalle en [Limitaciones conocidas](#limitaciones-conocidas).
 
 ## Qué hace
 
@@ -103,7 +103,7 @@ Requisitos: **Node.js 24**, **pnpm 11.20** (`corepack enable` usa la versión de
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta todo lo anterior con un PostgreSQL efímero y una auditoría de dependencias de producción. No usa secretos ni despliega nada.
 
-Además de los tests del repositorio, cada versión se ha probado en Edge, Chrome y Firefox con pruebas de extremo a extremo propias (fuera del repositorio) contra la API, la web y PostgreSQL en local, con los simuladores de IA y de almacenamiento y sin acceso a Internet.
+Además de los tests del repositorio, la versión 1.0.0 se ha probado en Edge, Chrome y Firefox de escritorio con pruebas de extremo a extremo propias (fuera del repositorio) contra la API, la web y PostgreSQL en local, con los simuladores de IA y de almacenamiento y sin acceso a Internet.
 
 ## Variables de entorno
 
@@ -143,9 +143,9 @@ Preparado para Vercel (web y API bajo el mismo dominio), Neon y Vercel Blob priv
 
 **De SQLite a PostgreSQL.** Empecé con SQLite y Prisma porque era lo más rápido para tener datos. Al llegar la recuperación de cuentas y el registro de publicación aparecieron escrituras concurrentes sobre la misma cuenta, y SQLite no me daba bloqueos de fila ni tipos exactos para los precios. Migré a PostgreSQL 17 con una migración base única, precios `Decimal(12,2)`, fechas con zona horaria, restricciones `CHECK` en la propia base y bloqueos de fila en los flujos que compiten. Para no engañarme con un ORM simulado, las pruebas de integración corren contra un PostgreSQL real y cada suite crea y borra su propia base. Ahora la API responde 503 con `Retry-After` cuando la base no está disponible, en lugar de errores genéricos.
 
-**Claves de IA aisladas por usuario.** Al principio la aplicación tenía una clave de IA propia y caía a la del usuario cuando se agotaba. Eso significaba pagar el consumo de otros y mezclar responsabilidades, así que lo cambié: no hay ninguna clave en el servidor. Cada usuario guarda las suyas cifradas, el servidor solo las descifra para una operación que él confirma después de ver el coste, y nunca vuelven al navegador. Las pruebas comprueban que otra cuenta recibe 404 al pedir recursos ajenos y que ninguna respuesta incluye una clave.
+**Claves de IA aisladas por usuario.** Al principio la aplicación tenía una clave de IA propia y caía a la del usuario cuando se agotaba. Eso significaba pagar el consumo de otros y mezclar responsabilidades, así que lo cambié: EstateForge no tiene ninguna clave de proveedor propia ni paga el consumo. Cada usuario conecta sus propias claves, que el servidor guarda cifradas (AES-256-GCM, con una clave interna de cifrado que no da acceso a ningún proveedor), solo descifra para una operación que el usuario confirma después de ver el coste y nunca devuelve al navegador. Las pruebas comprueban que otra cuenta recibe 404 al pedir recursos ajenos y que ninguna respuesta incluye una clave.
 
-**Límites de las funciones serverless.** Una función de Vercel admite como máximo 4,5 MB por petición y por respuesta, y una galería de fotografías y un vídeo lo superan enseguida. Rediseñé las subidas para que el archivo no pase por la API: la API prepara una URL firmada de un solo uso, el navegador sube directamente al almacenamiento y la API valida el archivo real al confirmar. Las lecturas también son URLs firmadas de corta duración, con soporte de `Range` para avanzar en los vídeos. Los trabajos de IA avanzan por sondeo, sin procesos en segundo plano que dependan de que una función siga viva. Como no he desplegado todavía, todo esto está probado con un simulador local que firma y comprueba las URLs igual que el servicio real.
+**Límites de las funciones serverless.** Una función de Vercel admite como máximo 4,5 MB por petición y por respuesta, y una galería de fotografías y un vídeo lo superan enseguida. Rediseñé las subidas para que el archivo no pase por la API: la API prepara una URL firmada limitada a una clave que genera ella, al tipo y al tamaño máximo declarados y a 15 minutos, que no puede sobrescribir un archivo existente; el navegador sube directamente al almacenamiento y la API valida el archivo real al confirmar (confirmar dos veces devuelve el mismo resultado). Las lecturas también son URLs firmadas de corta duración, con soporte de `Range` para avanzar en los vídeos. Los trabajos de IA avanzan por sondeo, sin procesos en segundo plano que dependan de que una función siga viva. Como no he desplegado todavía, lo he probado con un simulador local que reproduce el contrato previsto (firma, caducidad, tipo, tamaño, no sobrescritura y `Range`) según la documentación de Vercel Blob. Eso valida mis flujos, no el servicio: el comportamiento real de Blob (CORS, `Range`, caducidad y cuotas) queda pendiente de comprobar en el despliegue.
 
 **Cartel y vídeo sin servicios de pago.** Quería que el material clásico no dependiera de ninguna API. El cartel se dibuja con Canvas y el vídeo se graba con MediaRecorder a partir de las fotografías, con música sintetizada en el propio navegador. Los navegadores no graban los mismos formatos: Edge y Chrome producen MP4 con AAC y Firefox WebM con VP8 y Opus, así que la aplicación elige el formato disponible y la API valida el archivo que recibe. Está comprobado en los tres navegadores; Safari no lo he probado.
 
@@ -161,11 +161,13 @@ Preparado para Vercel (web y API bajo el mismo dominio), Neon y Vercel Blob priv
 - Ningún proveedor de IA se ha llamado con una clave real; están probados con un simulador y con pruebas de contrato.
 - La IP del cliente detrás de Vercel para los límites de uso está pendiente de comprobar en la plataforma.
 - No se ha probado en Safari ni en dispositivos móviles físicos (sí en Edge, Chrome y Firefox de escritorio, con emulación de anchos móviles).
-- Los textos de privacidad y condiciones describen el funcionamiento real, pero falta completar la identificación del titular y su revisión jurídica.
+- Las páginas de privacidad y condiciones describen el funcionamiento real, pero son borradores: antes de abrir el servicio al público con datos reales faltan la identificación del responsable del tratamiento y su revisión jurídica. Esto afecta al servicio, no a la publicación del código.
 
 ## Licencia
 
-Software propietario: todos los derechos reservados. El código se publica para poder leerlo; no se concede permiso para usarlo, copiarlo, modificarlo ni distribuirlo. Ver [LICENSE](LICENSE). No se aceptan contribuciones externas ([CONTRIBUTING.md](CONTRIBUTING.md)). Las vulnerabilidades se comunican de forma privada ([SECURITY.md](SECURITY.md)). Los componentes de terceros conservan sus licencias ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+Software propietario: todos los derechos reservados. El código se publica para poder leerlo. Además de los permisos que exigen los Términos de GitHub para los repositorios públicos y de lo que la ley permite sin autorización, no se concede permiso para usarlo, copiarlo, modificarlo, redistribuirlo ni explotarlo. Ver [LICENSE](LICENSE). No se aceptan contribuciones externas ([CONTRIBUTING.md](CONTRIBUTING.md)). Las vulnerabilidades se comunican de forma privada ([SECURITY.md](SECURITY.md)).
+
+Los componentes de terceros conservan sus licencias: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y [`licenses/`](licenses/README.md). La web construida incluye `third-party-notices.txt` con los textos de licencia de todo lo que sirve al navegador.
 
 ## Documentación
 
