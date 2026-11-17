@@ -16,7 +16,7 @@ Los scripts de `scripts/wsl/` se ejecutan con el usuario Linux normal, sin `sudo
    - el rol `estateforge_test`, con `CREATEDB` y `CREATEROLE` pero sin superusuario, para las pruebas de integración.
 
    Las contraseñas son aleatorias y se guardan en `~/.config/estateforge/postgres-dev.env` (permisos 600). El administrador solo entra por un socket local privado (autenticación `peer`).
-3. **Uso diario:** `bash scripts/wsl/postgres-dev.sh start | stop | status`. El servidor se detiene al apagarse WSL; vuelve a arrancarlo con `start`.
+3. **Uso diario:** no hace falta abrir Ubuntu. `pnpm.cmd dev` lo arranca (ver más abajo), y desde PowerShell también están `pnpm.cmd db:dev:start | db:dev:status | db:dev:stop`. Dentro de Ubuntu sigue funcionando `bash scripts/wsl/postgres-dev.sh start | stop | status | port`.
 
 Desde Windows, `127.0.0.1:55432` llega al servidor de WSL 2 gracias al reenvío de `localhost`, sin abrir ningún puerto a la red.
 
@@ -27,7 +27,35 @@ Desde Windows, `127.0.0.1:55432` llega al servidor de WSL 2 gracias al reenvío 
 3. Genera el cliente: `pnpm --filter api db:generate`.
 4. Aplica las migraciones: `pnpm --filter api db:migrate`.
 5. Crea los datos de ejemplo con `pnpm --filter api db:seed`. Crea `demo@estateforge.test` y `otra@estateforge.test`, cuya contraseña es `SEED_USER_PASSWORD`. Los datos incluyen inmuebles en los cuatro estados, uno antiguo sin estado y un Checklist con portales y filas «Otro/a». El comando es repetible, no duplica nada y se niega a actuar fuera de localhost.
-6. Arranca la API y la web: `pnpm dev`.
+6. Arranca la API y la web: `pnpm dev` (en PowerShell, `pnpm.cmd dev`).
+
+### Arranque automático con `pnpm dev`
+
+`pnpm dev` ejecuta `node scripts/dev/postgres-wsl.mjs start` y, solo si termina bien, `pnpm run dev:apps` (la API y la web en paralelo, como siempre). El orquestador:
+
+1. Busca la distribución Ubuntu de WSL (`wsl.exe --list --verbose`) y comprueba el usuario Linux. Ejecuta las órdenes sin contraseña, con `wsl.exe -d <distro> -u <usuario> --exec …`, y traduce la ruta del repositorio con `wslpath -a`, como un único argumento, así que los espacios no son un problema.
+2. Consulta `scripts/wsl/postgres-dev.sh status`. Si PostgreSQL ya acepta conexiones, no lo toca. Si está detenido, ejecuta `start` y espera, con reintentos acotados, a que acepte conexiones. El script sigue siendo la única autoridad sobre el servidor: nunca se crea una segunda instancia.
+3. Comprueba desde Windows que `127.0.0.1:<puerto>` responde. El puerto lo indica el propio script (`postgres-dev.sh port`): no está repetido en ningún otro sitio.
+4. Se conecta con la configuración real de la API (`apps/api/.env`, mediante `apps/api/src/db/check-connection.ts`). Rechaza una URL que no sea PostgreSQL y comprueba que apunta a ese mismo puerto. No imprime nunca el usuario, la contraseña ni la URL.
+
+Si cualquier paso falla, termina con código 1, no arranca la API ni la web y muestra los pasos de diagnóstico. Dos `pnpm dev` simultáneos no compiten: el segundo espera a que el primero termine de preparar la base.
+
+**Al cerrar con Ctrl+C** se detienen pnpm, la API (con su cierre ordenado) y Vite. **PostgreSQL sigue en marcha** para la siguiente sesión u otros procesos; el orquestador ya ha terminado antes de arrancar la aplicación y no intercepta señales. Para detenerlo: `pnpm.cmd db:dev:stop`. Al apagar Windows o detenerse WSL, PostgreSQL se detiene con él, y el siguiente `pnpm.cmd dev` lo vuelve a arrancar.
+
+| Variable (opcional) | Uso |
+|---|---|
+| `ESTATEFORGE_WSL_DISTRO` | Distribución de WSL. Obligatoria si hay varias Ubuntu (por ejemplo, `$env:ESTATEFORGE_WSL_DISTRO = "Ubuntu"`) |
+| `ESTATEFORGE_WSL_USER` | Usuario Linux (`User` por defecto) |
+| `ESTATEFORGE_DEV_DB_START=0` | No gestiona el servidor; solo comprueba la conexión de `apps/api/.env` (por ejemplo, con otro PostgreSQL) |
+
+En Linux, o dentro de WSL, `pnpm dev` llama directamente al script local, sin `wsl.exe`.
+
+**Diagnóstico:**
+- `pnpm.cmd db:dev:status` indica si PostgreSQL acepta conexiones y si responde desde Windows.
+- `wsl.exe --list --verbose` muestra las distribuciones, su estado y su versión.
+- «Windows no tiene memoria libre suficiente para la máquina virtual» (`ERROR_NO_SYSTEM_RESOURCES`): WSL 2 no ha podido arrancar. Cierra aplicaciones y vuelve a intentarlo, o limita la memoria de WSL en `%USERPROFILE%\.wslconfig` (`[wsl2]` `memory=2GB`).
+- «rechazado las credenciales» o «DATABASE_URL apunta a…»: copia de nuevo las variables de `~/.config/estateforge/postgres-dev.env` a `apps/api/.env`.
+- «responde un servicio que no es PostgreSQL»: otro programa de Windows ocupa el puerto (`netstat -ano | findstr :55432`).
 
 **Reconstruir la base de desarrollo:** con el servidor en marcha, elimina y crea de nuevo `estateforge_dev`; puedes hacerlo como administrador por el socket o con `bash scripts/wsl/postgres-dev.sh stop`, borrando el directorio de datos y repitiendo `init`. Después repite los pasos 4 y 5.
 
@@ -46,6 +74,15 @@ Las pruebas de integración necesitan `TEST_POSTGRES_ADMIN_URL`: un servidor en 
 `prisma/migrations` contiene solo migraciones de PostgreSQL. La primera es la línea base, `0_postgresql_baseline`, con el esquema completo. El prefijo `0_` es la convención de Prisma para líneas base: garantiza que se ordena antes que cualquier migración posterior, sea cual sea la fecha con que se cree. Las migraciones de SQLite están archivadas en `prisma/sqlite-history` y no se aplican.
 
 Prisma no representa los `CHECK` ni los índices parciales. Están en la línea base y en `prisma/postgresql/constraints.sql`, y una prueba falla si esos dos textos divergen o si desaparecen de la base. Revisa estas restricciones cuando una migración nueva toque esas tablas.
+
+La segunda migración, `20261110120000_add_property_photos_and_listing_media` (DA-46), es aditiva: crea `PropertyPhoto`, `ListingMedia` y `StorageCleanup` con sus `CHECK`, un índice único parcial (una sola fotografía principal por inmueble) y triggers que limitan la galería a 16 fotografías y encolan para su borrado las claves de archivo que dejan de estar referenciadas (también en cascada). Ese bloque manual está también al final de `prisma/postgresql/constraints.sql` y la misma prueba comprueba que coincide. Los binarios nunca se guardan en PostgreSQL: ver [Galería, cartel y vídeo](producto-galeria-cartel-video.md).
+
+La tercera, `20261111120000_gallery_50_poster_templates_audio` (DA-51 a DA-55), también es aditiva:
+- amplía el rango de posiciones a 0-49 y el límite a 50 fotografías (sustituye el trigger `PropertyPhoto_max_16` por `PropertyPhoto_max_photos`);
+- añade las miniaturas, los metadatos de plantilla y de audio de `ListingMedia`, la tabla de sorteos `MediaTemplateDraw` y la biblioteca `AudioTrack` (límite de 20 por usuario y cola de limpieza);
+- incluye los `CHECK` de coherencia de esos campos.
+
+Su bloque manual está al final de `prisma/postgresql/constraints.sql`.
 
 **Desarrollo:** cambia `schema.prisma` y ejecuta `pnpm --filter api db:migrate:dev --name <cambio>` contra una base local. Prisma crea una base de sombra temporal para reconstruir la historia, por lo que el usuario necesita permiso `CREATEDB`. Comprueba el SQL generado antes de versionarlo. Prisma 7 no genera el cliente automáticamente: ejecuta `db:generate`. Si `migrate dev` detecta deriva (cambios en la base que no están en la historia), se detiene sin aplicar nada. En una base de desarrollo puedes reconstruirla; en cualquier otra, investiga el origen de la deriva.
 

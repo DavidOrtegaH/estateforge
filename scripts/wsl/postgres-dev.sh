@@ -5,6 +5,7 @@
 #   bash scripts/wsl/postgres-dev.sh start    arranca el servidor
 #   bash scripts/wsl/postgres-dev.sh stop     lo detiene
 #   bash scripts/wsl/postgres-dev.sh status   indica si está en marcha y si acepta conexiones
+#   bash scripts/wsl/postgres-dev.sh port     imprime el puerto configurado (sin credenciales)
 #
 # Datos:        ${EF_PG_DATA:-~/.local/share/estateforge/pg17-dev}
 # Credenciales: ~/.config/estateforge/postgres-dev.env (permisos 600, fuera del repositorio)
@@ -100,8 +101,9 @@ ENV
       exit 1
     fi
     ;;
+  port) echo "$PORT" ;;
   *)
-    sed -n '2,8p' "$0"
+    sed -n '2,9p' "$0"
     exit 1
     ;;
 esac
