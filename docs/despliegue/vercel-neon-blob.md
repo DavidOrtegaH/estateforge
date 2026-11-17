@@ -123,6 +123,8 @@ Solo para desarrollo o pruebas (no se definen en Vercel):
 
 `PORT` y `HOST` no se fijan en Vercel: la plataforma gestiona la escucha. En otra plataforma con contenedor, `HOST=0.0.0.0`.
 
+**Correo con Brevo (pendiente de verificar).** EstateForge solo envía correos transaccionales (verificación, recuperación, cambio de email y avisos de seguridad), sin marketing. Brevo guarda registros de entrega de los correos SMTP y, según su documentación, puede medir aperturas y clics por defecto ([registros transaccionales](https://help.brevo.com/hc/en-us/articles/360021533839-Manage-your-transactional-logs-and-email-previews), [anonimizar aperturas y clics](https://help.brevo.com/hc/en-us/articles/11643306229906-Can-I-anonymize-the-tracking-of-opens-and-clicks-for-my-emails)). No se ha comprobado la configuración de la cuenta de envío, y esa cuenta puede compartirse con otros proyectos, así que no se cambia desde aquí ni se da por desactivada la medición. Queda como verificación pendiente del titular: revisar esos ajustes en Brevo y, si cambian, mantener coherente el texto de `apps/web/privacidad.html`, que hoy describe los registros de entrega y la posible medición de aperturas y clics. No es un bloqueo del despliegue.
+
 ### Proyecto web
 
 | Variable | Valor |
