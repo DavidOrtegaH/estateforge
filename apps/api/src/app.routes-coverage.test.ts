@@ -10,7 +10,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import ts from 'typescript'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// M-1 y R-1: cobertura de los siete grupos de rutas sobre la aplicación real de buildApp, con
+// M-1 y R-1: cobertura de los grupos de rutas (siete originales y mediaRoutes, DA-46) sobre la aplicación real de buildApp, con
 // Prisma sustituido por un doble: sin base de datos, SMTP ni servicios externos. Las desconexiones
 // usan sockets reales en localhost. La señal de cierre se emite sobre un emisor propio.
 
@@ -80,6 +80,7 @@ vi.mock('./db/prisma.js', () => ({
 vi.mock('./services/email.service.js', () => ({ emailService: {} }))
 
 import { buildApp } from './app.js'
+import { requestClientIp } from './client-ip.js'
 import { requestWorkOf, type RequestWorkTracker } from './request-work.js'
 import { registerGracefulShutdown } from './shutdown.js'
 
@@ -87,7 +88,7 @@ type QueryArgs = { select?: Record<string, unknown>; where?: Record<string, unkn
 
 const COOKIE = `estateforge_session=${'a'.repeat(64)}`
 
-// Los siete grupos, con las rutas declaradas por la aplicación. Una ruta nueva debe añadirse aquí.
+// Los grupos, con las rutas declaradas por la aplicación. Una ruta nueva debe añadirse aquí.
 const DECLARED: Record<string, string[]> = {
   authRoutes: [
     'POST /api/auth/register', 'POST /api/auth/login', 'POST /api/auth/forgot-password',
@@ -108,6 +109,31 @@ const DECLARED: Record<string, string[]> = {
   ],
   dashboardRoutes: ['GET /api/dashboard/stats'],
   propertyRoutes: ['GET /api/properties', 'GET /api/properties/:id', 'PUT /api/properties/:id', 'DELETE /api/properties', 'DELETE /api/properties/:id'],
+  // DA-46/DA-47: galería del inmueble y cartel/vídeo del anuncio.
+  mediaRoutes: [
+    'GET /api/properties/:id/photos', 'POST /api/properties/:id/photos', 'PUT /api/properties/:id/photos/order',
+    'PUT /api/properties/:id/photos/:photoId/primary', 'PUT /api/properties/:id/photos/:photoId/file',
+    'DELETE /api/properties/:id/photos/:photoId', 'GET /api/properties/:id/photos/:photoId/file',
+    'GET /api/generations/:id/media', 'GET /api/generations/:id/media/source', 'PUT /api/generations/:id/media/:kind',
+    'GET /api/generations/:id/media/:kind/file',
+    // DA-51 a DA-55: miniaturas, sorteo de plantilla y biblioteca de audio.
+    'PUT /api/properties/:id/photos/:photoId/thumbnail', 'POST /api/generations/:id/media/poster/template-draw',
+    'GET /api/audio-tracks', 'POST /api/audio-tracks', 'DELETE /api/audio-tracks/:id', 'GET /api/audio-tracks/:id/file',
+    // DA-58: subidas directas (preparar, confirmar, cancelar) y simulador local de Blob con URLs firmadas.
+    'POST /api/uploads', 'POST /api/uploads/:id/complete', 'DELETE /api/uploads/:id', 'GET /api/local-blob/*', 'PUT /api/local-blob/*',
+  ],
+  // DA-67 a DA-75: BYOK de IA para carteles y vídeos (catálogo, integraciones, preferencias y trabajos).
+  aiMediaRoutes: [
+    'GET /api/ai/providers', 'GET /api/account/ai-integrations', 'POST /api/account/ai-keys/:provider/verify', 'PUT /api/account/ai-preferences',
+    // DA-83 y DA-86: conexiones por identificador (varias por proveedor) y descubrimiento de modelos.
+    'POST /api/account/ai-connections', 'PUT /api/account/ai-connections/:id', 'DELETE /api/account/ai-connections/:id', 'POST /api/account/ai-connections/:id/verify', 'GET /api/account/ai-connections/:id/models',
+    'GET /api/generations/:id/ai-jobs', 'POST /api/generations/:id/ai-jobs', 'GET /api/ai-jobs/:id', 'GET /api/ai-jobs/:id/result',
+    'POST /api/ai-jobs/:id/cancel', 'POST /api/ai-jobs/:id/reject',
+    // DA-89: pruebas reales controladas (plan, crear, listar, consultar y cancelar).
+    'POST /api/account/ai-trials/plan', 'POST /api/account/ai-trials', 'GET /api/account/ai-trials', 'GET /api/account/ai-trials/:id', 'POST /api/account/ai-trials/:id/cancel',
+    // DA-93: las seis pruebas propuestas (solo lectura, sin límite propio).
+    'GET /api/account/ai-trials/presets',
+  ],
   health: ['GET /health'],
 }
 
@@ -127,7 +153,16 @@ const ALLOWED_HOOKS: Record<string, string[][]> = {
   preHandler: [['wrappedStage()']],
   onSend: [['anonymous()'], ['anonymous()', 'headRouteOnSendHandler()']],
 }
-const RATE_LIMITED_ROUTES = 23
+// 23 anteriores + 6 escrituras de la galería y del material (DA-46/DA-47) + miniatura, sorteo y dos
+// escrituras de la biblioteca de audio (DA-51 a DA-55) + preparar, confirmar y cancelar subidas directas (DA-58).
+// Las rutas /api/local-blob/* no llevan rate-limit propio: exigen una firma HMAC emitida por las anteriores.
+// + 7 de la IA (DA-71): comprobar clave, preferencias, crear, consultar, resultado, cancelar y rechazar,
+// + 2 HEAD que Fastify genera para las dos consultas GET limitadas (consultar y resultado),
+// + 5 de las conexiones BYOK (DA-83, DA-86): crear, actualizar, borrar, comprobar y descubrir modelos, y el
+//   HEAD que Fastify genera para esta última (GET limitada),
+// + 4 de las pruebas reales controladas (DA-89): plan, crear, consultar y cancelar, y el HEAD de la consulta.
+//   El listado no lleva límite propio (solo lee las del usuario).
+const RATE_LIMITED_ROUTES = 56
 
 type RouteDump = { route: string; hooks: Record<string, string[]> }
 
@@ -198,6 +233,8 @@ function hold(key: string, match?: (args: QueryArgs) => boolean) {
 const isMeQuery = (args: QueryArgs) => args.select?.userId === undefined
 // El panel de administración hace su propio property.count, sin filtro.
 const isOwnCount = (args: QueryArgs) => args.where !== undefined
+// El panel también cuenta anuncios: la comprobación de propiedad del material filtra por id.
+const isMediaOwnership = (args: QueryArgs) => args.where?.id !== undefined
 
 const inGroups: { group: string; url: string; key: string; match?: (args: QueryArgs) => boolean }[] = [
   { group: 'authRoutes', url: '/api/auth/me', key: 'session.findUnique', match: isMeQuery },
@@ -206,6 +243,8 @@ const inGroups: { group: string; url: string; key: string; match?: (args: QueryA
   { group: 'generationRoutes', url: '/api/generations', key: 'generation.findMany' },
   { group: 'dashboardRoutes', url: '/api/dashboard/stats', key: 'property.count', match: isOwnCount },
   { group: 'propertyRoutes', url: '/api/properties', key: 'property.findMany' },
+  // El identificador debe tener el formato válido: la ruta rechaza los demás antes de consultar.
+  { group: 'mediaRoutes', url: `/api/generations/${'c'.repeat(25)}/media`, key: 'generation.count', match: isMediaOwnership },
 ]
 
 let app: FastifyInstance
@@ -238,11 +277,11 @@ afterEach(async () => {
 })
 
 describe('censo de rutas', () => {
-  it('coincide con las 45 rutas declaradas por grupo', () => {
+  it('coincide con las 88 rutas declaradas por grupo', () => {
     expect(Object.fromEntries(Object.entries(DECLARED).map(([group, routes]) => [group, routes.length]))).toEqual({
-      authRoutes: 16, adminRoutes: 10, aiKeyRoutes: 3, generationRoutes: 9, dashboardRoutes: 1, propertyRoutes: 5, health: 1,
+      authRoutes: 16, adminRoutes: 10, aiKeyRoutes: 3, generationRoutes: 9, dashboardRoutes: 1, propertyRoutes: 5, mediaRoutes: 22, aiMediaRoutes: 21, health: 1,
     })
-    expect(new Set(declaredRoutes).size).toBe(45)
+    expect(new Set(declaredRoutes).size).toBe(88)
   })
 })
 
@@ -254,7 +293,21 @@ describe('guarda del inventario', () => {
     const expected = [...declaredRoutes, ...generatedRoutes].sort()
 
     // El router es independiente del seguimiento: detecta rutas instaladas fuera de su ámbito.
-    expect(router).toEqual(expected)
+    // printRoutes({ commonPrefix: false }) de find-my-way omite las rutas comodín cuando existe OPTIONS *
+    // (@fastify/cors): /api/local-blob/* no aparece en el árbol aunque el router la atiende. Se excluyen
+    // del volcado y se comprueban directamente en el router con hasRoute.
+    const wildcard = (route: string) => route.endsWith(' /api/local-blob/*')
+    // Primero las diferencias, para que un fallo diga qué ruta sobra o falta.
+    const diff = (actual: string[], wanted: string[]) => ({ sobran: actual.filter(route => !wanted.includes(route)), faltan: wanted.filter(route => !actual.includes(route)) })
+    expect(JSON.stringify(diff(router, expected.filter(route => !wildcard(route))))).toBe('{"sobran":[],"faltan":[]}')
+    expect(router).toEqual(expected.filter(route => !wildcard(route)))
+    const wildcards = expected.filter(wildcard)
+    expect(wildcards).toEqual(['GET /api/local-blob/*', 'HEAD /api/local-blob/*', 'PUT /api/local-blob/*'])
+    for (const route of wildcards) {
+      const [method, url] = route.split(' ')
+      expect(app.hasRoute({ method: method as 'GET', url })).toBe(true)
+    }
+    expect(JSON.stringify(diff(inventory, expected))).toBe('{"sobran":[],"faltan":[]}')
     expect(inventory).toEqual(expected)
   })
 
@@ -262,7 +315,7 @@ describe('guarda del inventario', () => {
     const declared = new Set(declaredRoutes)
     const entries = work.routes().filter(route => declared.has(`${route.method} ${route.url}`))
 
-    expect(entries).toHaveLength(45)
+    expect(entries).toHaveLength(88)
     expect(entries.filter(route => !route.handlerIsAsync)).toEqual([])
     expect(entries.filter(route => route.routeHooks.some(hook => hook !== 'preHandler'))).toEqual([])
   })
@@ -291,7 +344,19 @@ describe('PD-3 y PD-6: hooks globales excluidos', () => {
     expect(options && ts.isObjectLiteralExpression(options), 'las opciones deben ser un objeto literal').toBe(true)
     const properties = (options as ts.ObjectLiteralExpression).properties
     expect(properties.map(property => (ts.isPropertyAssignment(property) ? propertyName(property.name) : property.getText())))
-      .toEqual(['global', 'max', 'timeWindow'])
+      .toEqual(['global', 'max', 'timeWindow', 'keyGenerator'])
+  })
+
+  // MD-4 (DA-57): la clave del rate-limit es la IP que decide client-ip.ts. Se ejecuta en onRequest,
+  // fuera del contrato de seguimiento (N-1): debe ser síncrona y responder sin ceder el turno.
+  it('rate-limit: keyGenerator es requestClientIp, síncrono y sin trabajo pendiente', () => {
+    const { keyGenerator } = built.rateLimit as { keyGenerator: (request: unknown) => unknown }
+    expect(keyGenerator).toBe(requestClientIp)
+    expect(keyGenerator.constructor.name).toBe('Function')
+    const source = ts.createSourceFile('key.ts', `(${keyGenerator.toString()})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+    const parsed = (source.statements[0] as ts.ExpressionStatement).expression as ts.ParenthesizedExpression
+    expect(executionMode(parsed.expression)).toBe('sincrona')
+    expect(keyGenerator({ ip: '203.0.113.5', headers: { 'x-forwarded-for': '198.51.100.1' } })).toBe('203.0.113.5')
   })
 
   it('rate-limit: ninguna configuración, ni de ruta, declara store o redis', () => {
@@ -326,7 +391,7 @@ describe('PD-3 y PD-6: hooks globales excluidos', () => {
 
   it('configuración efectiva: rate-limit global recibe exactamente las opciones revisadas', () => {
     expect(built.rateLimitCalls).toBe(1)
-    expect(built.rateLimit).toStrictEqual({ global: false, max: 20, timeWindow: '1 minute' })
+    expect(built.rateLimit).toStrictEqual({ global: false, max: 20, timeWindow: '1 minute', keyGenerator: requestClientIp })
   })
 
   it('configuración efectiva: cada config.rateLimit de ruta solo fija max y timeWindow estáticos', () => {
@@ -383,11 +448,16 @@ const REVIEWED_ENTRIES: Record<string, 'peticion' | 'aplicacion' | 'plugin' | 'c
   'app.ts | register:cors | referencia': 'plugin',
   'app.ts | register:dashboardRoutes | referencia': 'plugin',
   'app.ts | register:generationRoutes | referencia': 'plugin',
+  'app.ts | register:mediaRoutes | referencia': 'plugin',
+  'app.ts | register:aiMediaRoutes | referencia': 'plugin',
   'app.ts | register:propertyRoutes | referencia': 'plugin',
   'app.ts | register:rateLimit | referencia': 'plugin',
   'app.ts | setErrorHandler | sincrona': 'peticion',
   'request-work.ts | addHook:onRoute | sincrona': 'aplicacion',
   'routes/auth.routes.ts | addHook:onClose | async': 'aplicacion',
+  // DA-46: analizador de cuerpos binarios, encapsulado en mediaRoutes. Síncrono: entrega el Buffer
+  // ya leído por Fastify (con el bodyLimit de cada ruta) y llama a done sin trabajo pendiente.
+  'routes/media.routes.ts | addContentTypeParser | callback': 'peticion',
   'server.ts | register:readinessRoutes | referencia': 'plugin',
 }
 
@@ -541,7 +611,7 @@ describe('T8-2: contrato del onSend global', () => {
   })
 })
 
-describe('cobertura de los siete grupos', () => {
+describe('cobertura de los grupos de rutas', () => {
   it.each(inGroups)('$group: el manejador pendiente cuenta y se libera', async ({ url, key, match }) => {
     const pending = hold(key, match)
     let response: Promise<{ statusCode: number }> | undefined
@@ -617,11 +687,11 @@ describe('concurrencia y desconexiones con la aplicación real', () => {
     const clients = inGroups.map(route => client(port, route.url))
     try {
       await Promise.all(pending.map(entry => entry.started))
-      expect(work.running()).toBe(6)
+      expect(work.running()).toBe(inGroups.length)
 
       for (const request of clients) request.destroy()
       await new Promise(resolve => setTimeout(resolve, 60))
-      expect(work.running()).toBe(6)
+      expect(work.running()).toBe(inGroups.length)
     } finally {
       for (const entry of pending) entry.release()
     }
@@ -644,7 +714,7 @@ describe('concurrencia y desconexiones con la aplicación real', () => {
       signals.emit('SIGTERM')
       await new Promise(resolve => setTimeout(resolve, 80))
       expect(exit).not.toHaveBeenCalled()
-      expect(work.running()).toBe(6)
+      expect(work.running()).toBe(inGroups.length)
     } finally {
       for (const entry of pending) entry.release()
     }

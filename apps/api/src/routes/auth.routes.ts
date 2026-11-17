@@ -7,6 +7,8 @@ import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
 
 import { prisma } from '../db/prisma.js'
+import { drainStorageCleanup } from '../media/storage-cleanup.js'
+import { requestClientIp } from '../client-ip.js'
 import { isDatabaseUnavailableError } from '../db/availability.js'
 import {
   PASSWORD_POLICY_MESSAGE,
@@ -359,7 +361,7 @@ export async function authRoutes(app: FastifyInstance) {
         )
       }
 
-      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+      if (!(await requireTurnstile(result.data.turnstileToken, requestClientIp(request), reply))) {
         return
       }
 
@@ -428,7 +430,7 @@ export async function authRoutes(app: FastifyInstance) {
         )
       }
 
-      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+      if (!(await requireTurnstile(result.data.turnstileToken, requestClientIp(request), reply))) {
         return
       }
 
@@ -503,7 +505,7 @@ export async function authRoutes(app: FastifyInstance) {
         return sendValidationError(reply, 'Introduce un email válido.')
       }
 
-      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+      if (!(await requireTurnstile(result.data.turnstileToken, requestClientIp(request), reply))) {
         return
       }
 
@@ -548,7 +550,7 @@ export async function authRoutes(app: FastifyInstance) {
         return sendValidationError(reply, 'Introduce un email válido.')
       }
 
-      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+      if (!(await requireTurnstile(result.data.turnstileToken, requestClientIp(request), reply))) {
         return
       }
 
@@ -596,7 +598,7 @@ export async function authRoutes(app: FastifyInstance) {
         )
       }
 
-      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+      if (!(await requireTurnstile(result.data.turnstileToken, requestClientIp(request), reply))) {
         return
       }
 
@@ -648,7 +650,7 @@ export async function authRoutes(app: FastifyInstance) {
         )
       }
 
-      if (!(await requireTurnstile(result.data.turnstileToken, request.ip, reply))) {
+      if (!(await requireTurnstile(result.data.turnstileToken, requestClientIp(request), reply))) {
         return
       }
 
@@ -994,6 +996,10 @@ export async function authRoutes(app: FastifyInstance) {
       await prisma.user.delete({
         where: { id: user.id },
       })
+
+      // Los archivos de sus fotografías y su material quedan en la cola de limpieza (trigger); se borran
+      // ahora y, si falla, quedan pendientes (DA-46). Nunca lanza.
+      await drainStorageCleanup(request.log, undefined, 200)
 
       clearSessionCookie(reply)
 

@@ -17,7 +17,10 @@ const EMPTY_DIR = mkdtempSync(join(tmpdir(), 'ef-sin-env-'))
 afterAll(() => rmSync(EMPTY_DIR, { recursive: true, force: true }))
 
 function start(overrides: Record<string, string | undefined>) {
-  const env: Record<string, string | undefined> = { ...process.env, GEMINI_API_KEY: 'clave-ficticia', PORT: '0', NODE_OPTIONS: '', ...overrides }
+  // BYOK (DA-77): el servidor arranca sin ninguna API key de proveedores de IA en el entorno.
+  const env: Record<string, string | undefined> = { ...process.env, PORT: '0', NODE_OPTIONS: '', ...overrides }
+  delete env.GEMINI_API_KEY
+  delete env.OPENAI_API_KEY
   for (const [key, value] of Object.entries(overrides)) if (value === undefined) delete env[key]
   const run = spawnSync(process.execPath, [TSX, SERVER], { cwd: EMPTY_DIR, env, encoding: 'utf8', timeout: 30_000 })
   return { status: run.status, output: `${run.stdout}${run.stderr}` }

@@ -7,6 +7,7 @@ import {
   PROPERTY_COMMERCIAL_STATUSES,
   commercialStatusLabels,
   getCommercialStatusLabel,
+  getProviderLabel,
 } from '@estateforge/shared'
 
 import {
@@ -132,18 +133,6 @@ function getConditionLabel(
     conditionLabels[normalizedCondition] ||
     capitalizeFirstLetter(condition.trim())
   )
-}
-
-/*
- * Los providers se muestran siempre con la primera
- * letra en mayúscula sin modificar el valor original.
- */
-function getProviderLabel(
-  provider: string | undefined,
-): string {
-  if (!provider) return 'No indicado'
-
-  return capitalizeFirstLetter(provider.trim())
 }
 
 function formatLocationLabel(

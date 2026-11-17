@@ -5,7 +5,7 @@ import {
   type GeneratedListing,
 } from '@estateforge/shared'
 
-import type { AIProvider } from './ai-provider.js'
+import { usageFrom, type AIProvider, type AIUsage } from './ai-provider.js'
 
 import {
   AIProviderError,
@@ -18,22 +18,28 @@ export class OpenAIProvider
   implements AIProvider
 {
   private readonly client: OpenAI
+  lastUsage?: AIUsage
 
-  constructor(apiKey?: string) {
-    const resolvedApiKey =
-      apiKey ??
-      process.env.OPENAI_API_KEY
+  // BYOK (DA-77): la clave es siempre la del usuario; nunca se lee del entorno del servidor.
+  constructor(
+    apiKey: string,
+    private readonly model: string,
+  ) {
+    const resolvedApiKey = apiKey?.trim()
 
     if (!resolvedApiKey) {
       throw new AIProviderError(
-        'AI_INVALID_API_KEY',
-        'La API key de OpenAI no está configurada.',
+        'AI_KEY_REQUIRED',
+        'Configura tu API key de OpenAI en Ajustes para generar con este proveedor.',
       )
     }
 
     this.client = new OpenAI({
       apiKey: resolvedApiKey,
       timeout: REQUEST_TIMEOUT_MS,
+      // El SDK reintenta por defecto (2 veces) ante 5xx, 429 o errores de red: una petición que el proveedor
+      // pudo haber procesado se repetiría y podría cobrarse dos veces. Sin reintentos (MD-51).
+      maxRetries: 0,
     })
   }
 
@@ -43,7 +49,7 @@ export class OpenAIProvider
     try {
       const response =
         await this.client.responses.create({
-          model: 'gpt-5.5',
+          model: this.model,
 
           input: prompt,
 
@@ -94,6 +100,9 @@ export class OpenAIProvider
             },
           },
         })
+
+      const usage = (response as { usage?: Record<string, unknown> }).usage
+      this.lastUsage = usageFrom(usage?.input_tokens, usage?.output_tokens)
 
       const text =
         response.output_text?.trim()

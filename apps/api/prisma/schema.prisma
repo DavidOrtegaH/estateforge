@@ -37,6 +37,11 @@ model User {
   emailChangeVerifications EmailChangeVerification[]
   securityIncidentTokens SecurityIncidentToken[]
   aiKeys              UserAIKey[]
+  audioTracks         AudioTrack[]
+  uploadAttempts      UploadAttempt[]
+  aiMediaPreference   AiMediaPreference?
+  aiMediaJobs         AiMediaJob[]
+  aiProviderTrials    AiProviderTrial[]
 }
 
 model Session {
@@ -132,10 +137,24 @@ model UserAIKey {
   encryptedKey String
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+  /// BYOK (DA-68): metadatos no secretos. keyHint son los 4 últimos caracteres (no reversible); el
+  /// algoritmo y la versión de cifrado permiten rotar el esquema sin perder las claves guardadas.
+  keyHint           String?
+  algorithm         String    @default("aes-256-gcm")
+  encryptionVersion Int       @default(1)
+  status            String    @default("unverified")
+  lastVerifiedAt    DateTime? @db.Timestamptz(3)
+  lastErrorCode     String?
+  /// Varias conexiones del mismo proveedor (DA-83): etiqueta personal. Vacía: la conexión principal.
+  label             String    @default("")
+  /// Diagnóstico de la última comprobación (DA-87), en JSON y sin secretos: método, modelos del catálogo
+  /// que la cuenta lista o no y código de error normalizado. Nunca guarda la respuesta del proveedor.
+  lastCheckDetails  String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trials AiProviderTrial[]
 
-  @@unique([userId, provider])
+  @@unique([userId, provider, label])
   @@index([userId])
 }
 
@@ -171,6 +190,7 @@ model Property {
   user                  User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   generations           Generation[]
+  photos                PropertyPhoto[]
 }
 
 model Generation {
@@ -189,6 +209,129 @@ model Generation {
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   publications ListingPublication[]
+  media        ListingMedia[]
+  templateDraws MediaTemplateDraw[]
+  aiMediaJobs   AiMediaJob[]
+}
+
+/// Fotografía de un inmueble (hasta 50, DA-51). El archivo y su miniatura están en el almacenamiento
+/// de objetos (src/storage); aquí solo sus claves y sus metadatos. Restricciones manuales (posición
+/// 0-49, una sola principal, límite de 50 y cola de limpieza) en prisma/postgresql/constraints.sql.
+model PropertyPhoto {
+  id           String   @id @default(cuid())
+  propertyId   String
+  storageKey   String   @unique
+  originalName String?
+  contentType  String
+  size         Int
+  width        Int
+  height       Int
+  sha256       String
+  position     Int
+  isPrimary    Boolean  @default(false)
+  /// Miniatura JPEG que genera la web (lado mayor 480 px). Opcional: sin ella se sirve la original.
+  thumbKey     String?  @unique
+  thumbSize    Int?
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, sha256])
+  @@index([propertyId, position])
+}
+
+/// Material publicitario de un anuncio: un cartel ('poster') y un vídeo ('video') como máximo.
+/// Se genera en el navegador a partir de la fuente que entrega la API (sourceHash) y se sustituye
+/// de forma segura: clave nueva, cambio de referencia con control de versión y limpieza diferida.
+model ListingMedia {
+  id           String     @id @default(cuid())
+  generationId String
+  kind         String
+  storageKey   String     @unique
+  contentType  String
+  size         Int
+  width        Int
+  height       Int
+  durationMs   Int?
+  variant      Int
+  sourceHash   String
+  photoIds     String
+  version      Int        @default(1)
+  /// Cartel (DA-52): plantilla realmente usada, su versión y cómo se eligió (manual o aleatoria).
+  /// NULL en los carteles anteriores a las plantillas.
+  templateId      String?
+  templateVersion Int?
+  selectionMode   String?
+  /// Vídeo (DA-54): MIME con códecs, audio incorporado y su origen. audioTrackId no es una clave
+  /// ajena: borrar la pista de la biblioteca no altera los vídeos que ya la llevan dentro.
+  codecs          String?
+  hasAudio        Boolean    @default(false)
+  audioSource     String     @default("none")
+  audioTrackId    String?
+  audioName       String?
+  audioVolume     Int?
+  audioFadeInMs   Int?
+  audioFadeOutMs  Int?
+  /// IA (DA-72): «classic» o «ai». Con «ai», el trabajo aceptado y su proveedor y modelo.
+  generationMode  String     @default("classic")
+  aiJobId         String?
+  aiProvider      String?
+  aiModel         String?
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@unique([generationId, kind])
+}
+
+/// Sorteo de plantilla para la opción «Aleatoria» (DA-52): lo hace la API con crypto.randomInt; el
+/// cartel solo puede guardarse como aleatorio con un sorteo propio, no usado y reciente.
+model MediaTemplateDraw {
+  id              String     @id @default(cuid())
+  generationId    String
+  templateId      String
+  templateVersion Int
+  createdAt       DateTime   @default(now()) @db.Timestamptz(3)
+  usedAt          DateTime?  @db.Timestamptz(3)
+
+  generation      Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([generationId, createdAt])
+}
+
+/// Pista de audio de la biblioteca personal (DA-55). El archivo está en el almacenamiento de objetos;
+/// aquí sus metadatos. Reutilizable en los vídeos de cualquier anuncio del mismo usuario.
+model AudioTrack {
+  id           String   @id @default(cuid())
+  userId       String
+  storageKey   String   @unique
+  name         String
+  format       String
+  contentType  String
+  size         Int
+  durationMs   Int
+  sha256       String
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sha256])
+  @@index([userId, createdAt])
+}
+
+/// Archivos del almacenamiento de objetos que ya no tienen referencia y deben borrarse. Los
+/// añaden triggers al borrar o sustituir una fotografía o un material (también en cascada);
+/// el borrado se intenta tras el commit y, si falla, la fila queda para reintentarlo.
+model StorageCleanup {
+  id         String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  storageKey String   @unique
+  reason     String
+  attempts   Int      @default(0)
+  lastError  String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @db.Timestamptz(3)
 }
 
 /// Registro manual de dónde ha publicado el usuario un anuncio. EstateForge no publica en los portales.
@@ -225,4 +368,138 @@ model AdminAuditLog {
 
   @@index([actorUserId, createdAt])
   @@index([targetUserId, createdAt])
+}
+
+/// Intento de subida directa (DA-58): el navegador sube el archivo al almacenamiento con una URL
+/// firmada de un solo uso y después lo confirma. Mientras está pendiente reserva su tamaño en la
+/// cuota del usuario y su hueco en la galería. La clave la genera la API; nunca el navegador.
+model UploadAttempt {
+  id           String    @id @default(cuid())
+  userId       String
+  kind         String
+  storageKey   String    @unique
+  contentType  String
+  size         Int
+  propertyId   String?
+  photoId      String?
+  generationId String?
+  metadata     String    @default("{}")
+  status       String    @default("pending")
+  expiresAt    DateTime  @db.Timestamptz(3)
+  resultId     String?
+  failure      String?
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  completedAt  DateTime? @db.Timestamptz(3)
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, expiresAt])
+  @@index([propertyId, status])
+  @@index([status, expiresAt])
+}
+
+/// Proveedor y modelo predeterminados de cada usuario para los carteles y los vídeos con IA (DA-69).
+/// Solo se aceptan combinaciones del registro de la API y proveedores con credencial guardada.
+model AiMediaPreference {
+  userId         String   @id
+  posterProvider String?
+  posterModel    String?
+  videoProvider  String?
+  videoModel     String?
+  /// Texto del anuncio (DA-77): mismo criterio que carteles y vídeos.
+  textProvider   String?
+  textModel      String?
+  /// Conexión concreta de cada uso (DA-83). NULL: la única conexión del proveedor.
+  textKeyId      String?
+  posterKeyId    String?
+  videoKeyId     String?
+  /// Clasificador de seguridad externo para proveedores que no traen uno (DA-85), con la clave del usuario.
+  moderationProvider String?
+  moderationKeyId    String?
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Trabajo de generación con IA (DA-71): persistente, consultado por sondeo y revisado por el usuario.
+/// Hace de registro de uso: distingue solicitado, enviado, terminado, bloqueado, error y cancelado.
+/// Nunca guarda la API key, prompts completos ni binarios: el resultado va al almacenamiento privado.
+model AiMediaJob {
+  id                    String    @id @default(cuid())
+  userId                String
+  generationId          String
+  propertyId            String
+  kind                  String
+  provider              String
+  model                 String
+  status                String    @default("pending")
+  idempotencyKey        String
+  sourceHash            String
+  expectedVersion       Int
+  /// Parámetros no secretos: fotografías de referencia, duración, resolución, audio elegido.
+  params                String    @default("{}")
+  providerOperationId   String?
+  resultKey             String?   @unique
+  resultContentType     String?
+  resultSize            Int?
+  moderationStatus      String    @default("pending")
+  moderationCategory    String?
+  failureCode           String?
+  estimatedCostMicroUsd Int?
+  pollCount             Int       @default(0)
+  lastPolledAt          DateTime? @db.Timestamptz(3)
+  submittedAt           DateTime? @db.Timestamptz(3)
+  completedAt           DateTime? @db.Timestamptz(3)
+  expiresAt             DateTime? @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status])
+  @@index([generationId, kind, status])
+  @@index([status, expiresAt])
+}
+
+/// Prueba real controlada de un proveedor (DA-89): una sola operación con datos sintéticos, iniciada y
+/// confirmada por el usuario con su propia conexión, tras ver el proveedor, el modelo y el coste. No está
+/// ligada a ningún inmueble ni anuncio y su resultado no se guarda: solo el informe de la validación.
+model AiProviderTrial {
+  id                    String    @id @default(cuid())
+  userId                String
+  /// Conexión usada. Si el usuario la elimina, la prueba se conserva sin ella.
+  connectionId          String?
+  provider              String
+  model                 String
+  /// text | poster | video
+  kind                  String
+  status                String    @default("pending")
+  idempotencyKey        String
+  durationSeconds       Int?
+  /// Coste estimado que el usuario vio y aceptó (NULL: no verificable).
+  estimatedCostMicroUsd Int?
+  /// Versión del contrato del adaptador con la que se ejecutó.
+  contractVersion       String
+  /// Clasificador externo usado (proveedor:conexión), si el proveedor de generación no modera.
+  moderationProvider    String?
+  moderationKeyId       String?
+  providerOperationId   String?
+  failureCode           String?
+  /// Informe de la validación en JSON, sin secretos ni URL del proveedor.
+  report                String    @default("{}")
+  pollCount             Int       @default(0)
+  lastPolledAt          DateTime? @db.Timestamptz(3)
+  submittedAt           DateTime? @db.Timestamptz(3)
+  completedAt           DateTime? @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection UserAIKey? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([userId, status])
 }

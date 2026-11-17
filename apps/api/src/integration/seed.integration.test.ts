@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -13,12 +15,17 @@ let database: TestDatabase
 let admin: pg.Client
 let seed: typeof import('../../prisma/seed.js')
 let closeDatabase: () => Promise<void>
+let storageDir: string
 
 const count = async (sql: string) => Number((await admin.query(sql)).rows[0].n)
 
 beforeAll(async () => {
   database = await createTestDatabase()
   vi.stubEnv('DATABASE_URL', database.url)
+  // Las fotografías sintéticas van a un directorio temporal, nunca al almacenamiento de desarrollo.
+  storageDir = await mkdtemp(join(tmpdir(), 'ef-seed-storage-'))
+  vi.stubEnv('STORAGE_DRIVER', 'local')
+  vi.stubEnv('STORAGE_LOCAL_DIR', storageDir)
   admin = new pg.Client({ connectionString: database.url })
   await admin.connect()
   vi.resetModules()
@@ -31,6 +38,7 @@ afterAll(async () => {
   await admin.end()
   vi.unstubAllEnvs()
   await database.drop()
+  await rm(storageDir, { recursive: true, force: true })
 })
 
 describe('seed de desarrollo', () => {
@@ -47,12 +55,42 @@ describe('seed de desarrollo', () => {
     expect(await count(`SELECT count(*) AS n FROM "User" WHERE password = 'Clave-De-Prueba-Del-Seed-1'`)).toBe(0)
   })
 
+  it('añade fotografías sintéticas válidas a los inmuebles de ejemplo y deja uno sin ninguna', async () => {
+    const rows = (await admin.query(`SELECT p.title, count(f.id)::int AS n, count(*) FILTER (WHERE f."isPrimary")::int AS primaries FROM "Property" p LEFT JOIN "PropertyPhoto" f ON f."propertyId" = p.id GROUP BY p.title ORDER BY p.title`)).rows
+    expect(rows).toEqual([
+      { title: 'Estudio por alquilar', n: 2, primaries: 1 },
+      { title: 'Inmueble antiguo sin estado', n: 0, primaries: 0 },
+      { title: 'Inmueble de otra cuenta', n: 0, primaries: 0 },
+      { title: 'Piso alquilado junto al parque', n: 3, primaries: 1 },
+      { title: 'Piso en venta en el centro', n: 4, primaries: 1 },
+      { title: 'Ático vendido con terraza', n: 3, primaries: 1 },
+    ])
+    expect(await count(`SELECT count(*) AS n FROM "PropertyPhoto" WHERE "contentType" = 'image/png' AND width = 1200 AND height = 900`)).toBe(12)
+    // Los archivos existen en el almacenamiento y coinciden con lo registrado.
+    const { getStorage } = await import('../storage/object-storage.js')
+    const storage = await getStorage()
+    const photo = (await admin.query(`SELECT "storageKey", size FROM "PropertyPhoto" LIMIT 1`)).rows[0]
+    const stored = await storage.get(photo.storageKey)
+    expect(stored).not.toBeNull()
+    expect(stored!.size).toBe(photo.size)
+    expect(await count(`SELECT count(*) AS n FROM "StorageCleanup"`)).toBe(0)
+  })
+
+  it('con --photos solo completa los que no tienen fotografías', async () => {
+    await admin.query(`DELETE FROM "PropertyPhoto" WHERE "propertyId" = (SELECT id FROM "Property" WHERE title = 'Estudio por alquilar')`)
+
+    expect(await seed.seed('Clave-De-Prueba-Del-Seed-1', { photos: true })).toBe(false)
+    expect(await count(`SELECT count(*) AS n FROM "PropertyPhoto"`)).toBe(12)
+    expect(await seed.seed('Clave-De-Prueba-Del-Seed-1', { photos: true })).toBe(false)
+    expect(await count(`SELECT count(*) AS n FROM "PropertyPhoto"`)).toBe(12)
+  })
+
   it('repetirlo no duplica nada', async () => {
-    const before = await count(`SELECT (SELECT count(*) FROM "User") + (SELECT count(*) FROM "Property") + (SELECT count(*) FROM "Generation") + (SELECT count(*) FROM "ListingPublication") AS n`)
+    const before = await count(`SELECT (SELECT count(*) FROM "User") + (SELECT count(*) FROM "Property") + (SELECT count(*) FROM "Generation") + (SELECT count(*) FROM "ListingPublication") + (SELECT count(*) FROM "PropertyPhoto") AS n`)
 
     expect(await seed.seed('Clave-De-Prueba-Del-Seed-1')).toBe(false)
 
-    expect(await count(`SELECT (SELECT count(*) FROM "User") + (SELECT count(*) FROM "Property") + (SELECT count(*) FROM "Generation") + (SELECT count(*) FROM "ListingPublication") AS n`)).toBe(before)
+    expect(await count(`SELECT (SELECT count(*) FROM "User") + (SELECT count(*) FROM "Property") + (SELECT count(*) FROM "Generation") + (SELECT count(*) FROM "ListingPublication") + (SELECT count(*) FROM "PropertyPhoto") AS n`)).toBe(before)
   })
 
   it('cada cuenta solo tiene sus inmuebles', async () => {

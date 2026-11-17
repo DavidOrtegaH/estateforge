@@ -17,6 +17,7 @@ import {
 } from '../services/generation.service.js'
 
 import { prisma } from '../db/prisma.js'
+import { drainStorageCleanup } from '../media/storage-cleanup.js'
 
 import {
   requireAuth,
@@ -402,6 +403,10 @@ export async function generationRoutes(
         },
       })
 
+      // Los archivos de sus fotografías y su material quedan en la cola de limpieza (trigger); se borran
+      // ahora y, si falla, quedan pendientes (DA-46). Nunca lanza.
+      await drainStorageCleanup(request.log, undefined, 200)
+
       return {
         success: true,
       }
@@ -452,6 +457,10 @@ export async function generationRoutes(
             },
           },
         })
+
+      // Los archivos de sus fotografías y su material quedan en la cola de limpieza (trigger); se borran
+      // ahora y, si falla, quedan pendientes (DA-46). Nunca lanza.
+      await drainStorageCleanup(request.log, undefined, 200)
 
       return {
         success: true,

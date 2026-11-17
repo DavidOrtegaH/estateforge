@@ -14,15 +14,18 @@ import { prisma } from '../db/prisma.js'
 import { buildListingPrompt } from './prompt.service.js'
 import { validateGeneratedListing } from './listing-validator.service.js'
 import { createAIProvider } from '../ai/ai-provider.factory.js'
-import { isAIProviderError } from '../ai/ai-provider.error.js'
-import { getUserAIKey } from './user-ai-key.service.js'
+import { AIProviderError } from '../ai/ai-provider.error.js'
+import { discoverOpenRouterModels } from '../ai/text/openrouter-discovery.js'
+import { findProvider, isSelectable } from '../ai-media/registry.js'
+import { ConnectionError, CredentialCryptoError, isStoredAIKeyProvider, resolveConnection } from './user-ai-key.service.js'
 
 interface ExistingPropertyGenerationRequest {
   propertyId: string
   provider: AIProviderType
+  model?: string
+  connectionId?: string
   tone: ListingTone
   language: ListingLanguage
-  apiKey?: string
   userId: string
 }
 
@@ -32,52 +35,81 @@ interface GenerationResult {
   generationId: string
 }
 
-export async function generateWithUserKeyFallback(
+/**
+ * Generación de texto con la credencial del usuario autenticado (BYOK obligatorio, DA-77).
+ *
+ * - «mock» es una plantilla local: no es IA, no llama a ningún servicio y no necesita clave.
+ * - Cualquier otro proveedor usa exclusivamente la API key cifrada que guardó ese usuario y el modelo de
+ *   su preferencia (o el predeterminado del catálogo). Sin clave no hay llamada externa.
+ * - No existe clave del servidor, ni de otro usuario, ni cambio silencioso de proveedor: si el proveedor
+ *   falla, el error llega al usuario tal cual.
+ */
+/** Modelo y conexión elegidos para una operación concreta (sin cambiar la preferencia guardada). */
+export interface TextGenerationChoice {
+  model?: string
+  connectionId?: string
+}
+
+export async function generateWithUserKey(
   provider: AIProviderType,
   prompt: string,
-  apiKey: string | undefined,
   userId: string,
+  choice: TextGenerationChoice = {},
 ): Promise<GeneratedListing> {
-  // Mock never needs an API key and must never consult stored keys.
   if (provider === 'mock') {
     return createAIProvider(provider).generate(prompt)
   }
 
-  // An explicitly supplied key always has priority and remains temporary.
-  if (apiKey) {
-    return createAIProvider(provider, apiKey).generate(prompt)
+  const definition = findProvider(provider)
+  if (!definition || !isStoredAIKeyProvider(provider) || !definition.capabilities.includes('text')) {
+    throw new AIProviderError('AI_KEY_REQUIRED', 'Proveedor de IA no disponible.')
   }
 
+  const preference = await prisma.aiMediaPreference.findUnique({ where: { userId }, select: { textProvider: true, textModel: true, textKeyId: true } })
+  const samePreference = preference?.textProvider === provider
+
+  let connection
   try {
-    return await createAIProvider(provider).generate(prompt)
+    connection = await resolveConnection(userId, provider, choice.connectionId, samePreference ? preference.textKeyId : null)
   } catch (error) {
-    if (!isAIProviderError(error) || error.code !== 'AI_QUOTA_EXCEEDED') {
-      throw error
+    if (error instanceof CredentialCryptoError) {
+      throw new AIProviderError('AI_KEY_UNREADABLE', 'No se puede usar la API key guardada. Vuelve a introducirla en Ajustes.')
     }
-
-    // Only when the server-side provider quota is exhausted do we try
-    // the encrypted key saved by the authenticated user.
-    try {
-      const storedKey = await getUserAIKey(
-        userId,
-        provider,
-      )
-
-      if (!storedKey) {
-        throw error
-      }
-
-      return createAIProvider(provider, storedKey).generate(prompt)
-    } catch (storedKeyError) {
-      // A missing encryption key or a damaged stored secret must not turn
-      // the provider quota error into an unrelated 500. The user can still
-      // recover by supplying a temporary API key manually.
-      if (storedKeyError === error) {
-        throw error
-      }
-
-      throw error
+    if (error instanceof ConnectionError) {
+      throw new AIProviderError('AI_KEY_REQUIRED', `Tienes varias conexiones de ${definition.name}. Elige cuál usar para los textos en Ajustes o al generar.`)
     }
+    throw error
+  }
+  if (!connection) {
+    throw new AIProviderError('AI_KEY_REQUIRED', choice.connectionId ? `La conexión elegida de ${definition.name} ya no existe. Elige otra.` : `Para generar con ${definition.name} configura tu propia API key en Ajustes. EstateForge no aporta claves de IA.`)
+  }
+
+  // Modelo: el elegido para esta operación; si no, el de la preferencia del usuario para este proveedor; si
+  // no, el recomendado del catálogo. Un modelo que ya no está disponible no se sustituye por otro.
+  const requested = choice.model ?? (samePreference ? preference.textModel : null)
+  const catalog = definition.models.filter(item => item.purpose === 'text' && isSelectable(item))
+  let modelId: string | undefined
+  if (requested) {
+    if (catalog.some(item => item.id === requested)) modelId = requested
+    else if (definition.capabilities.includes('model-discovery') && (await isDiscoveredModel(definition.id, requested, connection.apiKey))) modelId = requested
+    else throw new AIProviderError('AI_MODEL_NOT_ALLOWED', `El modelo de texto que elegiste para ${definition.name} ya no está disponible. Elige otro en Ajustes.`)
+  } else {
+    modelId = catalog[0]?.id
+  }
+  if (!modelId) {
+    throw new AIProviderError('AI_MODEL_NOT_ALLOWED', 'Este proveedor no tiene ningún modelo de texto admitido.')
+  }
+
+  return createAIProvider(provider, { apiKey: connection.apiKey, model: modelId }).generate(prompt)
+}
+
+/** Modelo que no está en el catálogo estático pero sí en el catálogo validado del agregador. */
+export async function isDiscoveredModel(providerId: string, modelId: string, apiKey: string): Promise<boolean> {
+  if (providerId !== 'openrouter') return false
+  try {
+    return (await discoverOpenRouterModels(apiKey)).some(model => model.id === modelId)
+  } catch {
+    return false
   }
 }
 
@@ -194,7 +226,6 @@ function toSharedProperty(
 
 export async function generateListing(
   request: GenerationRequest & {
-    apiKey?: string
     userId: string
   },
 ): Promise<GenerationResult> {
@@ -202,11 +233,11 @@ export async function generateListing(
     buildListingPrompt(request)
 
   const result =
-    await generateWithUserKeyFallback(
+    await generateWithUserKey(
       request.provider,
       prompt,
-      request.apiKey,
       request.userId,
+      { model: request.model, connectionId: request.connectionId },
     )
 
   const {
@@ -459,9 +490,6 @@ export async function generateListingForExistingProperty(
 
     language:
       request.language,
-
-    apiKey:
-      request.apiKey,
   }
 
   const prompt =
@@ -470,11 +498,11 @@ export async function generateListingForExistingProperty(
     )
 
   const result =
-    await generateWithUserKeyFallback(
+    await generateWithUserKey(
       request.provider,
       prompt,
-      request.apiKey,
       request.userId,
+      { model: request.model, connectionId: request.connectionId },
     )
 
   const validatedListing =

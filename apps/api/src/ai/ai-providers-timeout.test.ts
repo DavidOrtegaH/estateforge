@@ -73,8 +73,6 @@ DATOS DEL INMUEBLE:
 describe('AI Providers Timeout handling', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    process.env.GEMINI_API_KEY = 'test-gemini-key'
-    process.env.OPENAI_API_KEY = 'test-openai-key'
   })
 
   afterEach(() => {
@@ -83,7 +81,7 @@ describe('AI Providers Timeout handling', () => {
   })
 
   it('GeminiProvider lanza un error de timeout al superar los 40 segundos', async () => {
-    const provider = new GeminiProvider()
+    const provider = new GeminiProvider('clave-ficticia-del-usuario', 'gemini-3.6-flash')
 
     const generatePromise = provider.generate(dummyPrompt)
 
@@ -98,7 +96,7 @@ describe('AI Providers Timeout handling', () => {
   })
 
   it('OpenAIProvider captura el timeout de la API y lanza un error descriptivo', async () => {
-    const provider = new OpenAIProvider()
+    const provider = new OpenAIProvider('clave-ficticia-del-usuario', 'gpt-6.1-terra')
 
     await expect(provider.generate(dummyPrompt)).rejects.toThrow(
       'Error al generar el anuncio con OpenAI: La solicitud ha superado el tiempo límite de 40 segundos.',

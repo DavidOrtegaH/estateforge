@@ -12,15 +12,10 @@ import { emailChangeCompletedMessage } from '@/lib/authSession'
 import { useAuth } from '@/hooks/useAuth'
 import { useModalDialog } from '@/hooks/useModalDialog'
 import { requestEmailChange } from '@/services/authService'
-import {
-  deleteStoredAIKey,
-  getStoredAIKeyStatus,
-  saveStoredAIKey,
-  type StoredAIKeyProvider,
-} from '@/services/aiKeyService'
 
 
 import { PasswordInput } from '@/components/ui/PasswordInput'
+import { AiIntegrationsSection } from '@/components/account/AiIntegrationsSection'
 
 function AccountPage() {
   const navigate = useNavigate()
@@ -53,52 +48,8 @@ function AccountPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
-  const [storedKeys, setStoredKeys] = useState({
-    gemini: false,
-    openai: false,
-  })
-
-  const [aiKeyInputs, setAiKeyInputs] = useState({
-    gemini: '',
-    openai: '',
-  })
-
-  const [savingAIKey, setSavingAIKey] =
-    useState<StoredAIKeyProvider | null>(null)
-
-  const [deletingAIKey, setDeletingAIKey] =
-    useState<StoredAIKeyProvider | null>(null)
-
-  const [aiKeyMessage, setAiKeyMessage] =
-    useState<string | null>(null)
-
-  const [aiKeyError, setAiKeyError] =
-    useState<string | null>(null)
-
   useEffect(() => {
     document.title = 'Cuenta - EstateForge'
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadStoredKeys() {
-      try {
-        const status = await getStoredAIKeyStatus()
-
-        if (!cancelled) {
-          setStoredKeys(status)
-        }
-      } catch {
-        // La página sigue siendo usable aunque no se pueda cargar el estado.
-      }
-    }
-
-    void loadStoredKeys()
-
-    return () => {
-      cancelled = true
-    }
   }, [])
 
   // Foco y teclado del diálogo: Escape no lo cierra mientras se elimina la cuenta.
@@ -254,95 +205,6 @@ async function handleRequestEmailChange() {
       )
     } finally {
       setEmailVerifying(false)
-    }
-  }
-
-  async function handleSaveAIKey(
-    provider: StoredAIKeyProvider,
-  ) {
-    if (savingAIKey || deletingAIKey) {
-      return
-    }
-
-    const apiKey = aiKeyInputs[provider].trim()
-
-    if (!apiKey) {
-      setAiKeyError(
-        'Introduce una API key antes de guardarla.',
-      )
-      setAiKeyMessage(null)
-      return
-    }
-
-    setSavingAIKey(provider)
-    setAiKeyError(null)
-    setAiKeyMessage(null)
-
-    try {
-      await saveStoredAIKey(provider, apiKey)
-
-      setStoredKeys((current) => ({
-        ...current,
-        [provider]: true,
-      }))
-
-      setAiKeyInputs((current) => ({
-        ...current,
-        [provider]: '',
-      }))
-
-      setAiKeyMessage(
-        `La API key de ${
-          provider === 'gemini'
-            ? 'Gemini'
-            : 'OpenAI'
-        } se ha guardado de forma cifrada.`,
-      )
-    } catch (error) {
-      setAiKeyError(
-        error instanceof Error
-          ? error.message
-          : 'No se ha podido guardar la API key.',
-      )
-    } finally {
-      setSavingAIKey(null)
-    }
-  }
-
-  async function handleDeleteAIKey(
-    provider: StoredAIKeyProvider,
-  ) {
-    if (savingAIKey || deletingAIKey) {
-      return
-    }
-
-    setDeletingAIKey(provider)
-    setAiKeyError(null)
-    setAiKeyMessage(null)
-
-    try {
-      await deleteStoredAIKey(provider)
-
-      setStoredKeys((current) => ({
-        ...current,
-        [provider]: false,
-      }))
-
-      setAiKeyMessage(
-        `La API key de ${
-          provider === 'gemini'
-            ? 'Gemini'
-            : 'OpenAI'
-        } se ha eliminado.`,
-      )
-    } catch (error) {
-      setAiKeyError(
-        error instanceof Error
-          ? error.message
-          : 'No se ha podido eliminar la API key.',
-      )
-    } finally {
-      setDeletingAIKey(null)
     }
   }
 
@@ -702,195 +564,10 @@ async function handleRequestEmailChange() {
       </section>
 
       {/* =========================================================
-          API KEYS
+          INTEGRACIONES DE IA (BYOK obligatorio, DA-77)
           ========================================================= */}
 
-      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <div className="border-b px-5 py-5 sm:px-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="h-5 w-5"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 7a5 5 0 1 0-9.9 1H3v4h2v2h3v-2h2.1A5 5 0 0 0 15 7Z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M18 14h.01M21 17h.01M18 20h.01"
-                />
-              </svg>
-            </div>
-
-            <div>
-              <h2 className="text-lg font-semibold">
-                Claves de IA
-              </h2>
-
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Puedes guardar una API key propia para utilizarla como
-                respaldo cuando se agote la cuota de la API key proporcionada
-                por EstateForge.
-              </p>
-            </div>
-          </div>
-            <p className="text-xs mt-4 leading-5 text-muted-foreground">
-              Las claves se almacenan cifradas y nunca se muestran de
-              nuevo después de guardarlas.
-            </p>
-        </div>
-        <div className="p-5 sm:p-6">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {(['gemini', 'openai'] as const).map(
-              (provider) => {
-                const label =
-                  provider === 'gemini'
-                    ? 'Google Gemini'
-                    : 'OpenAI'
-
-                const configured =
-                  storedKeys[provider]
-
-                const busy =
-                  savingAIKey === provider ||
-                  deletingAIKey === provider
-
-                return (
-                  <div
-                    key={provider}
-                    className="rounded-2xl border bg-background p-4 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <h3 className="font-semibold">
-                          {label}
-                        </h3>
-
-                        <div className="mt-2">
-                          {configured ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary">
-                              <span
-                                className="h-1.5 w-1.5 rounded-full bg-primary"
-                                aria-hidden="true"
-                              />
-                              API key configurada
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                              <span
-                                className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
-                                aria-hidden="true"
-                              />
-                              Sin configurar
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {configured && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleDeleteAIKey(provider)
-                          }
-                          disabled={busy}
-                          className="shrink-0 rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive transition hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {deletingAIKey === provider
-                            ? 'Eliminando...'
-                            : 'Eliminar'}
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="mt-4">
-                      <label
-                        htmlFor={`ai-key-${provider}`}
-                        className="text-xs font-medium text-muted-foreground"
-                      >
-                        {configured
-                          ? 'Nueva API key'
-                          : 'API key'}
-                      </label>
-
-                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                        <PasswordInput
-                          id={`ai-key-${provider}`}
-                          
-                          value={aiKeyInputs[provider]}
-                          onChange={(event) =>
-                            setAiKeyInputs(
-                              (current) => ({
-                                ...current,
-                                [provider]:
-                                  event.target.value,
-                              }),
-                            )
-                          }
-                          disabled={busy}
-                          placeholder={
-                            configured
-                              ? 'Introduce una nueva key'
-                              : 'Pega aquí tu API key'
-                          }
-                          autoComplete="off"
-                          className="h-11 w-full rounded-xl border bg-background px-3.5 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                         wrapperClassName="min-w-0 flex-1"  visibilityLabel="clave API" />
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleSaveAIKey(provider)
-                          }
-                          disabled={
-                            busy ||
-                            !aiKeyInputs[
-                              provider
-                            ].trim()
-                          }
-                          className="h-11 shrink-0 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {savingAIKey === provider
-                            ? 'Guardando...'
-                            : configured
-                              ? 'Reemplazar'
-                              : 'Guardar'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              },
-            )}
-          </div>
-
-          {aiKeyMessage && (
-            <div
-              role="status"
-              className="mt-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground"
-            >
-              {aiKeyMessage}
-            </div>
-          )}
-
-          {aiKeyError && (
-            <div
-              role="alert"
-              className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-            >
-              {aiKeyError}
-            </div>
-          )}
-        </div>
-      </section>
+      <AiIntegrationsSection />
 
       {/* =========================================================
           ELIMINACIÓN DE CUENTA

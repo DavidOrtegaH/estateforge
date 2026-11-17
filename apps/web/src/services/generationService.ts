@@ -11,6 +11,12 @@ export type GenerationApiErrorCode =
   | 'AI_INVALID_API_KEY'
   | 'AI_TIMEOUT'
   | 'AI_PROVIDER_ERROR'
+  | 'AI_KEY_REQUIRED'
+  | 'AI_KEY_UNREADABLE'
+  | 'AI_MODEL_NOT_ALLOWED'
+  | 'AI_RATE_LIMITED'
+  // La clave es válida, pero la cuenta no tiene permiso para esa operación (DA-87).
+  | 'AI_PERMISSION_DENIED'
 
 export class GenerationApiError extends Error {
   readonly code: GenerationApiErrorCode | null
@@ -109,7 +115,12 @@ export async function generateListing(
         error.code === 'AI_QUOTA_EXCEEDED' ||
         error.code === 'AI_INVALID_API_KEY' ||
         error.code === 'AI_TIMEOUT' ||
-        error.code === 'AI_PROVIDER_ERROR'
+        error.code === 'AI_PROVIDER_ERROR' ||
+        error.code === 'AI_KEY_REQUIRED' ||
+        error.code === 'AI_KEY_UNREADABLE' ||
+        error.code === 'AI_MODEL_NOT_ALLOWED' ||
+        error.code === 'AI_RATE_LIMITED' ||
+        error.code === 'AI_PERMISSION_DENIED'
       ) {
         code = error.code
       }

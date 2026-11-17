@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { noticeAuditProblems } from '../test-support/audit-assertions.js'
 import { createTestDatabase, type TestDatabase } from '../test-support/postgres.js'
 
 // ============================================================
@@ -2141,11 +2142,16 @@ describe('versionado de la protección por incidente con PostgreSQL real', () =>
           expect(await accountState(user.id)).toMatchObject({ email: newEmail, emailVerifiedAt: expect.any(Date) })
           const [audit, ...rest] = await noticeAudits(user.id)
           expect(rest).toEqual([])
-          expect(audit).toMatchObject({ actorUserId: user.id, targetUserId: user.id, reason: null, metadata: JSON.stringify({ noticeFailure: 'DELIVERY' }) })
-          expect(audit.createdAt).toBeInstanceOf(Date)
           const incidentUrl = mail.noticeCalls[0].incidentReportUrl!
-          const stored = JSON.stringify(audit)
-          for (const secret of [user.email, newEmail, incidentUrl, incidentUrl.split('/').pop()!, '550']) expect(stored).not.toContain(secret)
+          // MD-37: comprobación campo a campo. La fila solo guarda el tipo de fallo; ni direcciones, ni el
+          // enlace o el token de incidente, ni el mensaje del servidor de correo («550 Recipient rejected…»).
+          // No se buscan textos en el JSON completo: el id y la fecha son aleatorios y pueden contener «550».
+          expect(noticeAuditProblems(audit, {
+            userId: user.id,
+            noticeFailure: 'DELIVERY',
+            forbidden: [user.email, newEmail, incidentUrl, incidentUrl.split('/').pop()!, `550 Recipient rejected: ${user.email}`, 'Recipient rejected', '550'],
+          })).toEqual([])
+          expect(JSON.parse(audit.metadata!)).toEqual({ noticeFailure: 'DELIVERY' })
 
           // La auditoría del panel (GET /api/admin/audit, solo OWNER) muestra el evento filtrado.
           const listed = await server().inject({

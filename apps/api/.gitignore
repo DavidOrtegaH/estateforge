@@ -4,6 +4,9 @@ node_modules
 
 /src/generated/prisma
 
+# Archivos subidos en desarrollo (STORAGE_DRIVER=local)
+/.storage
+
 # Local agent skill bundles (prisma/skills, MIT). Installed per developer, not part of the product.
 /.agents
 /.claude

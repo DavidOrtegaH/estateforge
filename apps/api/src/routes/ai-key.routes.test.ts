@@ -17,6 +17,7 @@ vi.mock('../services/user-ai-key.service.js', () => ({
   deleteUserAIKey: mocks.deleteUserAIKey,
   getStoredAIKeyStatus: mocks.getStoredAIKeyStatus,
   saveUserAIKey: mocks.saveUserAIKey,
+  CredentialCryptoError: class CredentialCryptoError extends Error {},
 }))
 
 import { aiKeyRoutes } from './ai-key.routes.js'
@@ -59,7 +60,7 @@ describe('AI key routes', () => {
       method: 'PUT',
       url: '/api/account/ai-keys/gemini',
       payload: {
-        apiKey: 'secret-gemini-key',
+        apiKey: 'AIzaSyFAKE-not-a-real-key-0123456789abcd',
       },
     })
 
@@ -69,11 +70,11 @@ describe('AI key routes', () => {
       provider: 'gemini',
       configured: true,
     })
-    expect(response.body).not.toContain('secret-gemini-key')
+    expect(response.body).not.toContain('AIzaSyFAKE-not-a-real-key-0123456789abcd')
     expect(mocks.saveUserAIKey).toHaveBeenCalledWith(
       'user-1',
       'gemini',
-      'secret-gemini-key',
+      'AIzaSyFAKE-not-a-real-key-0123456789abcd',
     )
   })
 
@@ -122,3 +123,20 @@ describe('AI key routes', () => {
     )
   })
 })
+
+describe('AI key routes: formato por proveedor (DA-68)', () => {
+  it('rechaza una API key de Gemini con un formato imposible y no la guarda', async () => {
+    const app = Fastify()
+    app.decorateRequest('userId', null)
+    app.addHook('preHandler', async request => {
+      request.userId = 'user-1'
+    })
+    await app.register(aiKeyRoutes)
+    mocks.saveUserAIKey.mockClear()
+    const response = await app.inject({ method: 'PUT', url: '/api/account/ai-keys/gemini', payload: { apiKey: 'no es una clave' } })
+    expect(response.statusCode).toBe(400)
+    expect(mocks.saveUserAIKey).not.toHaveBeenCalled()
+    await app.close()
+  })
+})
+

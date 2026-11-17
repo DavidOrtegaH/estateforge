@@ -11,6 +11,10 @@ export type GenerationApiErrorCode =
   | 'AI_INVALID_API_KEY'
   | 'AI_TIMEOUT'
   | 'AI_PROVIDER_ERROR'
+  | 'AI_KEY_REQUIRED'
+  | 'AI_KEY_UNREADABLE'
+  | 'AI_MODEL_NOT_ALLOWED'
+  | 'AI_RATE_LIMITED'
 
 export class GenerationApiError extends Error {
   readonly code: GenerationApiErrorCode | null
@@ -31,9 +35,11 @@ export class GenerationApiError extends Error {
 export interface GeneratePropertyListingRequest {
   propertyId: string
   provider: AIProviderType
+  /** Modelo y conexión de esta generación (si faltan, los de la preferencia del usuario). */
+  model?: string
+  connectionId?: string
   tone: ListingTone
   language: ListingLanguage
-  apiKey?: string
 }
 
 export interface UpdatePropertyListingRequest {
@@ -99,7 +105,11 @@ export async function generatePropertyListing(
         error.code === 'AI_QUOTA_EXCEEDED' ||
         error.code === 'AI_INVALID_API_KEY' ||
         error.code === 'AI_TIMEOUT' ||
-        error.code === 'AI_PROVIDER_ERROR'
+        error.code === 'AI_PROVIDER_ERROR' ||
+        error.code === 'AI_KEY_REQUIRED' ||
+        error.code === 'AI_KEY_UNREADABLE' ||
+        error.code === 'AI_MODEL_NOT_ALLOWED' ||
+        error.code === 'AI_RATE_LIMITED'
       ) {
         code = error.code
       }

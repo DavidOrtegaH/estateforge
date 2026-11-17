@@ -1,14 +1,22 @@
 export type AIProviderErrorCode =
   | 'AI_QUOTA_EXCEEDED'
   | 'AI_INVALID_API_KEY'
+  // Límite de peticiones por minuto de la cuenta del usuario: es transitorio, a diferencia de la cuota.
+  | 'AI_RATE_LIMITED'
   | 'AI_TIMEOUT'
   | 'AI_PROVIDER_ERROR'
+  // BYOK (DA-77): el usuario no ha configurado su clave, o no se puede descifrar.
+  | 'AI_KEY_REQUIRED'
+  | 'AI_KEY_UNREADABLE'
+  | 'AI_MODEL_NOT_ALLOWED'
+  // La clave se reconoce, pero la cuenta, el proyecto o la región no tienen permiso (DA-87).
+  | 'AI_PERMISSION_DENIED'
 
 export class AIProviderError extends Error {
   constructor(
     public readonly code: AIProviderErrorCode,
     message: string,
-    public readonly provider?: 'OpenAI' | 'Gemini',
+    public readonly provider?: string,
     public readonly status?: number,
   ) {
     super(message)
@@ -91,7 +99,7 @@ function getErrorCode(
 }
 
 function providerErrorMessage(
-  provider: 'OpenAI' | 'Gemini',
+  provider: string,
   status: number | undefined,
   code: string,
 ): string {
@@ -106,7 +114,7 @@ function providerErrorMessage(
 }
 
 export function classifyAIProviderError(
-  provider: 'OpenAI' | 'Gemini',
+  provider: string,
   error: unknown,
 ): AIProviderError {
   if (isAIProviderError(error)) {
@@ -162,15 +170,69 @@ export function classifyAIProviderError(
     )
   }
 
-  const isQuotaExceeded =
-    status === 429 ||
+  // Modelo desconocido, retirado o sin acceso desde la cuenta del usuario: se informa y no se
+  // sustituye por otro modelo (sin fallback).
+  const isModelUnavailable =
+    status === 404 ||
+    code === 'model_not_found' ||
+    message.includes('model_not_found') ||
+    (message.includes('model') &&
+      (message.includes('does not exist') ||
+        message.includes('not found') ||
+        message.includes('deprecated')))
+
+  if (isModelUnavailable) {
+    return new AIProviderError(
+      'AI_MODEL_NOT_ALLOWED',
+      `${provider} no reconoce el modelo elegido o tu cuenta no tiene acceso a él (puede haberse retirado). Elige otro modelo en Ajustes.`,
+      provider,
+      status,
+    )
+  }
+
+  // Permiso denegado (403, permission_error, PERMISSION_DENIED): la clave es válida; no se marca como inválida.
+  const isPermissionDenied =
+    status === 403 ||
+    code === 'permission_error' ||
+    code === 'permission_denied'
+
+  if (isPermissionDenied) {
+    return new AIProviderError(
+      'AI_PERMISSION_DENIED',
+      `${provider} reconoce tu API key, pero tu cuenta no tiene permiso para esta operación (proyecto, plan, organización o región). Revisa los permisos en tu cuenta del proveedor.`,
+      provider,
+      status,
+    )
+  }
+
+  const isHardQuota =
     code === 'insufficient_quota' ||
     code === 'resource_exhausted' ||
     message.includes('insufficient quota') ||
+    message.includes('insufficient_quota') ||
     message.includes('quota exceeded') ||
     message.includes('quota exhausted') ||
-    message.includes('resource exhausted') ||
-    message.includes('rate limit')
+    message.includes('exceeded your current quota') ||
+    message.includes('resource exhausted')
+
+  const isRateLimited =
+    !isHardQuota &&
+    (code === 'rate_limit_exceeded' ||
+      code === 'rate_limit_error' ||
+      message.includes('rate limit'))
+
+  if (isRateLimited) {
+    return new AIProviderError(
+      'AI_RATE_LIMITED',
+      `Has superado el límite de peticiones de tu cuenta de ${provider}. Espera un momento y vuelve a intentarlo.`,
+      provider,
+      status,
+    )
+  }
+
+  const isQuotaExceeded =
+    isHardQuota ||
+    status === 429
 
   if (isQuotaExceeded) {
     return new AIProviderError(

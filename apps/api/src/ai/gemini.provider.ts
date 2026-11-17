@@ -6,7 +6,7 @@ import {
   type GeneratedListing,
 } from '@estateforge/shared'
 
-import type { AIProvider } from './ai-provider.js'
+import { usageFrom, type AIProvider, type AIUsage } from './ai-provider.js'
 
 import {
   AIProviderError,
@@ -117,16 +117,19 @@ export class GeminiProvider
   implements AIProvider
 {
   private readonly client: GoogleGenAI
+  lastUsage?: AIUsage
 
-  constructor(apiKey?: string) {
-    const resolvedApiKey =
-      apiKey ??
-      process.env.GEMINI_API_KEY
+  // BYOK (DA-77): la clave es siempre la del usuario; nunca se lee del entorno del servidor.
+  constructor(
+    apiKey: string,
+    private readonly model: string,
+  ) {
+    const resolvedApiKey = apiKey?.trim()
 
     if (!resolvedApiKey) {
       throw new AIProviderError(
-        'AI_INVALID_API_KEY',
-        'La API key de Gemini no estÃ¡ configurada.',
+        'AI_KEY_REQUIRED',
+        'Configura tu API key de Gemini en Ajustes para generar con este proveedor.',
       )
     }
 
@@ -181,7 +184,7 @@ export class GeminiProvider
         await this.client.models.generateContent(
           {
             model:
-              'gemini-3.6-flash',
+              this.model,
 
             contents:
               prompt,
@@ -228,6 +231,9 @@ export class GeminiProvider
             },
           },
         )
+
+      const usage = (response as { usageMetadata?: Record<string, unknown> }).usageMetadata
+      this.lastUsage = usageFrom(usage?.promptTokenCount, usage?.candidatesTokenCount)
 
       const text =
         response.text?.trim()

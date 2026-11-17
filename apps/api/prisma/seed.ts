@@ -3,7 +3,10 @@ import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
 
 import { closeDatabase, prisma } from '../src/db/prisma.js'
+import { addPhoto } from '../src/media/photo.service.js'
 import { hashPassword } from '../src/services/password.service.js'
+
+import { DEMO_SCENES, demoPhoto } from './demo-photos.js'
 
 // Datos de ejemplo para desarrollo. Es repetible y se niega a actuar fuera de localhost.
 // La contraseña la aporta quien ejecuta el comando (SEED_USER_PASSWORD): nunca está en el repositorio.
@@ -11,6 +14,11 @@ import { hashPassword } from '../src/services/password.service.js'
 // Crea dos cuentas: la de ejemplo, con inmuebles en los cuatro estados comerciales, uno antiguo sin
 // estado y un Checklist con portales y filas «Otro/a», y otra cuenta con un inmueble propio, para
 // comprobar que una cuenta no ve los datos de la otra. Si una cuenta ya tiene inmuebles, no se toca.
+//
+// Los inmuebles de la cuenta de ejemplo reciben ilustraciones sintéticas (prisma/demo-photos.ts) para
+// probar la galería, el cartel y el vídeo; el inmueble sin estado se queda sin fotografías a propósito
+// (estado vacío). Las fotografías se guardan con el almacenamiento configurado (STORAGE_DRIVER) y pasan
+// por las mismas validaciones que una subida real. Con «--photos» se añaden a una base ya sembrada.
 
 export const SEED_EMAIL = 'demo@estateforge.test'
 export const SEED_OTHER_EMAIL = 'otra@estateforge.test'
@@ -85,8 +93,35 @@ async function seedProperties(userId: string, items: Seeded[], withChecklist: bo
   return true
 }
 
+/** Fotografías sintéticas por inmueble de la cuenta de ejemplo (por título), en el orden de la galería. */
+const DEMO_PHOTO_COUNT: Record<string, number> = {
+  'Piso en venta en el centro': 4,
+  'Ático vendido con terraza': 3,
+  'Estudio por alquilar': 2,
+  'Piso alquilado junto al parque': 3,
+}
+
+/** Añade las ilustraciones a los inmuebles de ejemplo que aún no tienen ninguna. Devuelve cuántas. */
+export async function seedDemoPhotos(userId: string): Promise<number> {
+  const properties = await prisma.property.findMany({
+    where: { userId, title: { in: Object.keys(DEMO_PHOTO_COUNT) }, photos: { none: {} } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, title: true },
+  })
+  let added = 0
+  for (const [index, property] of properties.entries()) {
+    for (let i = 0; i < DEMO_PHOTO_COUNT[property.title]; i += 1) {
+      const scene = DEMO_SCENES[(index + i) % DEMO_SCENES.length]
+      const body = demoPhoto(scene, index * 10 + i + 1)
+      await addPhoto(null, userId, property.id, { body, declaredType: 'image/png', originalName: `demo-${scene}-${i + 1}.png` })
+      added += 1
+    }
+  }
+  return added
+}
+
 /** Crea los datos de ejemplo si faltan. Devuelve si ha creado alguno. */
-export async function seed(password = process.env.SEED_USER_PASSWORD): Promise<boolean> {
+export async function seed(password = process.env.SEED_USER_PASSWORD, options: { photos?: boolean } = {}): Promise<boolean> {
   const host = new URL(process.env.DATABASE_URL ?? 'postgresql://invalido').hostname
 
   if (!['localhost', '127.0.0.1'].includes(host)) {
@@ -103,6 +138,7 @@ export async function seed(password = process.env.SEED_USER_PASSWORD): Promise<b
     await seedProperties(demo.id, DEMO_PROPERTIES, true),
     await seedProperties(other.id, [{ title: 'Inmueble de otra cuenta', price: '320000.00', commercialStatus: 'for-sale' }], false),
   ]
+  if (created[0] || options.photos) await seedDemoPhotos(demo.id)
 
   return created.some(Boolean)
 }
@@ -110,7 +146,8 @@ export async function seed(password = process.env.SEED_USER_PASSWORD): Promise<b
 // Solo al ejecutarlo como script (pnpm --filter api db:seed), no al importarlo en una prueba.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    console.log((await seed()) ? 'Datos de ejemplo creados.' : 'Los datos de ejemplo ya existían.')
+    const photos = process.argv.includes('--photos')
+    console.log((await seed(undefined, { photos })) ? 'Datos de ejemplo creados.' : photos ? 'Los datos de ejemplo ya existían; se han completado las fotografías que faltaban.' : 'Los datos de ejemplo ya existían.')
   } finally {
     // Pool propio (DA-38): $disconnect no lo cierra y el proceso no terminaría.
     await closeDatabase()

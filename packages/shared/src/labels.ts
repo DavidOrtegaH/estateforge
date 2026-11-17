@@ -91,9 +91,30 @@ export const providerLabels: Record<
   AIProviderType,
   string
 > = {
-  mock: 'Mock',
+  mock: 'Plantilla local (sin IA)',
   gemini: 'Gemini',
   openai: 'OpenAI',
+  anthropic: 'Anthropic (Claude)',
+  xai: 'xAI (Grok)',
+  mistral: 'Mistral',
+  deepseek: 'DeepSeek',
+  openrouter: 'OpenRouter',
+  groq: 'Groq',
+  simulador: 'Simulador local (pruebas)',
+}
+
+/**
+ * Nombre visible del método con el que se generó un anuncio (MD-36). «mock» es la plantilla local:
+ * una composición programática, sin IA ni servicios externos. «simulador» es el simulador técnico de
+ * pruebas. Un valor desconocido (datos antiguos) se muestra tal cual, con la inicial en mayúscula.
+ */
+export function getProviderLabel(
+  provider: string | null | undefined,
+): string {
+  const value = provider?.trim()
+  if (!value) return 'No indicado'
+  const known = (providerLabels as Record<string, string>)[value.toLowerCase()]
+  return known ?? value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 /**

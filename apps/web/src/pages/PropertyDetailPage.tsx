@@ -34,7 +34,11 @@ import {
 // ============================================================
 
 
-import { PasswordInput } from '@/components/ui/PasswordInput'
+import { getProviderLabel } from '@estateforge/shared'
+
+import { TextAiChoice, TextAiNotice, TextProviderOptions } from '@/components/ai/TextAi'
+import { EMPTY_TEXT_CHOICE, useTextAi } from '@/hooks/useTextAi'
+import { PropertyGallery } from '@/components/media/PropertyGallery'
 
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
@@ -59,12 +63,6 @@ const conditionLabels: Record<string, string> = {
   good: 'Buen estado',
   renovated: 'Reformado',
   'needs-renovation': 'A reformar',
-}
-
-const providerLabels: Record<string, string> = {
-  mock: 'Mock',
-  gemini: 'Gemini',
-  openai: 'OpenAI',
 }
 
 const toneLabels: Record<string, string> = {
@@ -113,17 +111,6 @@ function getConditionLabel(
   return (
     conditionLabels[condition.toLowerCase()] ||
     capitalizeFirstLetter(condition)
-  )
-}
-
-function getProviderLabel(
-  provider: string | undefined,
-): string {
-  if (!provider) return 'No indicado'
-
-  return (
-    providerLabels[provider.toLowerCase()] ||
-    capitalizeFirstLetter(provider)
   )
 }
 
@@ -261,7 +248,7 @@ function PropertyDetailPage() {
     useState<string | null>(null)
 
   const [provider, setProvider] =
-    useState<AIProviderType>('gemini')
+    useState<AIProviderType>('mock')
 
   const [tone, setTone] =
     useState<ListingTone>('professional')
@@ -269,11 +256,13 @@ function PropertyDetailPage() {
   const [language, setLanguage] =
     useState<ListingLanguage>('español')
 
-  const [apiKey, setApiKey] =
-    useState('')
-
-  const [showCustomApiKey, setShowCustomApiKey] =
-    useState(false)
+  // BYOK (DA-77): proveedores de texto que el usuario tiene conectados; la clave nunca pasa por aquí.
+  const textAi = useTextAi()
+  const [aiErrorCode, setAiErrorCode] =
+    useState<string | null>(null)
+  // Modelo, cuenta y confirmación de esta generación (no cambia la preferencia de Ajustes).
+  const [textChoice, setTextChoice] = useState(EMPTY_TEXT_CHOICE)
+  const CONSENT_REQUIRED = 'Confirma que aceptas enviar los datos al proveedor de IA y el cargo en tu cuenta antes de generar.'
 
   // ==========================================================
   // ELIMINACIÓN DEL INMUEBLE
@@ -544,6 +533,12 @@ function PropertyDetailPage() {
       return
     }
 
+    // La IA solo se ejecuta con una confirmación expresa.
+    if (provider !== 'mock' && !textChoice.consent) {
+      setGenerationError(CONSENT_REQUIRED)
+      return
+    }
+
     setGenerating(true)
     setGenerationError(null)
     setCopySuccess(null)
@@ -552,9 +547,10 @@ function PropertyDetailPage() {
       await generatePropertyListing({
         propertyId: id,
         provider,
+        ...(provider !== 'mock' && textChoice.model && { model: textChoice.model }),
+        ...(provider !== 'mock' && textChoice.connectionId && { connectionId: textChoice.connectionId }),
         tone,
         language,
-        apiKey: apiKey.trim() || undefined,
       })
 
       const updatedProperty =
@@ -569,24 +565,31 @@ function PropertyDetailPage() {
       setProperty(propertyWithStorage)
       setEditForm(propertyWithStorage)
 
-      setApiKey('')
-      setShowCustomApiKey(false)
+      setAiErrorCode(null)
       setCurrentPage(1)
     } catch (error) {
       if (error instanceof GenerationApiError) {
+        setAiErrorCode(error.code ?? null)
+
+        if (error.code === 'AI_KEY_REQUIRED' || error.code === 'AI_KEY_UNREADABLE') {
+          setGenerationError(
+            error.message ||
+              'Para generar con IA configura tu propia API key en Ajustes.',
+          )
+          return
+        }
+
         if (error.code === 'AI_QUOTA_EXCEEDED') {
           setGenerationError(
-            'La cuota disponible del proveedor de IA se ha agotado.',
+            'Tu cuenta del proveedor de IA no tiene cuota disponible. Revisa tu plan en el proveedor o elige otro.',
           )
-          setShowCustomApiKey(true)
           return
         }
 
         if (error.code === 'AI_INVALID_API_KEY') {
           setGenerationError(
-            'La API key proporcionada no es válida. Comprueba la clave e inténtalo de nuevo.',
+            'El proveedor ha rechazado tu API key. Revísala o sustitúyela en Ajustes.',
           )
-          setShowCustomApiKey(true)
           return
         }
 
@@ -2278,74 +2281,68 @@ function PropertyDetailPage() {
         </section>
       )}
 
+      <PropertyGallery key={property.id} propertyId={property.id} />
+
       {/* =====================================================
           GENERAR ANUNCIO
       ===================================================== */}
 
-      <section className="mt-8 rounded-lg border bg-card p-6">
+      <section className="@container mt-8 rounded-lg border bg-card p-6">
         <div>
           <h2 className="text-xl font-semibold">
             Generar anuncio
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Elige el proveedor, tono
+            Elige el método de generación, el tono
             y el idioma antes de
             generar un nuevo anuncio.
           </p>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {/* PROVEEDOR */}
+        <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 @sm:grid-cols-2 @lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)]" data-testid="generation-form-grid">
+          {/* PROVEEDOR (DA-90: cada campo con min-w-0; la descripción dentro de su campo) */}
 
-          <div>
+          <div className="@sm:col-span-2 @lg:col-span-1 min-w-0 break-words" data-generation-field="method">
             <label
               htmlFor="generation-provider"
-              className="text-sm font-medium"
+              className="block text-sm font-medium"
             >
-              Proveedor de IA
+              Método de generación
             </label>
 
             <select
               id="generation-provider"
+              data-testid="text-provider-select"
               value={provider}
               onChange={(
                 event,
               ) =>
-                setProvider(
-                  event.target
-                    .value as AIProviderType,
-                )
+                {
+                  setProvider(
+                    event.target
+                      .value as AIProviderType,
+                  )
+                  setTextChoice(EMPTY_TEXT_CHOICE)
+                }
               }
               disabled={
                 generating
               }
-              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-2 box-border w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <option value="mock">
-                Mock
-              </option>
-
-              <option value="gemini">
-                Gemini
-              </option>
-
-              <option value="openai">
-                OpenAI
-              </option>
+              <TextProviderOptions options={textAi.options} />
             </select>
 
-            <p className="mt-2 text-xs text-muted-foreground">
-              Mock no consume ninguna API ni usa IA.
-            </p>
+            <TextAiNotice provider={provider} state={textAi} errorCode={aiErrorCode} value={textChoice} />
           </div>
 
           {/* TONO */}
 
-          <div>
+          <div className="min-w-0" data-generation-field="tone">
             <label
               htmlFor="generation-tone"
-              className="text-sm font-medium"
+              className="block text-sm font-medium"
             >
               Tono
             </label>
@@ -2364,7 +2361,7 @@ function PropertyDetailPage() {
               disabled={
                 generating
               }
-              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-2 box-border w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="professional">
                 Profesional
@@ -2386,10 +2383,10 @@ function PropertyDetailPage() {
 
           {/* IDIOMA */}
 
-          <div>
+          <div className="min-w-0" data-generation-field="language">
             <label
               htmlFor="generation-language"
-              className="text-sm font-medium"
+              className="block text-sm font-medium"
             >
               Idioma
             </label>
@@ -2408,7 +2405,7 @@ function PropertyDetailPage() {
               disabled={
                 generating
               }
-              className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-2 box-border w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="español">
                 Español
@@ -2421,45 +2418,8 @@ function PropertyDetailPage() {
           </div>
         </div>
 
-        {showCustomApiKey && (
-          <div className="mt-6 rounded-lg border bg-muted/30 p-4">
-            <div>
-              <p className="text-sm font-medium">
-                Usar mi propia API key
-              </p>
-
-              <p className="mt-1 text-xs text-muted-foreground">
-                Puedes utilizar tu propia API key para continuar generando anuncios cuando se haya agotado la cuota disponible. La clave se utilizará únicamente para esta generación y no se guardará.
-              </p>
-            </div>
-
-            <div className="mt-4">
-              <label
-                htmlFor="generation-api-key"
-                className="text-sm font-medium"
-              >
-                API key de {provider === 'gemini' ? 'Gemini' : 'OpenAI'}
-              </label>
-
-              <PasswordInput
-                id="generation-api-key"
-                
-                value={apiKey}
-                onChange={(event) =>
-                  setApiKey(event.target.value)
-                }
-                disabled={generating}
-                autoComplete="off"
-                placeholder="Introduce tu API key"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-               wrapperClassName="mt-2"  visibilityLabel="clave API" />
-
-              <p className="mt-2 text-xs text-muted-foreground">
-                No guardamos ni mostramos esta clave después de la generación.
-              </p>
-            </div>
-          </div>
-        )}
+        {/* Modelo, cuenta, coste y confirmación de la IA: fila de ancho completo bajo los tres campos. */}
+        <TextAiChoice provider={provider} state={textAi} value={textChoice} onChange={setTextChoice} disabled={generating} />
 
         <div className="mt-6 flex justify-end">
           <button

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { PROPERTY_COMMERCIAL_STATUSES } from './property.js'
+import { AI_TEXT_GENERATION_PROVIDERS } from './generation.js'
 
 import {
   MAX_OTHER_PUBLICATIONS,
@@ -80,21 +81,6 @@ const moneySchema = z
       message:
         'El importe debe ser un número positivo de hasta 100.000.000 con un máximo de 2 decimales',
     },
-  )
-
-/**
- * API key temporal proporcionada por el usuario.
- *
- * Nunca debe persistirse en base de datos ni incluirse
- * en respuestas o logs.
- */
-const apiKeySchema = z
-  .string()
-  .trim()
-  .min(1, 'La API key no puede estar vacía')
-  .max(
-    512,
-    'La API key no puede superar los 512 caracteres',
   )
 
 /**
@@ -319,11 +305,10 @@ export type PropertyUpdate = z.infer<
  * ============================================================
  */
 
-export const AIProviderSchema = z.enum([
-  'mock',
-  'gemini',
-  'openai',
-])
+export const AIProviderSchema = z.enum(AI_TEXT_GENERATION_PROVIDERS)
+
+/** Modelo elegido para una operación: solo su forma; la API lo valida contra el catálogo. */
+export const AIModelIdSchema = z.string().regex(/^[~A-Za-z0-9][A-Za-z0-9._:/~-]{0,119}$/, 'Modelo no válido')
 
 export const ListingToneSchema = z.enum([
   'professional',
@@ -340,9 +325,8 @@ export const ListingLanguageSchema = z.enum([
 /**
  * POST /api/generations
  *
- * apiKey es opcional y temporal.
- * Si no se proporciona, el backend utiliza la
- * API key configurada en el servidor.
+ * BYOK obligatorio (DA-77): la petición no lleva ninguna API key. La API usa la credencial cifrada
+ * que el usuario guardó en Ajustes; «mock» (plantilla local sin IA) no necesita ninguna.
  */
 export const GenerationRequestSchema = z
   .object({
@@ -350,11 +334,13 @@ export const GenerationRequestSchema = z
 
     provider: AIProviderSchema,
 
+    model: AIModelIdSchema.optional(),
+
+    connectionId: cuidSchema.optional(),
+
     tone: ListingToneSchema,
 
     language: ListingLanguageSchema,
-
-    apiKey: apiKeySchema.optional(),
   })
   .strict()
 
@@ -366,8 +352,7 @@ export type ValidatedGenerationRequest =
 /**
  * POST /api/generations/from-property
  *
- * apiKey es opcional y temporal.
- * Nunca se persiste.
+ * Sin API key en la petición (DA-77): se usa la credencial guardada del usuario.
  */
 export const ExistingPropertyGenerationSchema =
   z
@@ -377,11 +362,13 @@ export const ExistingPropertyGenerationSchema =
       provider:
         AIProviderSchema.default('mock'),
 
+      model: AIModelIdSchema.optional(),
+
+      connectionId: cuidSchema.optional(),
+
       tone: ListingToneSchema,
 
       language: ListingLanguageSchema,
-
-      apiKey: apiKeySchema.optional(),
     })
     .strict()
 

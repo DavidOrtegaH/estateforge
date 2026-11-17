@@ -27,6 +27,9 @@ vi.mock('../ai/ai-provider.factory.js', () => ({
 
 vi.mock('./user-ai-key.service.js', () => ({
   getUserAIKey: mocks.getUserAIKey,
+  requireUserAIKey: mocks.getUserAIKey,
+  isStoredAIKeyProvider: () => true,
+  CredentialCryptoError: class CredentialCryptoError extends Error {},
 }))
 
 vi.mock('./prompt.service.js', () => ({

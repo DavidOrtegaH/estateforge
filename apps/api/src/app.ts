@@ -18,8 +18,12 @@ import { propertyRoutes } from './routes/property.routes.js'
 import { dashboardRoutes } from './routes/dashboard.routes.js'
 import { aiKeyRoutes } from './routes/ai-key.routes.js'
 import { adminRoutes } from './routes/admin.routes.js'
+import { mediaRoutes } from './routes/media.routes.js'
+import { aiMediaRoutes } from './routes/ai-media.routes.js'
 
 import { trackRequestWork } from './request-work.js'
+import { configureClientIp, requestClientIp } from './client-ip.js'
+import { storageDriverOf } from './storage/object-storage.js'
 import {
   DATABASE_UNAVAILABLE_BODY,
   DATABASE_UNAVAILABLE_RETRY_AFTER_S,
@@ -89,10 +93,15 @@ export async function buildApp() {
 
   // El plugin debe registrarse antes que las rutas
   // que utilizan config.rateLimit.
+  // IP del cliente (MD-4): la del socket salvo CLIENT_IP_SOURCE=vercel dentro de Vercel (client-ip.ts).
+  configureClientIp(process.env)
+  // Almacenamiento (DA-58): una configuración incompleta o insegura impide arrancar.
+  storageDriverOf(process.env)
   await app.register(rateLimit, {
     global: false,
     max: 20,
     timeWindow: '1 minute',
+    keyGenerator: requestClientIp,
   })
 
   // ==========================================================
@@ -153,7 +162,15 @@ export async function buildApp() {
                 code:
                   'AI_QUOTA_EXCEEDED',
                 message:
-                  'Se ha agotado la cuota disponible del proveedor de IA.',
+                  'Tu cuenta del proveedor de IA no tiene cuota disponible. Revisa tu plan en el proveedor.',
+              })
+
+          case 'AI_RATE_LIMITED':
+            return reply
+              .code(429)
+              .send({
+                code: 'AI_RATE_LIMITED',
+                message: error.message,
               })
 
           case 'AI_INVALID_API_KEY':
@@ -163,7 +180,26 @@ export async function buildApp() {
                 code:
                   'AI_INVALID_API_KEY',
                 message:
-                  'La API key proporcionada no es válida.',
+                  'El proveedor ha rechazado tu API key. Revísala o sustitúyela en Ajustes.',
+              })
+
+          case 'AI_PERMISSION_DENIED':
+            return reply
+              .code(422)
+              .send({
+                code: 'AI_PERMISSION_DENIED',
+                message: error.message,
+              })
+
+          // BYOK (DA-77): sin la clave del propio usuario no hay llamada externa ni alternativa.
+          case 'AI_KEY_REQUIRED':
+          case 'AI_KEY_UNREADABLE':
+          case 'AI_MODEL_NOT_ALLOWED':
+            return reply
+              .code(error.code === 'AI_MODEL_NOT_ALLOWED' ? 400 : 409)
+              .send({
+                code: error.code,
+                message: error.message,
               })
 
           case 'AI_TIMEOUT':
@@ -244,6 +280,7 @@ export async function buildApp() {
         statusCode === 404 ||
         statusCode === 405 ||
         statusCode === 409 ||
+        statusCode === 413 ||
         statusCode === 415 ||
         statusCode === 429
       ) {
@@ -282,6 +319,10 @@ export async function buildApp() {
   await app.register(generationRoutes)
   await app.register(dashboardRoutes)
   await app.register(propertyRoutes)
+  // Galería de fotografías y material publicitario (DA-46, DA-47): plugin encapsulado con
+  // sus propios parsers binarios y límites de tamaño.
+  await app.register(mediaRoutes)
+  await app.register(aiMediaRoutes)
 
   // ==========================================================
   // HEALTH CHECK

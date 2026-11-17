@@ -21,6 +21,11 @@ describe('resolveApiUrl', () => {
     )
   })
 
+  it('vacía: rutas relativas para servir la API bajo el mismo dominio (despliegue con reescritura)', () => {
+    expect(resolveApiUrl('')).toBe('')
+    expect(resolveApiUrl('/')).toBe('')
+  })
+
   it('elimina las barras finales', () => {
     expect(resolveApiUrl('https://api.estateforge.test/')).toBe(
       'https://api.estateforge.test',

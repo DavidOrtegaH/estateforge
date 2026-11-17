@@ -1,4 +1,4 @@
-import { formatMoneyAmount } from '@estateforge/shared'
+import { formatMoneyAmount, getProviderLabel } from '@estateforge/shared'
 import {
   useEffect,
   useMemo,
@@ -1688,16 +1688,7 @@ function HistoryPage() {
 
                               <div className="flex shrink-0 flex-wrap gap-2">
                                 <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-                                  {generation.provider
-                                    ? generation.provider
-                                      .charAt(
-                                        0,
-                                      )
-                                      .toUpperCase() +
-                                    generation.provider.slice(
-                                      1,
-                                    )
-                                    : ''}
+                                  {generation.provider ? getProviderLabel(generation.provider) : ''}
                                 </span>
 
                                 <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
@@ -2169,7 +2160,7 @@ function HistoryPage() {
                     htmlFor="filter-provider"
                     className="mb-2 block text-sm font-medium"
                   >
-                    Proveedor
+                    Método de generación
                   </label>
 
                   <select
@@ -2195,7 +2186,7 @@ function HistoryPage() {
                           key={provider}
                           value={provider}
                         >
-                          {provider}
+                          {getProviderLabel(provider)}
                         </option>
                       ),
                     )}

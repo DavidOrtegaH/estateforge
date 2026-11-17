@@ -6,9 +6,10 @@ import {
   useParams,
 } from 'react-router'
 
-import { getCommercialStatusLabel } from '@estateforge/shared'
+import { getCommercialStatusLabel, getProviderLabel } from '@estateforge/shared'
 
 import { PublicationChecklist } from '@/components/listings/PublicationChecklist'
+import { PromoMaterials } from '@/components/media/PromoMaterials'
 
 import {
   getGeneration,
@@ -680,8 +681,8 @@ function GenerationDetailPage() {
 
           <div className="mt-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary capitalize">
-                {generation.provider}
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
+                {getProviderLabel(generation.provider)}
               </span>
 
               <span className="rounded-full border bg-muted/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
@@ -815,6 +816,12 @@ function GenerationDetailPage() {
             guardDisabled={deleting}
           />
 
+          <PromoMaterials
+            key={`promo-${generation.id}`}
+            generationId={generation.id}
+            propertyId={generation.propertyId}
+          />
+
           {/* =================================================
               INFORMACIÃN DE GENERACIÃN
           ================================================== */}
@@ -827,11 +834,11 @@ function GenerationDetailPage() {
             <dl className="mt-4 grid gap-5 sm:grid-cols-2">
               <div>
                 <dt className="text-sm text-muted-foreground">
-                  Proveedor
+                  Generado con
                 </dt>
 
-                <dd className="mt-1 font-medium capitalize">
-                  {generation.provider}
+                <dd className="mt-1 font-medium">
+                  {getProviderLabel(generation.provider)}
                 </dd>
               </div>
 

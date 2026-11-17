@@ -26,7 +26,8 @@ import {
 } from '@/services/generationService'
 
 
-import { PasswordInput } from '@/components/ui/PasswordInput'
+import { TextAiChoice, TextAiNotice, TextProviderOptions } from '@/components/ai/TextAi'
+import { EMPTY_TEXT_CHOICE, useTextAi } from '@/hooks/useTextAi'
 
 const initialProperty: Property = {
   title: '',
@@ -57,7 +58,7 @@ function NewPropertyPage() {
     useState<Property>(initialProperty)
 
   const [provider, setProvider] =
-    useState<AIProviderType>('gemini')
+    useState<AIProviderType>('mock')
 
   const [tone, setTone] =
     useState<ListingTone>('professional')
@@ -80,11 +81,13 @@ function NewPropertyPage() {
   const [error, setError] =
     useState<string | null>(null)
 
-  const [apiKey, setApiKey] =
-    useState('')
-
-  const [showCustomApiKey, setShowCustomApiKey] =
-    useState(false)
+  // BYOK (DA-77): proveedores de texto que el usuario tiene conectados; la clave nunca pasa por aquí.
+  const textAi = useTextAi()
+  const [aiErrorCode, setAiErrorCode] =
+    useState<string | null>(null)
+  // Modelo, cuenta y confirmación de esta generación (no cambia la preferencia de Ajustes).
+  const [textChoice, setTextChoice] = useState(EMPTY_TEXT_CHOICE)
+  const CONSENT_REQUIRED = 'Confirma que aceptas enviar los datos al proveedor de IA y el cargo en tu cuenta antes de generar.'
 
   // Estados para Edición, Eliminación y Copiado
   const [isEditing, setIsEditing] =
@@ -212,6 +215,13 @@ function NewPropertyPage() {
       return
     }
 
+    // La IA solo se ejecuta con una confirmación expresa.
+    if (provider !== 'mock' && !textChoice.consent) {
+      setError(CONSENT_REQUIRED)
+      scrollToBottom()
+      return
+    }
+
     setIsGenerating(true)
     setGeneratedListing(null)
     setEditedListing(null)
@@ -227,9 +237,10 @@ function NewPropertyPage() {
           price: property.price.toFixed(2),
         },
         provider,
+        ...(provider !== 'mock' && textChoice.model && { model: textChoice.model }),
+        ...(provider !== 'mock' && textChoice.connectionId && { connectionId: textChoice.connectionId }),
         tone,
         language,
-        apiKey: apiKey.trim() || undefined,
       })
 
       setGeneratedListing(result.listing)
@@ -238,22 +249,34 @@ function NewPropertyPage() {
       setCreatedGenerationId(
         result.generationId,
       )
-      setApiKey('')
-      setShowCustomApiKey(false)
+      setAiErrorCode(null)
 
       setTimeout(() => {
         scrollToElement(generatedListingRef.current)
       }, 50)
     } catch (generationError) {
       if (generationError instanceof GenerationApiError) {
+        setAiErrorCode(generationError.code ?? null)
+
+        if (
+          generationError.code === 'AI_KEY_REQUIRED' ||
+          generationError.code === 'AI_KEY_UNREADABLE'
+        ) {
+          setError(
+            generationError.message ||
+              'Para generar con IA configura tu propia API key en Ajustes.',
+          )
+          scrollToBottom()
+          return
+        }
+
         if (
           generationError.code ===
           'AI_QUOTA_EXCEEDED'
         ) {
           setError(
-            'La cuota disponible del proveedor de IA se ha agotado.',
+            'Tu cuenta del proveedor de IA no tiene cuota disponible. Revisa tu plan en el proveedor o elige otro.',
           )
-          setShowCustomApiKey(true)
           scrollToBottom()
           return
         }
@@ -263,9 +286,8 @@ function NewPropertyPage() {
           'AI_INVALID_API_KEY'
         ) {
           setError(
-            'La API key proporcionada no es válida. Comprueba la clave e inténtalo de nuevo.',
+            'El proveedor ha rechazado tu API key. Revísala o sustitúyela en Ajustes.',
           )
-          setShowCustomApiKey(true)
           scrollToBottom()
           return
         }
@@ -309,8 +331,7 @@ function NewPropertyPage() {
     setCreatedPropertyId(null)
     setCreatedGenerationId(null)
     setError(null)
-    setApiKey('')
-    setShowCustomApiKey(false)
+    setAiErrorCode(null)
     setIsEditing(false)
     setIsCopied(false)
   }
@@ -876,7 +897,7 @@ ${listingToCopy.callToAction}
           </p>
         </section>
 
-        <section className="rounded-lg border bg-card p-6">
+        <section className="@container rounded-lg border bg-card p-6">
           <div>
             <h2 className="text-lg font-semibold">
               Configuración de generación
@@ -889,44 +910,46 @@ ${listingToCopy.callToAction}
           </div>
 
           <div className="mt-6">
-            {/* Fila 1: Tres selectores alineados horizontalmente */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              <label className="grid gap-2">
-                <span className="text-sm font-medium">
-                  Proveedor de IA
-                </span>
+            {/* Tres campos independientes (DA-90): cada uno en su columna, con min-w-0 para que un selector
+                con opciones largas no fije el ancho de la columna ni invada las vecinas. La descripción del
+                método va dentro de su propio campo. Una columna en móvil y tres desde md. */}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-5 @sm:grid-cols-2 @lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)]" data-testid="generation-form-grid">
+              <div className="@sm:col-span-2 @lg:col-span-1 flex min-w-0 flex-col gap-2" data-generation-field="method">
+                <label htmlFor="new-generation-provider" className="text-sm font-medium">
+                  Método de generación
+                </label>
 
                 <select
+                  id="new-generation-provider"
+                  data-testid="text-provider-select"
                   value={provider}
                   onChange={(event) =>
-                    setProvider(
-                      event.target
-                        .value as AIProviderType,
-                    )
+                    {
+                      setProvider(
+                        event.target
+                          .value as AIProviderType,
+                      )
+                      setTextChoice(EMPTY_TEXT_CHOICE)
+                    }
                   }
                   disabled={isGenerating}
-                  className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-10 w-full min-w-0 max-w-full box-border rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="mock">
-                    Mock
-                  </option>
-
-                  <option value="gemini">
-                    Gemini
-                  </option>
-
-                  <option value="openai">
-                    OpenAI
-                  </option>
+                  <TextProviderOptions options={textAi.options} />
                 </select>
-              </label>
 
-              <label className="grid gap-2">
-                <span className="text-sm font-medium">
+                <div className="min-w-0 break-words">
+                  <TextAiNotice provider={provider} state={textAi} errorCode={aiErrorCode} value={textChoice} />
+                </div>
+              </div>
+
+              <div className="flex min-w-0 flex-col gap-2" data-generation-field="tone">
+                <label htmlFor="new-generation-tone" className="text-sm font-medium">
                   Tono
-                </span>
+                </label>
 
                 <select
+                  id="new-generation-tone"
                   value={tone}
                   onChange={(event) =>
                     setTone(
@@ -935,7 +958,7 @@ ${listingToCopy.callToAction}
                     )
                   }
                   disabled={isGenerating}
-                  className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-10 w-full min-w-0 max-w-full box-border rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="professional">
                     Profesional
@@ -953,14 +976,15 @@ ${listingToCopy.callToAction}
                     Persuasivo
                   </option>
                 </select>
-              </label>
+              </div>
 
-              <label className="grid gap-2">
-                <span className="text-sm font-medium">
+              <div className="flex min-w-0 flex-col gap-2" data-generation-field="language">
+                <label htmlFor="new-generation-language" className="text-sm font-medium">
                   Idioma
-                </span>
+                </label>
 
                 <select
+                  id="new-generation-language"
                   value={language}
                   onChange={(event) =>
                     setLanguage(
@@ -969,7 +993,7 @@ ${listingToCopy.callToAction}
                     )
                   }
                   disabled={isGenerating}
-                  className="h-10 rounded-md border bg-background px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-10 w-full min-w-0 max-w-full box-border rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="español">
                     Español
@@ -979,17 +1003,11 @@ ${listingToCopy.callToAction}
                     Inglés
                   </option>
                 </select>
-              </label>
-            </div>
-
-            {/* Fila 2: Aviso informativo siempre visible con mt-2 justo bajo el proveedor */}
-            <div className="mt-2 grid grid-cols-1 gap-6 md:grid-cols-3">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Mock no consume ninguna API ni usa IA.
-                </p>
               </div>
             </div>
+
+            {/* Modelo, cuenta, coste y confirmación de la IA: fila de ancho completo bajo los tres campos. */}
+            <TextAiChoice provider={provider} state={textAi} value={textChoice} onChange={setTextChoice} disabled={isGenerating} />
           </div>
 
           {error && (
@@ -1003,55 +1021,6 @@ ${listingToCopy.callToAction}
             </div>
           )}
 
-          {showCustomApiKey && (
-            <div className="mt-6 rounded-lg border bg-muted/30 p-4">
-              <div>
-                <p className="text-sm font-medium">
-                  Usar mi propia API key
-                </p>
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Puedes utilizar tu propia API key para
-                  continuar generando anuncios cuando se
-                  haya agotado la cuota disponible. La
-                  clave se utilizará únicamente para esta
-                  generación y no se guardará.
-                </p>
-              </div>
-
-              <div className="mt-4">
-                <label
-                  htmlFor="generation-api-key"
-                  className="text-sm font-medium"
-                >
-                  API key de{' '}
-                  {provider === 'gemini'
-                    ? 'Gemini'
-                    : 'OpenAI'}
-                </label>
-
-                <PasswordInput
-                  id="generation-api-key"
-                  
-                  value={apiKey}
-                  onChange={(event) =>
-                    setApiKey(
-                      event.target.value,
-                    )
-                  }
-                  disabled={isGenerating}
-                  autoComplete="off"
-                  placeholder="Introduce tu API key"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                 wrapperClassName="mt-2"  visibilityLabel="clave API" />
-
-                <p className="mt-2 text-xs text-muted-foreground">
-                  No guardamos ni mostramos esta clave
-                  después de la generación.
-                </p>
-              </div>
-            </div>
-          )}
         </section>
 
         <div className="flex justify-end">
@@ -1062,7 +1031,7 @@ ${listingToCopy.callToAction}
           >
             {isGenerating
               ? 'Generando...'
-              : 'Crear inmueble y generar su anuncio con IA'}
+              : provider === 'mock' ? 'Crear inmueble y generar su anuncio' : 'Crear inmueble y generar su anuncio con IA'}
           </Button>
         </div>
       </form>

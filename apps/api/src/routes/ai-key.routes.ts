@@ -1,15 +1,23 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
 
+import { findProvider, simulatorEnabled } from '../ai-media/registry.js'
 import { requireAuth } from '../middleware/auth.middleware.js'
 import {
+  ConnectionError,
+  CredentialCryptoError,
   deleteUserAIKey,
   getStoredAIKeyStatus,
   saveUserAIKey,
   type StoredAIKeyProvider,
 } from '../services/user-ai-key.service.js'
 
-const providerSchema = z.enum(['gemini', 'openai'])
+// Cualquier proveedor del catálogo de la API (el simulador, solo en desarrollo). Estas rutas gestionan la
+// conexión principal de cada proveedor; las conexiones con etiqueta van por /api/account/ai-connections.
+const providerSchema = z
+  .string()
+  .max(24)
+  .refine((provider): provider is StoredAIKeyProvider => Boolean(findProvider(provider)) && (provider !== 'simulador' || simulatorEnabled()))
 const apiKeySchema = z
   .string()
   .trim()
@@ -24,7 +32,7 @@ function providerFromParams(
 
   if (!result.success) {
     void reply.code(400).send({
-      message: 'Proveedor de IA no válido. Usa gemini u openai.',
+      message: 'Proveedor de IA no válido.',
     })
     return null
   }
@@ -86,11 +94,33 @@ export async function aiKeyRoutes(app: FastifyInstance) {
         })
       }
 
-      await saveUserAIKey(
-        userId,
-        provider,
-        result.data.apiKey,
-      )
+      // Formato del proveedor (registro de la API): rechaza valores que no pueden ser una clave suya.
+      const definition = findProvider(provider)
+      if (definition && !definition.keyPattern.test(result.data.apiKey)) {
+        return reply.code(400).send({
+          message: `La API key no tiene el formato de ${definition.name}.`,
+        })
+      }
+
+      try {
+        await saveUserAIKey(
+          userId,
+          provider,
+          result.data.apiKey,
+        )
+      } catch (error) {
+        // Sin clave de cifrado válida no se guarda nada (nunca en texto plano).
+        if (error instanceof CredentialCryptoError) {
+          return reply.code(503).send({
+            code: 'AI_ENCRYPTION_UNAVAILABLE',
+            message: 'No se puede guardar la API key de forma segura en este momento.',
+          })
+        }
+        if (error instanceof ConnectionError) {
+          return reply.code(409).send({ code: error.code, message: error.message })
+        }
+        throw error
+      }
 
       return {
         success: true,
