@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from './zod.js'
 
 import { PROPERTY_COMMERCIAL_STATUSES } from './property.js'
 import { AI_TEXT_GENERATION_PROVIDERS } from './generation.js'
