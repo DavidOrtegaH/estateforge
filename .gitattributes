@@ -1,2 +1,4 @@
 # Los scripts de shell se ejecutan en Linux (WSL): siempre LF, también con core.autocrlf=true.
 *.sh text eol=lf
+# Node scripts with a shebang break in Vite/Vitest when checked out with CRLF on Windows.
+*.mjs text eol=lf
