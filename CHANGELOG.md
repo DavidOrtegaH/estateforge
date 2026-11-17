@@ -19,7 +19,8 @@ First public version. It covers the work from August to November 2026.
 - Classic poster templates and a slideshow video with preset or uploaded soundtracks, composed in
   the browser; a random template option that needs no AI.
 - Publication record for Idealista, Fotocasa, Pisos.com, Yaencontre, Habitaclia and other portals,
-  with link validation. EstateForge does not publish on the portals.
+  with link validation. EstateForge does not publish on the portals. Portals are identified by name
+  with a generic icon; their logos are not distributed.
 - Bring-your-own-key AI: encrypted per-user connections to 15 text, image and video providers, a
   model catalogue with prices and sources, cost estimates and explicit confirmation before every
   billable call, moderation, human review, idempotency, limits and guided trial plans; a local
@@ -34,6 +35,8 @@ First public version. It covers the work from August to November 2026.
   driven by the production origin.
 - CI workflow with lint, type checks, tests (including PostgreSQL integration tests), builds,
   dependency audit and commit message checks.
+- `third-party-notices.txt` in the web build with the license, copyright and NOTICE texts of every
+  npm package whose code, styles or fonts are served; the build fails if one is missing.
 
 ### Changed
 
