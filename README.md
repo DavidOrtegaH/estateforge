@@ -2,9 +2,9 @@
 
 Aplicación web para preparar el material de los anuncios inmobiliarios: la ficha de cada inmueble, sus fotografías, el texto del anuncio, un cartel, un vídeo corto y el registro de los portales en los que se publica. La IA es opcional y funciona con la clave de cada usuario.
 
-Proyecto personal. Versión **1.0.0**. La interfaz está en español.
+Proyecto personal. Versión **1.0.1**. La interfaz está en español.
 
-> **Estado:** el código de la versión 1.0.0 está probado en local y preparado para publicarse como repositorio de solo lectura. El despliegue en Vercel, Neon y Vercel Blob está preparado pero **no se ha realizado**, y ningún proveedor de IA real se ha llamado todavía: esas integraciones solo se han validado con simuladores locales. Detalle en [Limitaciones conocidas](#limitaciones-conocidas).
+> **Estado:** el código está publicado como repositorio de solo lectura. La versión 1.0.1 corrige los problemas de disponibilidad, zona horaria y pruebas detectados tras el primer CI de GitHub. El despliegue en Vercel, Neon y Vercel Blob está preparado pero **no se ha realizado**, y ningún proveedor de IA real se ha llamado todavía: esas integraciones solo se han validado con simuladores locales. Detalle en [Limitaciones conocidas](#limitaciones-conocidas).
 
 ## Qué hace
 
@@ -178,5 +178,5 @@ Los componentes de terceros conservan sus licencias: [THIRD_PARTY_NOTICES.md](TH
 - [IA con clave propia](docs/producto-ia-byok.md) y [catálogo de proveedores](docs/proveedores-ia.md)
 - [PostgreSQL: desarrollo, migraciones y copias](docs/postgresql.md)
 - [Preparación para Vercel, Neon y Vercel Blob](docs/despliegue/vercel-neon-blob.md)
-- [Cambios](CHANGELOG.md) y [notas de la versión 1.0.0](docs/release/v1.0.0.md)
+- [Cambios](CHANGELOG.md) y [notas de la versión 1.0.1](docs/release/v1.0.1.md)
 - [Aplicación web](apps/web/README.md)

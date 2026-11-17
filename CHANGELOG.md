@@ -6,6 +6,8 @@ All notable changes to EstateForge are documented here. The format follows
 
 ## Unreleased
 
+## 1.0.1 - 2026-11-17
+
 Fixes found by the first continuous integration run on GitHub (Ubuntu runner), after 1.0.0.
 
 ### Fixed
