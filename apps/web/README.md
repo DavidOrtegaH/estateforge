@@ -48,6 +48,8 @@ pnpm --filter web build      # tsc -b && vite build → dist/
 pnpm --filter web preview    # sirve el build con las rutas y cabeceras de vercel.json
 ```
 
+La construcción genera `dist/third-party-notices.txt` con la licencia, el copyright y el NOTICE de cada paquete de npm cuyo código, estilos o fuentes se sirven (`tooling/notices.ts`); falla si alguno no los incluye. Las páginas públicas y el acceso enlazan ese archivo.
+
 Las rutas, el 404, las cabeceras de seguridad y la CSP de producción están en [`vercel.json`](vercel.json). `vite` y `vite preview` reproducen las mismas rutas, y la vista previa aplica también sus cabeceras. Las pruebas de `tooling/site.test.ts` comprueban que `App.tsx`, `tooling/site.ts` y `vercel.json` coinciden.
 
 SEO: `tooling/site.ts` obtiene el origen canónico de `SITE_URL` (o, en la producción de Vercel, de `VERCEL_PROJECT_PRODUCTION_URL`) y genera la etiqueta canónica, Open Graph, `robots.txt` y `sitemap.xml`. Sin origen, o en una vista previa, nada se indexa.

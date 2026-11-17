@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 import { htmlForPath, PRIVATE_PAGES, PUBLIC_PAGES, publicHeadTags, resolveSite, robotsTxt, sitemapXml } from './tooling/site.ts'
 import { headersFor, loadVercelConfig } from './tooling/vercel-config.ts'
+import { collectNotice, cssImportPackages, isViteRuntime, OWN_NOTICE, packageOf, renderNotices } from './tooling/notices.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -33,6 +34,19 @@ function site(): Plugin {
       },
     },
     generateBundle() {
+      // Avisos de terceros de todo paquete de npm que entra en el grafo (JS, CSS y fuentes).
+      const packages = new Map<string, string>()
+      // Carpeta real del paquete (algunos, como shadcn, no exportan su package.json).
+      const resolveDir = (name: string) => fs.realpathSync(path.join(__dirname, 'node_modules', name))
+      for (const id of this.getModuleIds()) {
+        const found = packageOf(id)
+        if (found && !found.name.startsWith('@estateforge/')) packages.set(found.name, found.dir)
+        if (isViteRuntime(id)) packages.set('vite', resolveDir('vite'))
+      }
+      const cssFiles = fs.globSync('src/**/*.css', { cwd: __dirname }).map((file) => path.join(__dirname, file))
+      for (const name of cssImportPackages(cssFiles)) packages.set(name, resolveDir(name))
+      const notices = [...packages].map(([name, dir]) => collectNotice(name, dir, path.resolve(__dirname, '../..')))
+      this.emitFile({ type: 'asset', fileName: 'third-party-notices.txt', source: renderNotices(notices, OWN_NOTICE) })
       this.emitFile({ type: 'asset', fileName: 'robots.txt', source: robotsTxt(config) })
       const sitemap = sitemapXml(config)
       if (sitemap) this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemap })

@@ -11,6 +11,9 @@ function LegalLinks() {
       <a href="/condiciones" className="hover:underline">
         Condiciones de uso
       </a>
+      <a href="/third-party-notices.txt" className="hover:underline">
+        Licencias de terceros
+      </a>
     </nav>
   )
 }
