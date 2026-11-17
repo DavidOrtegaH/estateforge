@@ -133,6 +133,12 @@ export async function buildApp() {
         'camera=(), microphone=(), geolocation=()',
       )
 
+      // La API no es contenido indexable: ni sus respuestas JSON ni los archivos que sirve.
+      reply.header(
+        'X-Robots-Tag',
+        'noindex, nofollow',
+      )
+
       done()
     },
   )

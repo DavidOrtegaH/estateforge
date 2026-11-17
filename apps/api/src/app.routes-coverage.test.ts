@@ -607,6 +607,7 @@ describe('T8-2: contrato del onSend global', () => {
       'x-frame-options': 'DENY',
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+      'x-robots-tag': 'noindex, nofollow',
     })
   })
 })
