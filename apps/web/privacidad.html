@@ -6,7 +6,7 @@
     <title>Privacidad y cookies — EstateForge</title>
     <meta
       name="description"
-      content="Qué datos guarda EstateForge, para qué, con qué servicios se tratan, qué cookie usa y cómo borrar tu cuenta."
+      content="Qué datos trata EstateForge, para qué y con qué base, qué servicios intervienen, qué cookie usa, cuánto se conservan los datos y cómo ejercer tus derechos."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!--seo:head-->
@@ -30,28 +30,33 @@
       <h1>Privacidad y cookies</h1>
       <p class="updated">Última revisión: 17 de noviembre de 2026.</p>
       <p>
-        Esta página describe cómo funciona EstateForge hoy. Es información técnica sobre el
-        tratamiento de datos y no sustituye a un texto jurídico revisado, que deberá completarse
-        antes de abrir el servicio al público.
+        EstateForge es un proyecto personal y gratuito en el que cualquier persona puede crear una
+        cuenta. Esta página explica qué datos personales trata esta instancia, para qué, con qué
+        servicios y durante cuánto tiempo, tal como funciona hoy.
       </p>
 
       <h2>Responsable y contacto</h2>
       <p>
-        El responsable del servicio es <strong>David Ortega Hoyas</strong>. Para consultas sobre
-        privacidad o sobre tu cuenta puedes escribir a
-        <a href="mailto:davidortegahoyas@gmail.com">davidortegahoyas@gmail.com</a>.
+        El responsable del tratamiento es <strong>David Ortega Hoyas</strong>. Para cualquier
+        consulta sobre privacidad o sobre tu cuenta puedes escribir a
+        <a href="mailto:davidortegahoyas@gmail.com">davidortegahoyas@gmail.com</a>. No envíes
+        contraseñas ni claves de proveedores de IA por correo.
       </p>
 
-      <h2>Qué datos se guardan</h2>
+      <h2>Qué datos se tratan</h2>
       <ul>
         <li>
           <strong>Cuenta:</strong> tu email, la contraseña (solo su resumen con un algoritmo de
-          derivación; nunca la contraseña en claro), la fecha de alta y el estado de verificación
-          del email.
+          derivación; nunca la contraseña en claro), la fecha de alta y si has verificado el email.
         </li>
         <li>
           <strong>Sesiones:</strong> un identificador de sesión (se guarda solo su resumen) y su
           caducidad.
+        </li>
+        <li>
+          <strong>Enlaces y códigos de un solo uso:</strong> los de verificación del email,
+          recuperación de la contraseña o de la cuenta y cambio de email. Se guarda su resumen, no
+          el enlace ni el código, con su fecha de caducidad.
         </li>
         <li>
           <strong>Tu contenido:</strong> los inmuebles, sus fotografías, los anuncios, carteles,
@@ -64,22 +69,66 @@
         </li>
         <li>
           <strong>Registro de seguridad:</strong> acciones administrativas y de seguridad (por
-          ejemplo, una suspensión o una solicitud de recuperación), con la cuenta afectada y la
-          fecha.
+          ejemplo, una suspensión o una solicitud de recuperación), con la fecha, el identificador
+          de la cuenta afectada y, en algunas acciones, los emails de las cuentas que intervienen.
         </li>
       </ul>
       <p>
-        La dirección IP se usa en memoria para limitar el número de intentos (inicio de sesión,
-        registro y operaciones costosas) y, si está activada, para la verificación contra bots. No
-        se guarda en la base de datos.
+        Para crear una cuenta son obligatorios el email y una contraseña: sin ellos no se puede
+        registrar ni usar la cuenta. El resto de los datos solo existen si tú los aportas al usar
+        las funciones correspondientes.
       </p>
 
-      <h2>Para qué</h2>
+      <h3>Dirección IP y registros técnicos</h3>
       <p>
-        Para prestarte el servicio: identificarte, guardar tu trabajo, generar el material que
-        pides, enviarte los correos de verificación y de recuperación de la cuenta y proteger la
-        cuenta frente a abusos. No se usan tus datos para publicidad, perfiles ni analítica, ni se
-        venden.
+        La dirección IP se usa en memoria para limitar el número de intentos (inicio de sesión,
+        registro y operaciones costosas) y no se guarda en la base de datos. Aun así, como en
+        cualquier servicio web, la plataforma de alojamiento (Vercel) genera registros técnicos de
+        las peticiones que pueden incluir la IP, la ruta solicitada y datos del navegador. En el
+        plan con el que funciona esta instancia, Vercel conserva los registros de ejecución de la
+        aplicación durante 1 hora; otros registros propios del proveedor se rigen por sus
+        condiciones.
+      </p>
+
+      <h2>Para qué y con qué base</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Finalidad</th>
+              <th scope="col">Base jurídica</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                Crear y mantener tu cuenta, guardar tu trabajo, generar el material que pides y
+                enviarte los correos necesarios para ello (verificación del email, recuperación,
+                cambio de email)
+              </td>
+              <td>
+                Prestarte el servicio que solicitas al registrarte y usarlo (art. 6.1.b del RGPD)
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Proteger las cuentas y el servicio: limitar intentos, detectar y frenar abusos,
+                avisarte de cambios sensibles en tu cuenta y mantener el registro de seguridad
+              </td>
+              <td>Interés legítimo en la seguridad del servicio y de sus usuarios (art. 6.1.f del RGPD)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Tus datos no se usan para publicidad, perfiles ni analítica, ni se venden. Los correos que
+        envía EstateForge son de servicio, no comerciales.
+      </p>
+      <p>
+        No se toman decisiones basadas únicamente en un tratamiento automatizado que produzcan
+        efectos jurídicos sobre ti o te afecten de forma significativa. La IA solo genera el
+        material que tú pides; no se usa para decidir sobre ti ni sobre tu cuenta, y las
+        suspensiones por abuso las decide una persona.
       </p>
 
       <h2>Servicios que intervienen</h2>
@@ -94,19 +143,22 @@
           </thead>
           <tbody>
             <tr>
-              <td>Vercel (aplicación y archivos privados) y Neon (base de datos)</td>
+              <td>Vercel (alojamiento de la web y de la API, y archivos privados en Vercel Blob)</td>
               <td>Siempre</td>
-              <td>Los datos descritos arriba, para guardarlos y servirlos</td>
+              <td>Las peticiones a la web y a la API, tus archivos y los registros técnicos</td>
             </tr>
             <tr>
-              <td>Brevo (correo transaccional)</td>
-              <td>Al verificar el email o recuperar la cuenta</td>
+              <td>Neon (base de datos)</td>
+              <td>Siempre</td>
+              <td>Los datos de la cuenta, el contenido y los registros descritos arriba</td>
+            </tr>
+            <tr>
+              <td>Brevo (envío de correo)</td>
+              <td>
+                Al verificar el email, recuperar la contraseña o la cuenta, cambiar el email y en los
+                avisos de seguridad
+              </td>
               <td>Tu email y el contenido del mensaje</td>
-            </tr>
-            <tr>
-              <td>Cloudflare Turnstile (si está activado)</td>
-              <td>En los formularios de acceso y registro</td>
-              <td>Los datos técnicos del navegador que necesita la verificación contra bots</td>
             </tr>
             <tr>
               <td>El proveedor de IA que tú conectes</td>
@@ -123,6 +175,37 @@
         Los carteles y los vídeos clásicos se componen en tu navegador y no se envían a ningún
         proveedor de IA.
       </p>
+
+      <h3>Dónde se tratan</h3>
+      <p>
+        La API y los archivos privados están configurados en la región de Vercel en Frankfurt
+        (Alemania), y la base de datos de Neon también en Frankfurt. La web se sirve desde la red
+        global de Vercel, así que una petición puede atenderse desde un punto fuera de la Unión
+        Europea. Por eso no todos los datos permanecen siempre en la UE:
+      </p>
+      <ul>
+        <li>
+          Vercel prevé en su
+          <a href="https://vercel.com/legal/dpa" rel="noopener">acuerdo de tratamiento de datos</a>
+          que puede tratar datos fuera del Espacio Económico Europeo, con cláusulas contractuales
+          tipo como garantía.
+        </li>
+        <li>
+          Neon publica su
+          <a href="https://neon.com/pdf/DPA.pdf" rel="noopener">acuerdo de tratamiento de datos</a>.
+        </li>
+        <li>
+          Brevo explica
+          <a
+            href="https://help.brevo.com/hc/en-us/articles/360001005510-Data-storage-location"
+            rel="noopener"
+            >dónde almacena los datos</a
+          >.
+        </li>
+        <li>
+          El proveedor de IA que conectes trata los datos donde indiquen sus propias condiciones.
+        </li>
+      </ul>
 
       <h2>Cookies y almacenamiento del navegador</h2>
       <div class="table-wrap">
@@ -152,27 +235,76 @@
         </table>
       </div>
       <p>
-        Son necesarias para el funcionamiento del servicio. No hay cookies de publicidad,
-        seguimiento ni analítica. Si alguna vez se añadieran, esta página se actualizaría y se
-        pediría tu consentimiento antes de activarlas.
+        Son necesarias para el funcionamiento del servicio o las eliges tú (el tema). No hay
+        cookies de publicidad, seguimiento ni analítica. Si alguna vez se añadieran, esta página se
+        actualizaría y se pediría tu consentimiento antes de activarlas.
       </p>
 
-      <h2>Cuánto tiempo y cómo borrarlos</h2>
+      <h2>Cuánto tiempo se conservan</h2>
+      <ul>
+        <li>
+          <strong>Cuenta y contenido:</strong> mientras tengas la cuenta. Puedes borrar tus
+          inmuebles, tu material y tus claves de IA en cualquier momento.
+        </li>
+        <li>
+          <strong>Al eliminar la cuenta</strong> (desde «Cuenta», con tu contraseña) se borran en
+          cascada tus datos de cuenta, sesiones, enlaces y códigos de un solo uso, inmuebles,
+          material, conexiones de IA y su historial.
+        </li>
+        <li>
+          <strong>Archivos:</strong> al borrar una fotografía, un material o la cuenta, el borrado
+          de los archivos se intenta en ese momento. Si falla o quedan pendientes, pasan a una cola
+          que se procesa una vez al día en lotes de hasta 50 archivos, por lo que pueden tardar
+          algo más en desaparecer del almacenamiento. Mientras tanto no son accesibles desde la
+          aplicación.
+        </li>
+        <li>
+          <strong>Enlaces y códigos de un solo uso:</strong> caducan y dejan de dar acceso, pero hoy
+          no se eliminan automáticamente al caducar; se borran con la cuenta.
+        </li>
+        <li>
+          <strong>Registro de seguridad:</strong> cada entrada se conserva 90 días desde la fecha
+          de la acción y después se elimina de forma automática y definitiva. Eliminar la cuenta no
+          borra en ese momento las entradas que te afectan: siguen el mismo plazo de 90 días, para
+          poder investigar abusos e incidentes. Como excepción, mientras una cuenta que intervenga
+          en una entrada (la que actúa o la afectada) tenga un incidente de seguridad abierto
+          (protección activa o recuperación obligatoria pendiente), sus entradas se conservan
+          hasta que se resuelva y, a partir de entonces, se eliminan si ya han pasado los 90 días.
+          También se conservan las entradas que no permitan saber a qué cuenta se refieren. El
+          borrado lo hace un mantenimiento diario en lotes de tamaño limitado, así que una entrada
+          puede tardar algo más de 90 días en desaparecer. Si quieres que se revisen las entradas
+          que te afectan, puedes pedirlo por email.
+        </li>
+        <li>
+          <strong>Registros técnicos de la plataforma:</strong> según lo indicado en «Dirección IP
+          y registros técnicos».
+        </li>
+      </ul>
+
+      <h2>Tus derechos</h2>
       <p>
-        Los datos se conservan mientras tengas la cuenta. Desde «Cuenta» puedes borrar tus claves
-        de IA y eliminar la cuenta: al hacerlo se borran tus inmuebles, fotografías, material,
-        conexiones y sesiones, y sus archivos quedan en la cola de borrado del almacenamiento, que los elimina en la siguiente limpieza. Las entradas del
-        registro de seguridad se conservan para poder investigar abusos.
+        Puedes solicitar el acceso, la rectificación o la supresión de tus datos, la limitación de
+        su tratamiento, la portabilidad cuando corresponda, y oponerte al tratamiento basado en el
+        interés legítimo. Escribe a
+        <a href="mailto:davidortegahoyas@gmail.com">davidortegahoyas@gmail.com</a> desde el email
+        de tu cuenta o indicándolo, y explica qué solicitas. Si hace falta, se te pedirá
+        información proporcionada para comprobar tu identidad.
+      </p>
+      <p>
+        Si consideras que no se han atendido tus derechos, puedes presentar una reclamación ante la
+        Agencia Española de Protección de Datos (AEPD). En su web se explican
+        <a
+          href="https://www.aepd.es/derechos-y-deberes/conoce-tus-derechos/derecho-de-informacion"
+          rel="noopener"
+          >tus derechos como persona interesada</a
+        >.
       </p>
 
-      <h2>Contacto</h2>
+      <h2>Cambios en esta página</h2>
       <p>
-        Puedes solicitar el acceso, la rectificación o la supresión de tus datos, y plantear una
-        solicitud de limitación, oposición o portabilidad cuando corresponda, escribiendo a
-        <a href="mailto:davidortegahoyas@gmail.com">davidortegahoyas@gmail.com</a>. Indica el email
-        asociado a tu cuenta y lo que solicitas; no envíes tu contraseña ni claves de proveedores.
-        Si es necesario, se pedirá información proporcionada para comprobar tu identidad. También
-        puedes presentar una reclamación ante la autoridad de protección de datos competente.
+        Si cambia la forma de tratar los datos, se actualizará esta página y su fecha de revisión.
+        No se envían avisos automáticos de esos cambios, así que conviene consultarla de vez en
+        cuando.
       </p>
     </main>
 

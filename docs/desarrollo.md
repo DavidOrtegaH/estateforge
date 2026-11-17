@@ -67,7 +67,7 @@ Requisitos: **Node.js 24**, **pnpm 11.20** (`corepack enable` usa la versión de
 6. Primer OWNER: registra una cuenta desde la web y conviértela en propietaria (solo si aún no hay ninguna; pide confirmación):
 
    ```bash
-   pnpm --filter api exec tsx scripts/promote-owner.ts --email=tu-correo@dominio.com
+   pnpm --filter api exec tsx --conditions=development scripts/promote-owner.ts --email=tu-correo@dominio.com
    ```
 
    Datos de ejemplo ficticios, solo contra localhost: `pnpm --filter api db:seed`.
@@ -80,9 +80,22 @@ Requisitos: **Node.js 24**, **pnpm 11.20** (`corepack enable` usa la versión de
 | `pnpm typecheck` | Tipos de shared, API y web |
 | `pnpm test` | Tests de shared, web y API, uno tras otro. Las suites de integración de la API usan PostgreSQL real y necesitan `TEST_POSTGRES_ADMIN_URL` (un servidor en localhost; cada suite crea y borra su propia base) |
 | `pnpm test:scripts` | Tests de los scripts de `scripts/` |
-| `pnpm build` | Construye los tres paquetes; la web queda en `apps/web/dist` |
+| `pnpm build` | Construye los tres paquetes en orden topológico (primero `packages/shared/dist`); la web queda en `apps/web/dist` |
+| `pnpm --filter api check:shared-runtime` | Importa `@estateforge/shared` con Node sin cargador y comprueba que resuelve al JavaScript compilado (necesita antes `pnpm --filter @estateforge/shared build`) |
 | `pnpm preview` | Sirve la web construida con las rutas y cabeceras de producción |
 | `pnpm check:commits` | Comprueba la [política de mensajes de commit](commit-message-policy.md) |
+
+### Paquete compartido: fuente en desarrollo, JavaScript compilado en producción
+
+`packages/shared/package.json` exporta tres condiciones:
+
+| Condición | Destino | Quién la usa |
+|---|---|---|
+| `types` | `src/index.ts` | `tsc` de la API y de la web (no necesita compilar `shared` antes) |
+| `development` | `src/index.ts` | Vite en desarrollo, Vitest y los scripts `tsx` de la API (`dev`, `db:seed` y `storage:cleanup` pasan `--conditions=development`) |
+| `default` | `dist/index.js` | Node sin cargador (la función de Vercel de la API) y `vite build` de la web |
+
+`dist/` no está en el repositorio. `pnpm --filter @estateforge/shared build` lo borra y lo regenera con `tsc -p tsconfig.build.json` (sin los tests), así que nunca quedan módulos obsoletos. Tras un clon e instalación limpios, desarrollo, tipos y tests funcionan sin `dist`. Solo lo necesitan la ejecución con Node puro y la construcción de producción, que lo construyen antes. Si ejecutas con `tsx` un script propio que importe `shared`, añade `--conditions=development`; si no, usará `dist` (o fallará si no existe).
 
 La integración continua ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) ejecuta todo lo anterior con un PostgreSQL efímero y una auditoría de dependencias de producción. No usa secretos ni despliega nada.
 

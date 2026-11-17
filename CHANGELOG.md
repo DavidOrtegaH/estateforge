@@ -6,6 +6,26 @@ All notable changes to EstateForge are documented here. The format follows
 
 ## Unreleased
 
+### Added
+
+- Retention for the security audit log (`AdminAuditLog`), authorised by the owner: entries are kept
+  90 days from `createdAt` and then deleted by the existing daily maintenance cron, in bounded batches
+  of up to 100 (so deletion can lag behind the 90-day mark). Entries whose actor or affected account
+  has an open security incident (`securityHoldAt` or `passwordResetRequiredAt` set) are kept until it
+  is resolved; entries with no account reference are always kept. Deleting an account does not delete
+  its audit entries immediately: they follow the same 90-day period. Protected entries do not block
+  eligible ones, and each batch locks the affected accounts (`lockUserRow`) and re-checks the
+  exception before deleting. No other table is affected and no migration is needed. The purge has not
+  been run against any real database.
+
+### Changed
+
+- API responses are sent with `Cache-Control: no-store` unless the route already sets a private
+  policy (`private` or `no-store`, e.g. gallery files with ETag). Without it, the hosting platform
+  adds `public, max-age=0, must-revalidate`. This is hardening; no leak through caches was observed.
+  Web asset caching is unchanged.
+- The privacy page describes the audit log retention.
+
 ## 1.0.1 - 2026-11-17
 
 Fixes found by the first continuous integration run on GitHub (Ubuntu runner), after 1.0.0.
