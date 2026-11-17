@@ -9,26 +9,29 @@
 
 ## Reporting a vulnerability
 
-Please report vulnerabilities **privately**. Do not open a public issue, pull request or
-discussion that describes the problem.
+Please report vulnerabilities **privately**, using GitHub's private vulnerability reporting for this
+repository: the **Report a vulnerability** button in the **Security** tab. Do not open a public issue,
+pull request or discussion that describes the problem.
 
-- Preferred channel: GitHub private vulnerability reporting for this repository (the "Report a
-  vulnerability" button under the **Security** tab), once the maintainer has enabled it.
-- Alternative private contact: **pending**. It will be published here before the service is
-  opened to the public.
+If that button is not available, the private channel has not been enabled yet: do not disclose the
+details publicly, and wait until it appears. No other reporting channel is offered at the moment.
 
 Include the affected version or commit, the steps to reproduce, the impact you observed and, if
-possible, a minimal proof of concept. Do not access, modify or delete other users' data, and do
-not run tests that degrade the service or generate costs for other users (for example, calls to
-AI providers with someone else's key).
+possible, a minimal proof of concept. Do not access, modify or delete other users' data, and do not
+run tests that degrade a service or generate costs for others (for example, calls to AI providers
+with someone else's key).
 
-The maintainer will acknowledge the report, investigate it and coordinate a fix and its
-disclosure with you. There is no bug bounty.
+The maintainer will review the report and coordinate the fix and its disclosure with you. There is no
+bug bounty.
+
+Requests that are not about security (for example, permission to use the code) are not handled
+through this channel; see [LICENSE](LICENSE).
 
 ## Scope notes
 
-- Users connect their own AI provider keys. Keys are encrypted at rest with
-  `ESTATEFORGE_API_KEY_ENCRYPTION_KEY`, are only decrypted on the server and are never returned to
-  the browser.
-- Uploaded files are stored privately and served through short-lived signed URLs.
+- EstateForge does not use a global AI provider key of its own. Each user's provider keys are stored
+  encrypted on the server (AES-256-GCM, with the server-side `ESTATEFORGE_API_KEY_ENCRYPTION_KEY`),
+  decrypted only on the server to perform an operation the user confirms, and never returned to the
+  browser.
+- Uploaded files are stored privately and read and written through short-lived signed URLs.
 - Secrets are never committed. Configuration templates (`*.env.example`) contain no real values.
