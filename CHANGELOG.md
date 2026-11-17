@@ -4,6 +4,27 @@ All notable changes to EstateForge are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+Fixes found by the first continuous integration run on GitHub (Ubuntu runner), after 1.0.0.
+
+### Fixed
+
+- The API answers 503 instead of 500 when PostgreSQL is unreachable and `localhost` resolves to both
+  `::1` and `127.0.0.1`. Node then tries both addresses and pg reports an `AggregateError` that the
+  Prisma adapter does not convert, so Prisma exposes the Node network code; the availability
+  classifier now recognises those codes on Prisma errors only, and errors from other services keep
+  their status.
+- Every database session uses UTC. `@prisma/adapter-pg` 7.9.1 replaces the offset of `timestamptz`
+  values with `+00:00`, so with a server or database whose default time zone was not UTC the API read
+  shifted instants, including expiry times. The pool now sets the session time zone when it connects.
+
+### Changed
+
+- Integration tests no longer depend on the database collation (seed photos are compared by property,
+  not by sorted title) or on connections outside the pool under test (the pool test identifies its
+  connections by `application_name` and waits, with a limit, until the server has removed them).
+
 ## 1.0.0 - 2026-11-17
 
 First public version. It covers the work from August to November 2026.

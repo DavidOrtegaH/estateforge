@@ -153,6 +153,7 @@ Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el 
 - **web**:
   - raíz `apps/web`; `vercel.json` fija `buildCommand` (`pnpm run build`) y `outputDirectory` (`dist`);
   - opcional: `SITE_URL` con el dominio propio; si no, en producción se usa `VERCEL_PROJECT_PRODUCTION_URL` (activar el acceso a las variables de sistema).
+- **Zona horaria de las sesiones:** cada conexión del pool ejecuta `SET TIME ZONE 'UTC'` antes de usarse (Prisma con `@prisma/adapter-pg` lee mal los `timestamptz` en otra zona). Con el pooler de Neon (PgBouncer en modo transacción) los `SET` de sesión no son fiables en general, pero la documentación de Neon indica que PgBouncer restaura `TimeZone` para cada cliente; **pendiente de verificar en el despliegue** con `SELECT current_setting('TimeZone')` a través de la URL con pooling.
 - **Comprobaciones de salud:** `GET /health` (el proceso responde) y `GET /health/ready` (además, PostgreSQL disponible).
 - **Vuelta atrás:** «Instant Rollback» de Vercel a la implementación anterior. Las migraciones son aditivas, así que una versión anterior funciona con el esquema nuevo; si alguna deja de serlo, hay que documentar su reversión antes de aplicarla.
 - **Copias de seguridad y restauración:** ver [docs/postgresql.md](../postgresql.md); en Neon, además, la restauración a un punto en el tiempo de su plan.

@@ -91,7 +91,7 @@ Su bloque manual está al final de `prisma/postgresql/constraints.sql`.
 | Dato | Tipo | Contrato |
 |---|---|---|
 | Importes (`price`) | `numeric(12,2)` | La API acepta un número o una cadena decimal con hasta 2 decimales y responde una cadena, por ejemplo `"250000.1"`. El máximo es 100.000.000 |
-| Fechas | `timestamptz(3)` | Son instantes, en UTC, intercambiados en ISO 8601. Cada navegador los muestra en su zona horaria |
+| Fechas | `timestamptz(3)` | Son instantes, en UTC, intercambiados en ISO 8601. Cada navegador los muestra en su zona horaria. Cada sesión del pool fija su zona en UTC al conectar (`src/db/utc-client.ts`): `@prisma/adapter-pg` 7.9.1 sustituye el desplazamiento de los `timestamptz` por `+00:00`, así que con otra zona por defecto en el servidor o en la base leería instantes desplazados |
 | Emails | `text`, en minúsculas | `normalizeEmail` es el único punto de normalización. La base exige `email = lower(email)` y unicidad en `User` |
 
 ## Variables de entorno
@@ -125,7 +125,7 @@ La respuesta no incluye detalles: el motivo se registra en el log, sin datos de 
 - **Conexiones cortadas por el servidor** (reinicio o `pg_terminate_backend`): el pool las sustituye y la API se recupera sola.
 - **Base no disponible (DA-37).** Si el pool no consigue conexión a tiempo, PostgreSQL rechaza conexiones (límite del rol o `max_connections`), el servidor está caído, se está reiniciando o corta la conexión, la petición responde **503** con `Retry-After: 5` y `{"code":"SERVICE_UNAVAILABLE","message":"El servicio no está disponible temporalmente. Inténtalo de nuevo en unos segundos."}`. Sin SQL, sin host, sin rol y sin el mensaje del driver. El log registra solo `dbUnavailable` (clase), `errorName` y `errorCode`. El proceso no cae y se recupera solo en cuanto hay conexiones. No hay identificador de correlación público: los logs de Fastify ya llevan `reqId`.
 - **Lo que no es disponibilidad** sigue igual: una violación de unicidad, de `CHECK` o de clave foránea, un conflicto de escritura (409 donde la ruta lo trata), una validación (400) o un error de programación (500 genérico).
-- La clasificación (`src/db/availability.ts`) reconoce solo formas comprobadas con PostgreSQL 17.11, Prisma 7.9.1, `@prisma/adapter-pg` 7.9.1 y `pg-pool` 3.14. Al actualizar cualquiera, repite `availability.integration.test.ts`: si cambia una forma, el error vuelve a ser un 500, nunca un 503 indebido.
+- La clasificación (`src/db/availability.ts`) reconoce solo formas comprobadas con PostgreSQL 17.11, Prisma 7.9.1, `@prisma/adapter-pg` 7.9.1 y `pg-pool` 3.14. Incluye el caso de un `localhost` que resuelve a `::1` y a `127.0.0.1` (habitual en Linux): si las dos direcciones rechazan la conexión, pg recibe un `AggregateError` que el adaptador no convierte y Prisma expone el código de red de Node (`ECONNREFUSED` y similares); esos códigos solo cuentan en un error de Prisma. Al actualizar cualquiera, repite `availability.integration.test.ts`: si cambia una forma, el error vuelve a ser un 500, nunca un 503 indebido.
 - **Pool propio.** El pool de `pg` lo crea la aplicación y se lo pasa al adaptador. `closeDatabase()` lo cierra una sola vez; después, cualquier consulta falla (503) en lugar de abrir conexiones nuevas.
 
 ## Despliegue
