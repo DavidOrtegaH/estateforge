@@ -84,6 +84,8 @@ La tercera, `20261111120000_gallery_50_poster_templates_audio` (DA-51 a DA-55), 
 
 Su bloque manual está al final de `prisma/postgresql/constraints.sql`.
 
+La última, `20261118120000_maintenance_runs`, también es aditiva: crea `MaintenanceRun`, la constancia de cada ejecución autorizada del mantenimiento diario. Guarda el disparador, el estado, los contadores y la duración, sin datos personales, claves ni secretos. Tiene un `CHECK` de valores y un índice por `startedAt`. Su restricción está también en `constraints.sql` y una prueba comprueba que coinciden. Ver [despliegue, mantenimiento programado](despliegue/vercel-neon-blob.md#mantenimiento-programado-vercel-cron).
+
 **Desarrollo:** cambia `schema.prisma` y ejecuta `pnpm --filter api db:migrate:dev --name <cambio>` contra una base local. Prisma crea una base de sombra temporal para reconstruir la historia, por lo que el usuario necesita permiso `CREATEDB`. Comprueba el SQL generado antes de versionarlo. Prisma 7 no genera el cliente automáticamente: ejecuta `db:generate`. Si `migrate dev` detecta deriva (cambios en la base que no están en la historia), se detiene sin aplicar nada. En una base de desarrollo puedes reconstruirla; en cualquier otra, investiga el origen de la deriva.
 
 ## Tipos

@@ -32,11 +32,14 @@ Actualizado el **18/11/2026**. Las fechas de cada prueba concreta se conservan d
 
 ### Pendiente
 
+La matriz para comprobarlo en producción (pasos, resultado esperado y limpieza) está en [Verificación remota](verificacion-remota.md).
+
+- **Antes de desplegar el código posterior a `ea5dbf0`:** aplicar la migración aditiva `20261118120000_maintenance_runs` (constancia de las ejecuciones del mantenimiento).
 - **Vercel Blob, partes avanzadas** (en local solo probadas con el simulador): respuestas `206` formales con Range; vídeo con sonido (el MP4 v2 con «Piano sereno» contiene pistas `vide` y `soun`, pero falta escucharlo) y WebM; cuotas con una galería de 50 fotografías; caducidad real de las URLs firmadas; restricciones del `PUT` (tipo, tamaño, sobrescritura); comprobación directa en el store de que los objetos borrados ya no existen; caché de las respuestas de archivo; aislamiento entre cuentas públicas en producción.
 - Un restablecimiento de contraseña real posterior al despliegue de la redirección al login.
 - Cierre de sesión con cookie a través de la reescritura, pendiente de anotar como evidencia (el inicio de sesión ya consta arriba).
-- Primera ejecución programada del cron (limpieza y purga de auditoría). La retención de 90 días solo está probada con pruebas unitarias y de integración.
-- MD-4 (IP del cliente detrás de la reescritura, prueba desde dos redes): `CLIENT_IP_SOURCE` sigue en `socket`.
+- Primera ejecución programada del cron (limpieza y purga de auditoría), acreditada con una fila `vercel-cron` de `MaintenanceRun` en la franja de las 04:00 UTC. La retención de 90 días solo está probada con pruebas unitarias y de integración.
+- MD-4 (IP del cliente detrás de la reescritura, prueba desde dos redes con el diagnóstico temporal): `CLIENT_IP_SOURCE` sigue en `socket`.
 - Proveedores de IA con claves reales, Safari y móviles físicos.
 - Indexación en Google: la portada no está indexada; la solicitud de indexación se rechazó por cuota diaria y no se ha reintentado. No hay garantía de aparecer en Google.
 
@@ -97,6 +100,10 @@ Una función de Vercel admite como máximo **4,5 MB** de cuerpo, tanto en la pet
 
    Es idempotente: repetir la confirmación devuelve el mismo resultado. Si el archivo no es válido, el intento queda `failed`, el objeto se borra y la reserva se libera.
 4. **Cancelar o caducar.** `DELETE /api/uploads/:id` o la caducidad marcan el intento como `cancelled` o `expired`. Un trigger encola la clave en la cola de limpieza existente (`StorageCleanup`), y `storage:cleanup` la borra.
+   - Un intento pendiente caduca al vencer su plazo de 15 minutos.
+   - Un intento que ya se está confirmando (`processing`) tiene un margen de 10 minutos más. Sin ese margen, si el plazo vencía mientras la API leía y validaba el archivo, otra petición del usuario lo caducaba y la limpieza borraba el archivo a mitad de la confirmación. El usuario recibía «El archivo no ha llegado al almacenamiento». Reproducido en local y corregido.
+   - Si a pesar de todo el intento deja de estar en curso antes de guardar, la confirmación responde `410 UPLOAD_EXPIRED` (antes, `500`), se deshace y el archivo se limpia.
+   - Cancelar y confirmar a la vez acaba siempre en un estado coherente: o fotografía con su archivo, o ninguna de las dos cosas (prueba con 20 repeticiones).
 
 **Lectura.** Las rutas de archivo de la API (`…/file`) comprueban la sesión y la propiedad, y responden de una de estas dos formas:
 - `302` hacia una URL firmada de `GET`;
@@ -112,11 +119,20 @@ Siempre llevan `Cache-Control: private, no-store`, `Vary: Cookie` y `Referrer-Po
 
 Las URLs no se guardan en la base de datos, en los registros ni en el almacenamiento del navegador. Ni el token de Blob ni la `clientSigningToken` salen del servidor.
 
+Una URL firmada **no es de un solo uso**: cualquiera que la tenga puede usarla tantas veces como quiera hasta que caduca. Lo que la limita es:
+
+- la operación (lectura o escritura);
+- la ruta exacta;
+- el plazo;
+- en la escritura, además, el tipo, el tamaño máximo y la prohibición de sobrescribir.
+
+Por eso se emiten solo tras comprobar la sesión y la propiedad, con plazos cortos y sin caché compartida. En local lo comprueba `storage-maintenance.integration.test.ts` con el simulador (tres lecturas con la misma URL y rechazo tras caducar); en Blob real, la fila B-6 de la [verificación remota](verificacion-remota.md#prioridad-1-vercel-blob-real).
+
 **Descarga.** El botón «Descargar» lee el archivo con la URL firmada y lo guarda con su nombre (`estateforge-cartel-<anuncio>.jpg`) mediante un `Blob` local con el atributo `download`. No depende de `Content-Disposition`, que Blob no documenta para las URLs prefirmadas.
 
 **Desarrollo.**
 - Con `STORAGE_DRIVER=local`, los archivos van al disco y la API los sirve como antes.
-- Con `STORAGE_LOCAL_SIGNED_URLS=1`, el disco local se comporta como Blob. La API firma URLs hacia el simulador `/api/local-blob/*`: HMAC, operación, clave, tipo, tamaño y caducidad, con Range, `206` y `416`. También rechaza los archivos en sus rutas binarias (`409 DIRECT_UPLOAD_REQUIRED`).
+- Con `STORAGE_LOCAL_SIGNED_URLS=1`, el disco local se comporta como Blob. La API firma URLs hacia el simulador `/api/local-blob/*`: HMAC, operación, clave, tipo, tamaño y caducidad, con Range, `206` y `416`. Un `Range` mal formado (por ejemplo, `bytes=-`) o con varios rangos se ignora y se envía el archivo completo, como permite RFC 9110; antes, `bytes=-` se respondía como un `206` del archivo entero. También rechaza los archivos en sus rutas binarias (`409 DIRECT_UPLOAD_REQUIRED`).
 - Es el modo de las pruebas de integración y de los E2E de esta fase.
 
 ## Variables de entorno
@@ -133,6 +149,7 @@ Las URLs no se guardan en la base de datos, en los registros ni en el almacenami
 | `BLOB_STORE_ID` | Identificador del store | Solo con OIDC |
 | `STORAGE_USER_QUOTA_MB` | Por ejemplo, `150` | Cuota por usuario (500 MB por defecto), con las subidas pendientes reservadas. Con 1 GB de Blob en total, ajústala al número de usuarios |
 | `CLIENT_IP_SOURCE` | `vercel` (solo tras la verificación de MD-4) | Origen de la IP para el rate-limit y Turnstile; `socket` por defecto. Ver más abajo |
+| `CLIENT_IP_DIAGNOSTIC_UNTIL` | **Sin definir**, salvo durante la prueba de MD-4: fecha ISO 8601 en UTC como mucho a 72 h vista | Abre el diagnóstico temporal de la IP, solo para el OWNER. Pasada la fecha la ruta responde 404; después se retira la variable |
 | `CORS_ORIGIN` | `https://<proyecto-web>.vercel.app` | Con la reescritura las peticiones son del mismo origen; se mantiene por coherencia |
 | `WEB_APP_URL` | `https://<proyecto-web>.vercel.app` | Enlaces de los correos |
 | `API_PUBLIC_URL` | `https://<proyecto-web>.vercel.app` | La API se publica bajo `/api` del dominio de la web |
@@ -193,7 +210,7 @@ Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el 
 - **web**:
   - raíz `apps/web`; `vercel.json` fija `buildCommand` (`pnpm --filter @estateforge/shared build && pnpm run build`) y `outputDirectory` (`dist`). `vite build` resuelve `@estateforge/shared` a `dist/` (condición de producción), así que hay que compilarlo antes;
   - opcional: `SITE_URL` con el dominio propio; si no, en producción se usa `VERCEL_PROJECT_PRODUCTION_URL` (activar el acceso a las variables de sistema).
-- **Zona horaria de las sesiones:** cada conexión del pool ejecuta `SET TIME ZONE 'UTC'` antes de usarse (Prisma con `@prisma/adapter-pg` lee mal los `timestamptz` en otra zona). Con el pooler de Neon (PgBouncer en modo transacción) los `SET` de sesión no son fiables en general, pero la documentación de Neon indica que PgBouncer restaura `TimeZone` para cada cliente; **pendiente de verificar en el despliegue** con `SELECT current_setting('TimeZone')` a través de la URL con pooling.
+- **Zona horaria de las sesiones:** cada conexión del pool ejecuta `SET TIME ZONE 'UTC'` antes de usarse (Prisma con `@prisma/adapter-pg` lee mal los `timestamptz` en otra zona). Con el pooler de Neon (PgBouncer en modo transacción) los `SET` de sesión no son fiables en general, pero la documentación de Neon indica que PgBouncer restaura `TimeZone` para cada cliente. La validación del despliegue del 17/11/2026 lo comprobó a través del pooler, con el pool real (máximo 3): 12 transacciones simultáneas, todas con `TimeZone = UTC`.
 - **Comprobaciones de salud:** `GET /health` (el proceso responde) y `GET /health/ready` (además, PostgreSQL disponible).
 - **Vuelta atrás:** «Instant Rollback» de Vercel a la implementación anterior. Las migraciones son aditivas, así que una versión anterior funciona con el esquema nuevo; si alguna deja de serlo, hay que documentar su reversión antes de aplicarla.
 - **Copias de seguridad y restauración:** ver [docs/postgresql.md](../postgresql.md); en Neon, además, la restauración a un punto en el tiempo de su plan.
@@ -226,7 +243,9 @@ Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el 
   - `0_postgresql_baseline`;
   - `20261110120000_add_property_photos_and_listing_media`;
   - `20261111120000_gallery_50_poster_templates_audio`;
-  - `20261112120000_direct_uploads`: la tabla `UploadAttempt` con CHECK y triggers de limpieza; no modifica datos existentes.
+  - `20261112120000_direct_uploads`: la tabla `UploadAttempt` con CHECK y triggers de limpieza; no modifica datos existentes;
+  - `20261113120000_ai_media_byok` a `20261115200000_ai_provider_trials`: IA con la clave de cada usuario (ver «Generación con IA»);
+  - `20261118120000_maintenance_runs`: la tabla `MaintenanceRun` (constancia de las ejecuciones del mantenimiento) con su CHECK. Hay que aplicarla antes de desplegar la API que la usa; si se despliega antes, el mantenimiento funciona igual, pero registra un error y no deja constancia.
 
 ## Cuotas y cómo encaja EstateForge
 
@@ -283,7 +302,7 @@ Lo que supone para el plan Hobby:
 ### Mantenimiento programado (Vercel Cron)
 
 - **Qué hace.** `apps/api/vercel.json` programa una llamada diaria (`0 4 * * *`, UTC) a `GET /api/internal/cron/storage-cleanup`. La ruta (`apps/api/src/routes/maintenance.routes.ts`, registrada en `src/server.ts`) hace **una sola** llamada a la función existente `drainStorageCleanup` con un lote de **50** archivos de la cola `StorageCleanup`: los que los triggers de PostgreSQL ya marcaron para borrar.
-- **Protección de los archivos referenciados.** Es la del mecanismo existente: antes de borrar, comprueba de nuevo que ninguna fotografía, miniatura, material, pista, subida en curso ni resultado de IA pendiente use la clave. Si alguno la usa, la fila sale de la cola sin tocar el archivo. Un fallo deja la fila con el intento anotado.
+- **Protección de los archivos referenciados.** Es la del mecanismo existente: antes de borrar, comprueba de nuevo que ninguna fotografía, miniatura, material, pista, subida en curso (pendiente y vigente, o confirmándose) ni resultado de IA pendiente use la clave. Si alguno la usa, la fila sale de la cola sin tocar el archivo. Un fallo deja la fila con el intento anotado. Probado contra PostgreSQL real con los seis tipos de referencia (`storage-maintenance.integration.test.ts`).
 - **Autenticación.** Fallo cerrado:
   - sin `CRON_SECRET`, o con menos de 16 caracteres, responde `503` y no lee la cola;
   - si la cabecera no es exactamente `Authorization: Bearer <CRON_SECRET>`, responde `401`;
@@ -300,8 +319,15 @@ Lo que supone para el plan Hobby:
 - **Límites reales.**
   - Según la documentación de Vercel (no comprobado en la plataforma): en Hobby un cron se ejecuta como mucho una vez al día y la hora exacta puede variar dentro de la hora indicada; solo se ejecuta en el despliegue de Production; no se reintenta si falla.
   - Con un lote de 50 al día, una cola mayor tarda varios días en vaciarse; `pnpm --filter api storage:cleanup` sigue disponible para vaciarla a mano.
-  - Dos ejecuciones simultáneas (por ejemplo, una manual y la programada) pueden coger las mismas filas. El borrado en Blob es idempotente; la segunda cuenta la fila como fallo y no borra nada más.
-- Pruebas locales con dobles de Prisma y del almacenamiento: autenticación y delegación segura (`maintenance.routes.test.ts`, `audit-retention.service.test.ts`). Retención contra PostgreSQL efímero en localhost (`audit-retention.integration.test.ts`): frontera, incidente abierto y resuelto, cuentas eliminadas, lotes sin starvation, concurrencia con apertura de incidente y fallo con ROLLBACK. En producción el cron está registrado (diario a las 4:00 UTC) y una llamada sin el secreto responde 401. **No consta todavía ninguna ejecución del cron, ni ninguna limpieza o purga de auditoría real.**
+  - Dos ejecuciones simultáneas (por ejemplo, una manual y la programada, o una limpieza lanzada por una petición del usuario) pueden coger las mismas filas. El borrado en Blob es idempotente y solo cuenta como borrada la ejecución que retira la fila. Hasta esta corrección, la segunda ejecución contaba cada fila ya procesada como fallo y la registraba como aviso: el estado final era correcto, pero los contadores y los registros no. Reproducido con PostgreSQL real (12 de 12 y 30 de 30 «fallos» falsos) y corregido.
+- **Constancia de cada ejecución (`MaintenanceRun`).**
+  - En Hobby los registros de las funciones duran una hora, así que no bastan para acreditar al día siguiente que el cron se ejecutó.
+  - Cada ejecución que supera la autenticación escribe una línea de registro («Mantenimiento diario ejecutado», con campos cerrados) y una fila en `MaintenanceRun` con: disparador, estado, `storageDeleted`, `storageFailed`, `auditDeleted`, `queuePending` (lo que queda en la cola), duración, `startedAt` y `finishedAt`.
+  - El disparador es `vercel-cron` si la cabecera `user-agent` es exactamente `vercel-cron/1.0` (la que documenta Vercel) y `manual` en cualquier otro caso. Es una clasificación informativa, no un control: quien tenga `CRON_SECRET` podría imitarla. Por eso la verificación cruza la hora de la fila con la franja programada.
+  - La tabla no guarda datos personales, claves de archivos ni secretos, y no se purga (una fila al día).
+  - Una petición sin el secreto no escribe nada. Si la escritura falla (por ejemplo, sin la migración), el mantenimiento y su respuesta no cambian.
+  - Procedimiento: [Verificación remota, prioridad 1](verificacion-remota.md#prioridad-1-mantenimiento-diario).
+- Pruebas locales con dobles de Prisma y del almacenamiento: autenticación, delegación segura y constancia de cada ejecución (`maintenance.routes.test.ts`, `audit-retention.service.test.ts`). Retención contra PostgreSQL efímero en localhost (`audit-retention.integration.test.ts`): frontera, incidente abierto y resuelto, cuentas eliminadas, lotes sin starvation, concurrencia con apertura de incidente y fallo con ROLLBACK. Cola de limpieza y ruta del cron contra PostgreSQL efímero y el simulador de Blob (`storage-maintenance.integration.test.ts`): referencias protegidas, dos ejecuciones simultáneas, fallo parcial del almacenamiento con reintento, lote acotado a 50 y filas `MaintenanceRun`. En producción el cron está registrado (diario a las 4:00 UTC) y una llamada sin el secreto responde 401. **No consta todavía ninguna ejecución del cron, ni ninguna limpieza o purga de auditoría real.**
 
 ### Caché de las respuestas de la API
 
@@ -323,17 +349,23 @@ Mecanismo implementado en `apps/api/src/client-ip.ts` (DA-57, endurecido en DA-5
 
 El rate-limit y Turnstile obtienen la IP con la misma función (`requestClientIp`). Una prueba comprueba, analizando el código fuente, que ningún otro archivo usa `request.ip`. Cualquier otro valor de `CLIENT_IP_SOURCE` impide arrancar.
 
-**MD-4 sigue abierto.** Con la arquitectura recomendada (reescritura `/api/*` desde el proyecto web), la petición llega a la API a través de otro despliegue de Vercel. No se ha podido comprobar si `X-Vercel-Forwarded-For` contiene entonces la IP del cliente o la del proxy de la reescritura.
+**MD-4 sigue abierto.** Con la arquitectura recomendada (reescritura `/api/*` desde el proyecto web), la petición llega a la API a través de otro despliegue de Vercel.
 
-Prueba externa necesaria (cuando se autorice el despliegue):
-1. Desplegar con `CLIENT_IP_SOURCE` vacía.
-2. Añadir temporalmente una ruta de diagnóstico, solo para la cuenta OWNER, que devuelva `request.ip`, `x-forwarded-for` y `x-vercel-forwarded-for`.
-3. Llamarla desde dos redes distintas (por ejemplo, wifi y datos móviles), a través del dominio de la web (reescritura) y del de la API.
-4. Si `x-vercel-forwarded-for` muestra la IP pública de cada red y no la de Vercel, activar `CLIENT_IP_SOURCE=vercel`. Si muestra una IP de Vercel, hay dos opciones:
-   - servir la web y la API desde el mismo proyecto;
-   - mantener `socket` y aceptar un límite compartido.
-5. Enviar `X-Forwarded-For: 1.2.3.4` y `X-Vercel-Forwarded-For: 1.2.3.4` desde el cliente, y comprobar que la IP detectada no cambia.
-6. Retirar la ruta de diagnóstico.
+- La documentación de [reescrituras](https://vercel.com/docs/routing/rewrites), consultada el 18/11/2026, indica que una reescritura hacia un origen externo reenvía `x-forwarded-for` y `x-real-ip`.
+- No indica qué recibe en `x-vercel-forwarded-for` el proyecto de destino. Hay que medirlo.
+- Mientras tanto, en modo `socket` todas las peticiones que llegan por la reescritura pueden compartir el cupo de la dirección del proxy. Es un límite más estricto de lo previsto, nunca uno más laxo.
+
+**Diagnóstico temporal preparado** (`apps/api/src/routes/client-ip-diagnostic.routes.ts`):
+
+- `GET /api/admin/diagnostics/client-ip` solo existe si `CLIENT_IP_DIAGNOSTIC_UNTIL` contiene una fecha ISO 8601 futura y como mucho a 72 h. Pasada esa fecha responde 404.
+- Solo responde al OWNER (USER: 403; sin sesión: 401).
+- Devuelve el dominio de llegada, la IP del socket, `x-forwarded-for`, `x-vercel-forwarded-for`, `x-real-ip`, `forwarded`, `x-vercel-id` y la IP que usaría el rate-limit con cada valor de `CLIENT_IP_SOURCE`.
+- No registra nada y lleva `Cache-Control: no-store`. No cambia el rate-limit ni Turnstile.
+- Retirada: quitar la variable y volver a desplegar (o dejarla vencer); cuando MD-4 se cierre, se elimina el archivo.
+
+Pruebas locales: `client-ip-diagnostic.routes.test.ts` (ventana, caducidad, permisos, cabeceras falsificadas, sin cookies ni secretos en la respuesta) y el barrido de aislamiento (USER 403, OWNER 200, OWNER con incidente abierto rechazado).
+
+Procedimiento desde dos redes, por los dos dominios y con cabeceras falsificadas, con la regla de decisión: [Verificación remota, IP del cliente](verificacion-remota.md#prioridad-1-ip-del-cliente-md-4). `CLIENT_IP_SOURCE=vercel` solo se activa si `x-vercel-forwarded-for` contiene la IP pública de cada red por los dos dominios y las cabeceras falsificadas no la alteran.
 
 ## Comprobaciones en el despliegue
 
@@ -342,18 +374,18 @@ Estado de cada comprobación a la fecha de «Estado actual».
 1. **Hecho.** Arranque de Fastify con la entrada `apps/api/server.ts`, que importa `src/server.ts` (`tsc` comprueba sus tipos; está en el `include` de `apps/api/tsconfig.json`): `GET /health/ready` responde 200 sin `FUNCTION_INVOCATION_FAILED`. En un despliegue nuevo, conviene seguir revisando en el registro que la entrada sea `server.ts` (y no `src/app.ts`, como en `dpl_CNnq2BZsDHBikV1Bbt81e9afNq7V`) y que se ejecute `check:shared-runtime`.
 2. **Parcial. Blob real**, SDK `@vercel/blob` 2.8.2:
    - **hecho (flujo básico):** URLs firmadas con un store privado para subir dos imágenes, sus miniaturas, un cartel JPEG y un vídeo MP4 sin sonido, y leerlos desde el navegador; la confirmación de cada subida terminó bien (ver «Estado actual»);
-   - pendiente: comprobar de forma explícita que el `PUT` firmado rechaza otro tipo, un tamaño mayor, una URL caducada y la sobrescritura (`allowOverwrite: false`), y el borrado y el listado.
+   - pendiente: comprobar de forma explícita que el `PUT` firmado rechaza otro tipo, un tamaño mayor, una URL caducada y la sobrescritura (`allowOverwrite: false`), y el borrado y el listado (filas B-1 a B-12 de la [verificación remota](verificacion-remota.md#prioridad-1-vercel-blob-real)).
 3. **Parcial. CORS.** El `PUT` y el `GET` prefirmados funcionaron desde el dominio de la web en el flujo básico; falta revisar de forma explícita la petición previa `OPTIONS` y sus cabeceras.
 4. **Pendiente. Range.** El vídeo MP4 se reprodujo (`readyState` 4), pero no se han verificado formalmente las respuestas `206` al avanzar un MP4 o un WebM. La documentación no lo menciona; en local está probado con el simulador.
 5. **Pendiente. Caducidad real** de las URLs (`403` al caducar) y de la delegación de lectura reutilizada (como máximo 7 días según la documentación; se piden 2 h).
 6. **Parcial.** Cookie de sesión a través de la reescritura `/api/*`: `/api/auth/me` sin sesión responde 401 con `no-store` y el inicio de sesión en el navegador funcionó; falta anotar como evidencia `/me` con sesión y el cierre.
-7. **Pendiente. IP del cliente para el rate-limit (MD-4).** Seguir la «Prueba externa necesaria» del apartado anterior antes de activar `CLIENT_IP_SOURCE=vercel`.
-8. **Parcial.** La API conecta con Neon (`/health/ready` 200) y el registro guarda cuentas. Falta verificar `SELECT current_setting('TimeZone')` a través del pooler.
+7. **Pendiente. IP del cliente para el rate-limit (MD-4).** Seguir las filas IP-0 a IP-5 de la [verificación remota](verificacion-remota.md#prioridad-1-ip-del-cliente-md-4) antes de activar `CLIENT_IP_SOURCE=vercel`.
+8. **Hecho.** La API conecta con Neon (`/health/ready` 200), el registro guarda cuentas y la zona de las sesiones es UTC a través del pooler (validación del 17/11/2026).
 9. **Pendiente.** Tiempos con Neon tras escalar a cero.
 10. **Pendiente.** Prueba auditiva del vídeo con sonido en producción, WebM en producción, Safari y dispositivos físicos (en producción consta un MP4 sin sonido y un MP4 v2 con «Piano sereno» cuya estructura ISO BMFF tiene manejadores `vide` y `soun`, pero que no se ha escuchado). Está comprobada en Edge y Chrome 157 (MP4 + AAC), en Chrome por el camino WebM + Opus y en Firefox 160 (WebM VP8 + Opus), en local con el simulador de Blob.
 11. **Pendiente.** Cuotas reales de Blob con una galería de 50 fotografías y vídeos con sonido: operaciones avanzadas y simples y transferencia.
 12. **Parcial. Correos tras la respuesta (`waitUntil`).** El correo de verificación de un registro real llegó (a spam) y el de recuperación llegó y permitió cambiar la contraseña. La llegada a spam sigue siendo una limitación.
-13. **Parcial. Vercel Cron.** Registrado en el proyecto api (diario, 4:00 UTC) y una llamada sin el secreto responde 401. Falta observar una ejecución programada con `Authorization: Bearer <CRON_SECRET>` y respuesta 200, idealmente con la cola vacía.
+13. **Parcial. Vercel Cron.** Registrado en el proyecto api (diario, 4:00 UTC) y una llamada sin el secreto responde 401. Falta acreditar una ejecución programada: fila `vercel-cron` de `MaintenanceRun` con `status = 'ok'` en la franja de las 04:00 UTC ([M-3](verificacion-remota.md#prioridad-1-mantenimiento-diario)).
 14. **Parcial.** [Search Console](search-console.md): propiedad verificada y sitemap procesado; la portada aún no está indexada.
 
 ## Generación con IA (BYOK)

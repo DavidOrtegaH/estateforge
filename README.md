@@ -49,6 +49,15 @@ Las funciones clásicas no necesitan claves de IA. Las conexiones opcionales se 
 
 **Volver al login tras cambiar la contraseña.** Después de restablecerla, la página se quedaba en el formulario. Ahora redirige al inicio de sesión; está cubierto por pruebas del enrutado y desplegado.
 
+**Limpieza de archivos y subidas a la vez.** Al auditar el mantenimiento diario reproduje con PostgreSQL real dos carreras:
+
+- si el plazo de una subida vencía mientras se confirmaba, la limpieza podía borrar el archivo a mitad de la validación;
+- dos limpiezas simultáneas contaban como fallos los archivos que ya había borrado la otra.
+
+Las corregí con pruebas que fuerzan esos cruces. Como en el plan gratuito los registros solo duran una hora, cada ejecución del mantenimiento deja ahora constancia en la base de datos, sin datos personales: así se puede acreditar después que la ejecución programada ocurrió.
+
+**Aislamiento entre cuentas.** Añadí pruebas con dos cuentas ficticias que llaman a todas las rutas con los identificadores de la otra cuenta y comparan cada rechazo con el de un identificador inexistente. No apareció ninguna fuga. Una ruta respondía con un error interno en lugar de «no encontrado»; ahora responde 404.
+
 ## Estado
 
 - La web y la API están publicadas en Vercel y la base de datos en Neon. El registro, el correo de verificación, la recuperación de contraseña por correo y el inicio de sesión con la contraseña nueva se han comprobado en producción. La redirección automática al login tras el cambio está desplegada y probada con pruebas del enrutado, pero no se ha repetido un restablecimiento real después de desplegarla.
@@ -56,6 +65,7 @@ Las funciones clásicas no necesitan claves de IA. Las conexiones opcionales se 
 - La cuenta del titular tiene el rol de propietario (OWNER) y ve la sección de Administración.
 - La [ejecución completa del CI en GitHub](https://github.com/DavidOrtegaH/estateforge/actions/runs/44295533465) sobre la versión publicada pasó: tipos, lint, pruebas de la API con PostgreSQL real, web (683), paquete compartido (212) y scripts (60), builds y auditoría.
 - Google Search Console: la propiedad está verificada y el mapa del sitio se procesó correctamente (3 páginas descubiertas). La portada aún no está indexada y no hay garantía de que aparezca en Google.
+- Las correcciones de la limpieza de archivos, la constancia del mantenimiento y las pruebas de aislamiento están en el código y probadas en local, pero todavía no se han desplegado. La [verificación remota](docs/despliegue/verificacion-remota.md) detalla cómo comprobarlas en producción.
 - Pendiente: observar una ejecución programada del mantenimiento diario; comprobar la IP del cliente desde redes distintas; escuchar el vídeo con audio (su estructura confirma pistas de vídeo y audio) y probar WebM; descargas parciales, cuotas, caducidades y aislamiento entre cuentas en producción; proveedores de IA con claves reales; Safari y móviles físicos. Los correos pueden seguir llegando a spam.
 
 Detalle de lo comprobado y lo pendiente en la [guía de despliegue](docs/despliegue/vercel-neon-blob.md#estado-actual).

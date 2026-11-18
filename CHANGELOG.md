@@ -17,6 +17,20 @@ All notable changes to EstateForge are documented here. The format follows
   eligible ones, and each batch locks the affected accounts (`lockUserRow`) and re-checks the
   exception before deleting. No other table is affected and no migration is needed. The purge has not
   been run against any real database.
+- Evidence of every authorised run of the daily maintenance: a `MaintenanceRun` row (additive
+  migration `20261118120000_maintenance_runs`) with the trigger (`vercel-cron` when the user agent is
+  exactly `vercel-cron/1.0`, otherwise `manual`), status, counters, remaining queue size and duration,
+  plus one structured log line. It stores no personal data, storage keys or secrets, and an
+  unauthenticated request writes nothing. Hobby function logs are kept for one hour, so this is what
+  lets the scheduled run be proven afterwards. If the row cannot be written, the maintenance response
+  does not change.
+- A temporary, owner-only client IP diagnostic (`GET /api/admin/diagnostics/client-ip`) to close
+  MD-4. It exists only while `CLIENT_IP_DIAGNOSTIC_UNTIL` holds a future ISO 8601 date at most 72 hours
+  ahead, returns only the caller's own addresses and proxy headers, logs nothing and does not change
+  the rate limit or Turnstile.
+- Integration tests with two synthetic accounts that call every route taking an identifier with the
+  other account's identifiers, combine own and foreign resources, compare each rejection with that of a
+  non-existent identifier, and check that nothing of the first account changes or leaks.
 
 ### Changed
 
@@ -36,7 +50,21 @@ All notable changes to EstateForge are documented here. The format follows
   body. Fastify 5 parses bodies on `DELETE`, so that request was rejected with
   `400 FST_ERR_CTP_EMPTY_JSON_BODY` before reaching the route, and the web showed a generic error.
   A regression test replays both request shapes against a listening Fastify instance (Prisma
-  mocked). The fix has not yet been deployed or checked in production.
+  mocked). Deployed and checked in production by deleting a synthetic property from the web.
+- A direct upload that was being confirmed when its 15-minute window ended could lose its file: a
+  concurrent expiry (another request from the same user, or maintenance) marked it expired and the
+  cleanup deleted the object mid-validation, so the user was told the file had not arrived. Attempts
+  already being confirmed now get a 10-minute grace period before they expire, and the cleanup never
+  deletes the file of an attempt in progress. If the attempt stops being in progress anyway, the
+  confirmation answers `410 UPLOAD_EXPIRED` instead of `500`.
+- Two storage cleanups running at the same time (the scheduled one and a manual one, or one started by
+  a user request) no longer report every row already removed by the other as a failure. The final
+  state was already correct; the counters and warnings were not.
+- Asking for a listing from another account's property (`POST /api/generations/from-property`)
+  answered `500` and was logged as an internal error; it now answers `404`, the same as for a property
+  that does not exist. Nothing was leaked or changed.
+- The local Blob simulator ignores a malformed `Range` header such as `bytes=-` (serving the whole
+  file with `200`, as RFC 9110 allows) instead of answering `206`. Development and tests only.
 
 ## 1.0.1 - 2026-11-17
 

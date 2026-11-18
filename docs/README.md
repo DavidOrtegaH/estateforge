@@ -26,7 +26,9 @@ Presentación y uso: [README principal](../README.md). Instalación, arquitectur
 
 - [Despliegue en Vercel (Hobby), Neon (Free) y Vercel Blob](despliegue/vercel-neon-blob.md): estado actual (comprobado en producción y pendiente), arquitectura con la API bajo el mismo dominio, variables, construcción y migraciones, cuotas, comprobaciones y procedimiento. Publicado en producción; Blob real, MD-4 y la primera ejecución del cron, pendientes.
 
-- [Indexación y Google Search Console](despliegue/search-console.md): qué se indexa y cómo (página pública estática, `noindex` en la aplicación, `robots.txt`, mapa del sitio y canónica), comprobaciones tras el despliegue y alta de la propiedad. Cabeceras y mapa del sitio comprobados en producción; alta en Search Console pendiente.
+- [Verificación remota](despliegue/verificacion-remota.md): matriz priorizada de comprobaciones en producción, con datos sintéticos, pasos, resultado esperado y limpieza. Cubre la ejecución programada del mantenimiento (constancia en `MaintenanceRun`), el contrato real de Vercel Blob (sobrescritura, tipo, tamaño, caducidad, reutilización de URLs, Range, caché, CORS y borrado efectivo), la IP del cliente desde dos redes con el diagnóstico temporal (MD-4) y el aislamiento entre cuentas. Todo pendiente de ejecutar.
+
+- [Indexación y Google Search Console](despliegue/search-console.md): qué se indexa y cómo (página pública estática, `noindex` en la aplicación, `robots.txt`, mapa del sitio y canónica), comprobaciones tras el despliegue y alta de la propiedad. Cabeceras y mapa del sitio comprobados en producción; propiedad verificada y mapa del sitio procesado; la portada aún no está indexada.
 
 - [Fase 0 — Checklist y procedimiento de despliegue (v6)](despliegue/fase0_checklist_despliegue_v6.md): procedimiento y condiciones para desplegar la verificación del email de la Fase 0. No autoriza ninguna integración ni despliegue y no está aprobado para producción; la limitación L-2 sigue abierta.
 
