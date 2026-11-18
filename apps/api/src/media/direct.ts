@@ -1,4 +1,5 @@
 import type { Prisma } from '../generated/prisma/client.js'
+import { MediaError } from './media-errors.js'
 
 // Confirmación de una subida directa (DA-58) dentro de la transacción del recurso: el archivo ya está
 // en el almacenamiento, en la clave que eligió la API al preparar la subida. La reserva del propio
@@ -12,5 +13,7 @@ export interface DirectCommit {
 
 export async function completeAttempt(tx: Prisma.TransactionClient, direct: DirectCommit, resultId: string): Promise<void> {
   const done = await tx.uploadAttempt.updateMany({ where: { id: direct.attemptId, status: 'processing' }, data: { status: 'completed', resultId, completedAt: new Date() } })
-  if (done.count !== 1) throw new Error('El intento de subida ya no está en curso.')
+  // Solo la caducidad saca de «processing» un intento ajeno a esta confirmación (cancelar solo afecta a
+  // los pendientes). Se deshace la transacción y se responde como una subida caducada, no con un 500.
+  if (done.count !== 1) throw new MediaError('UPLOAD_EXPIRED', 'La subida ha caducado. Vuelve a intentarlo.')
 }

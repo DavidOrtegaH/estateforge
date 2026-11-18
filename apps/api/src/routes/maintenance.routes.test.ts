@@ -11,8 +11,9 @@ const fake = vi.hoisted(() => {
   const prisma = {
     storageCleanup: {
       findMany: vi.fn(async (args: { take: number }) => queue.slice(0, args.take)),
-      delete: vi.fn(async () => ({})),
-      update: vi.fn(async () => ({})),
+      // drainStorageCleanup retira cada fila con deleteMany (una ejecución simultánea pudo retirarla ya).
+      deleteMany: vi.fn(async () => ({ count: 1 })),
+      updateMany: vi.fn(async () => ({ count: 1 })),
       count: vi.fn(async () => queue.length),
     },
     propertyPhoto: { count: vi.fn(async (args: { where: Record<string, unknown> }) => (referenced.has(String(args.where.storageKey ?? args.where.thumbKey)) ? 1 : 0)) },
@@ -205,7 +206,9 @@ describe('delegación en drainStorageCleanup (mecanismo existente, dobles de Pri
     // sin tocar el archivo, como ya hacía el mecanismo existente.
     expect(fake.storage.delete).toHaveBeenCalledTimes(1)
     expect(fake.storage.delete).toHaveBeenCalledWith('u/libre.jpg')
-    expect(fake.prisma.storageCleanup.delete).toHaveBeenCalledTimes(2)
+    expect(fake.prisma.storageCleanup.deleteMany).toHaveBeenCalledTimes(2)
+    expect(fake.prisma.storageCleanup.deleteMany).toHaveBeenCalledWith({ where: { id: 'c1' } })
+    expect(fake.prisma.storageCleanup.deleteMany).toHaveBeenCalledWith({ where: { id: 'c2' } })
   })
 
   it('no busca huérfanos ni toca cuentas ni sesiones; la auditoría solo mediante su retención', async () => {

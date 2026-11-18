@@ -38,19 +38,23 @@ export async function drainStorageCleanup(log: FastifyBaseLogger | null, keys?: 
         prisma.propertyPhoto.count({ where: { thumbKey: row.storageKey } }),
         prisma.listingMedia.count({ where: { storageKey: row.storageKey } }),
         prisma.audioTrack.count({ where: { storageKey: row.storageKey } }),
-        // Una subida directa todavía en curso (DA-58) no se toca.
-        prisma.uploadAttempt.count({ where: { storageKey: row.storageKey, status: { in: ['pending', 'processing'] }, expiresAt: { gt: new Date() } } }),
+        // Una subida directa todavía en curso (DA-58) no se toca: pendiente y vigente, o confirmándose
+        // (una confirmación colgada sale de «processing» al caducar, pasado su margen).
+        prisma.uploadAttempt.count({ where: { storageKey: row.storageKey, OR: [{ status: 'pending', expiresAt: { gt: new Date() } }, { status: 'processing' }] } }),
         // Un resultado de IA pendiente de revisión (DA-71) tampoco.
         prisma.aiMediaJob.count({ where: { resultKey: row.storageKey, status: { in: ['moderating', 'ready'] } } }),
       ])
       if (photo + thumb + media + audio + upload + aiResult === 0) await (await getStorage()).delete(row.storageKey)
-      await prisma.storageCleanup.delete({ where: { id: row.id } })
-      result.deleted += 1
+      // Otra ejecución simultánea (la programada y una manual, o dos peticiones del usuario) puede haber
+      // procesado ya la misma fila: el borrado en el almacenamiento es idempotente y solo cuenta quien
+      // retira la fila. Antes, la segunda ejecución lo contaba como fallo y lo registraba como aviso.
+      const removed = await prisma.storageCleanup.deleteMany({ where: { id: row.id } })
+      if (removed.count === 1) result.deleted += 1
     } catch (error) {
       result.failed += 1
       log?.warn({ errorName: safeErrorName(error) }, 'No se pudo borrar un archivo sin referencia; queda pendiente')
       await prisma.storageCleanup
-        .update({ where: { id: row.id }, data: { attempts: { increment: 1 }, lastError: safeErrorName(error), updatedAt: new Date() } })
+        .updateMany({ where: { id: row.id }, data: { attempts: { increment: 1 }, lastError: safeErrorName(error), updatedAt: new Date() } })
         .catch(() => {})
     }
   }

@@ -42,6 +42,14 @@ export type UploadKind = (typeof UPLOAD_KINDS)[number]
 
 /** Validez de la URL de subida y del intento. */
 export const UPLOAD_TTL_MS = 15 * 60 * 1000
+/**
+ * Margen antes de caducar un intento que ya se está confirmando («processing»). La confirmación
+ * reclama el intento solo si está vigente, pero leer y validar el archivo lleva tiempo: sin margen, la
+ * caducidad lanzada por otra petición del usuario (o el mantenimiento) borraba el archivo a mitad de
+ * la validación. Supera la duración máxima de una función de Vercel Hobby (300 s), así que solo
+ * caducan por aquí las confirmaciones que quedaron colgadas.
+ */
+export const UPLOAD_PROCESSING_GRACE_MS = 10 * 60 * 1000
 /** Intentos pendientes a la vez por usuario (evita reservar cuota sin límite). */
 export const MAX_PENDING_UPLOADS = 60
 
@@ -115,13 +123,23 @@ async function assertProperty(userId: string, propertyId: string, photoId?: stri
 
 /** Caduca los intentos vencidos (todos, o los de un usuario): dejan de reservar y su archivo se limpia. */
 export async function expireUploads(log: FastifyBaseLogger | null, userId?: string): Promise<number> {
+  const staleWhere = () => {
+    const now = Date.now()
+    return {
+      OR: [
+        { status: 'pending', expiresAt: { lte: new Date(now) } },
+        { status: 'processing', expiresAt: { lte: new Date(now - UPLOAD_PROCESSING_GRACE_MS) } },
+      ],
+    }
+  }
   const stale = await prisma.uploadAttempt.findMany({
-    where: { ...(userId && { userId }), status: { in: ['pending', 'processing'] }, expiresAt: { lte: new Date() } },
+    where: { ...(userId && { userId }), ...staleWhere() },
     select: { id: true, storageKey: true },
     take: 200,
   })
   if (stale.length === 0) return 0
-  const result = await prisma.uploadAttempt.updateMany({ where: { id: { in: stale.map(item => item.id) }, status: { in: ['pending', 'processing'] }, expiresAt: { lte: new Date() } }, data: { status: 'expired' } })
+  // La condición se repite en el UPDATE: una confirmación que acaba de completar el intento no se toca.
+  const result = await prisma.uploadAttempt.updateMany({ where: { id: { in: stale.map(item => item.id) }, ...staleWhere() }, data: { status: 'expired' } })
   await drainStorageCleanup(log, stale.map(item => item.storageKey))
   return result.count
 }
