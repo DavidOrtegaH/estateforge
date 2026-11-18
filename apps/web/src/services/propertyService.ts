@@ -112,15 +112,13 @@ export async function updateProperty(
 export async function deleteProperty(
   id: string,
 ): Promise<void> {
+  // Sin Content-Type: no hay cuerpo, y Fastify rechaza (400
+  // FST_ERR_CTP_EMPTY_JSON_BODY) un DELETE que declara JSON vacío.
   const response = await fetch(
     `${API_URL}/api/properties/${id}`,
     {
       method: 'DELETE',
       credentials: 'include',
-      headers: {
-        'Content-Type':
-          'application/json',
-      },
     },
   )
 

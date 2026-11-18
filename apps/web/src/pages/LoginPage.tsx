@@ -17,6 +17,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { isEmailNotVerifiedMessage, isSecurityRecoveryRequiredMessage } from '@/services/authService'
 import { ResendVerificationForm } from '@/components/auth/ResendVerificationForm'
 import { sessionEndedNotice } from '@/lib/sessionAccess'
+import { isPasswordResetCompleted } from '@/lib/passwordReset'
 import { APP_HOME } from '@/lib/routes'
 import LegalLinks from '@/components/layout/LegalLinks'
 
@@ -147,6 +148,8 @@ function LoginPage() {
   // Solo hay aviso si se llega desde una ruta privada tras cerrar la API la sesión. El motivo
   // viaja en el estado del historial, así que se conserva al recargar la página.
   const sessionNotice = sessionEndedNotice(location.state)
+  // Llegada desde «Restablecer contraseña» tras un cambio correcto (estado booleano cerrado).
+  const passwordResetDone = isPasswordResetCompleted(location.state)
   const showRecoveryLink = [error, sessionNotice].some(
     (message) => message !== null && isSecurityRecoveryRequiredMessage(message),
   )
@@ -232,6 +235,17 @@ function LoginPage() {
           >
             <p className="font-medium">Se ha cerrado tu sesión.</p>
             <p className="mt-1">{sessionNotice}</p>
+          </div>
+        )}
+
+        {passwordResetDone && (
+          <div
+            role="status"
+            data-testid="password-reset-done"
+            className="mb-4 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"
+          >
+            <p className="font-medium">Contraseña restablecida.</p>
+            <p className="mt-1">Ya puedes iniciar sesión con tu nueva contraseña.</p>
           </div>
         )}
 

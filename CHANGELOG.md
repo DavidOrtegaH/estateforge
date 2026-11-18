@@ -25,6 +25,18 @@ All notable changes to EstateForge are documented here. The format follows
   adds `public, max-age=0, must-revalidate`. This is hardening; no leak through caches was observed.
   Web asset caching is unchanged.
 - The privacy page describes the audit log retention.
+- After a successful password reset the web goes straight to the login page (replacing the reset
+  link, so the token leaves the URL and the history) and shows an accessible "password reset"
+  confirmation. Only a boolean travels in the navigation state; no automatic login. Errors stay on
+  the reset form.
+
+### Fixed
+
+- Deleting a single property from the web no longer sends `Content-Type: application/json` without a
+  body. Fastify 5 parses bodies on `DELETE`, so that request was rejected with
+  `400 FST_ERR_CTP_EMPTY_JSON_BODY` before reaching the route, and the web showed a generic error.
+  A regression test replays both request shapes against a listening Fastify instance (Prisma
+  mocked). The fix has not yet been deployed or checked in production.
 
 ## 1.0.1 - 2026-11-17
 

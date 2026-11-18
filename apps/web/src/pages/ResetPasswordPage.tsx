@@ -1,12 +1,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import {
   getPasswordValidationErrors,
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
 } from '@/lib/passwordPolicy'
+import {
+  goToLoginAfterPasswordReset,
+  submitPasswordReset,
+} from '@/lib/passwordReset'
 import { resetPassword } from '@/services/authService'
 import {
   TurnstileField,
@@ -18,12 +22,12 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 
 function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const token = searchParams.get('token') ?? ''
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string>()
 
@@ -45,50 +49,26 @@ function ResetPasswordPage() {
     }
 
     setError(null)
-    setMessage(null)
-
-    if (isTurnstileConfigured() && !turnstileToken) {
-      setError('Completa la verificación de seguridad e inténtalo de nuevo.')
-      return
-    }
-
-    if (!token) {
-      setError(
-        'El enlace de recuperación no contiene un token válido.',
-      )
-      return
-    }
-
-    if (validationErrors.length > 0) {
-      setError(validationErrors[0])
-      return
-    }
-
-    if (!passwordsMatch) {
-      setError('Las contraseñas no coinciden.')
-      return
-    }
-
     setSubmitting(true)
 
-    try {
-      const responseMessage = await resetPassword(
-        token,
-        password,
-        turnstileToken,
-      )
-      setMessage(responseMessage)
-      setPassword('')
-      setConfirmPassword('')
-    } catch (resetError) {
-      setError(
-        resetError instanceof Error
-          ? resetError.message
-          : 'No se ha podido restablecer la contraseña.',
-      )
-    } finally {
-      setSubmitting(false)
+    const result = await submitPasswordReset({
+      token,
+      password,
+      confirmPassword,
+      turnstileRequired: isTurnstileConfigured(),
+      turnstileToken,
+      reset: resetPassword,
+    })
+
+    if (result.ok) {
+      // Sin esperas: al login reemplazando el enlace con el token. Solo viaja un booleano
+      // (ni token, ni email, ni contraseña, ni texto de la API) y no se inicia sesión.
+      goToLoginAfterPasswordReset(navigate)
+      return
     }
+
+    setError(result.error)
+    setSubmitting(false)
   }
 
   return (
@@ -167,18 +147,6 @@ function ResetPasswordPage() {
             <p className="text-xs text-destructive">
               Las contraseñas no coinciden.
             </p>
-          )}
-
-          {message && (
-            <div className="rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-              {message}{' '}
-              <Link
-                to="/login"
-                className="font-medium text-primary hover:underline"
-              >
-                Iniciar sesión
-              </Link>
-            </div>
           )}
 
           <TurnstileField onTokenChange={setTurnstileToken} />

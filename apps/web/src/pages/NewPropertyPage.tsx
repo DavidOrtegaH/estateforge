@@ -457,7 +457,7 @@ ${listingToCopy.callToAction}
 
         <p className="mt-2 text-muted-foreground">
           Introduce los datos del inmueble para
-          generarlo junto a su anuncio procesado por IA.
+          generar su anuncio con el método que elijas.
         </p>
       </div>
 
@@ -892,8 +892,9 @@ ${listingToCopy.callToAction}
           />
 
           <p className="mt-2 text-xs text-muted-foreground">
-            Esta información se proporciona a la IA
-            como parte de los datos del inmueble.
+            Esta información se usa para redactar el anuncio.
+            Solo se envía a un proveedor de IA si eliges
+            generar con IA y lo confirmas.
           </p>
         </section>
 
