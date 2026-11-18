@@ -45,13 +45,18 @@ Las funciones clásicas no necesitan claves de IA. Las conexiones opcionales se 
 
 **Correos en segundo plano.** Algunos correos se envían sin que la respuesta los espere, para no revelar si una cuenta existe. Como la plataforma puede congelar la función tras responder, esos envíos se registran con `waitUntil`.
 
+**Borrar un inmueble.** En producción el borrado fallaba con un mensaje genérico: la petición `DELETE` declaraba un cuerpo JSON que no enviaba y el servidor la rechazaba antes de llegar a la ruta. Lo corregí, añadí una prueba de regresión sobre HTTP real y, tras desplegarlo, el borrado desde la interfaz funciona.
+
+**Volver al login tras cambiar la contraseña.** Después de restablecerla, la página se quedaba en el formulario. Ahora redirige al inicio de sesión; está cubierto por pruebas del enrutado y desplegado.
+
 ## Estado
 
-- La web y la API están publicadas en Vercel y la base de datos en Neon. El registro, el correo de verificación, la recuperación de contraseña por correo y el inicio de sesión con la contraseña nueva se han comprobado en producción.
-- Con una cuenta verificada y datos ficticios se ha comprobado en producción: crear un inmueble y su anuncio con la plantilla local (sin IA), subir fotografías al almacenamiento privado, ver miniaturas e imagen completa, cambiar la principal y el orden, y generar, guardar y descargar un cartel y un vídeo MP4 sin sonido.
-- Una [ejecución completa del CI en GitHub](https://github.com/DavidOrtegaH/estateforge/actions/runs/44164287964) pasó (tipos, lint, pruebas con PostgreSQL real, builds y auditoría); se lanzó manualmente. Los últimos cambios de interfaz aún no han pasado por el CI.
-- Borrar un inmueble falla en producción con un mensaje genérico. La causa está reproducida y corregida en el código, pero el arreglo aún no está desplegado ni comprobado.
-- Pendiente: vídeo con audio (se generó y descargó un MP4 con pista musical; su estructura confirma pistas de vídeo y audio, pero no se ha escuchado) y WebM, descargas parciales, límites y caducidades en real, aislamiento entre cuentas en producción, proveedores de IA con claves reales, Safari y dispositivos físicos, y el alta en Google Search Console. Los correos pueden seguir llegando a spam.
+- La web y la API están publicadas en Vercel y la base de datos en Neon. El registro, el correo de verificación, la recuperación de contraseña por correo y el inicio de sesión con la contraseña nueva se han comprobado en producción. La redirección automática al login tras el cambio está desplegada y probada con pruebas del enrutado, pero no se ha repetido un restablecimiento real después de desplegarla.
+- Con una cuenta verificada y datos ficticios se ha comprobado en producción: crear un inmueble y su anuncio con la plantilla local (sin IA), subir fotografías al almacenamiento privado, ver miniaturas e imagen completa, cambiar la principal y el orden, generar, guardar y descargar un cartel y un vídeo MP4 sin sonido, y borrar el inmueble desde la interfaz (la lista quedó en «No hay inmuebles todavía» y la base de datos sin inmuebles, generaciones, fotografías ni archivos pendientes de limpieza).
+- La cuenta del titular tiene el rol de propietario (OWNER) y ve la sección de Administración.
+- La [ejecución completa del CI en GitHub](https://github.com/DavidOrtegaH/estateforge/actions/runs/44295533465) sobre la versión publicada pasó: tipos, lint, pruebas de la API con PostgreSQL real, web (683), paquete compartido (212) y scripts (60), builds y auditoría.
+- Google Search Console: la propiedad está verificada y el mapa del sitio se procesó correctamente (3 páginas descubiertas). La portada aún no está indexada y no hay garantía de que aparezca en Google.
+- Pendiente: observar una ejecución programada del mantenimiento diario; comprobar la IP del cliente desde redes distintas; escuchar el vídeo con audio (su estructura confirma pistas de vídeo y audio) y probar WebM; descargas parciales, cuotas, caducidades y aislamiento entre cuentas en producción; proveedores de IA con claves reales; Safari y móviles físicos. Los correos pueden seguir llegando a spam.
 
 Detalle de lo comprobado y lo pendiente en la [guía de despliegue](docs/despliegue/vercel-neon-blob.md#estado-actual).
 

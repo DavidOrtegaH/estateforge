@@ -15,30 +15,30 @@ Actualizado el **18/11/2026**. Las fechas de cada prueba concreta se conservan d
 - Portada → 200 sin `noindex`; `/panel` → `X-Robots-Tag: noindex`; una ruta desconocida → 404 real; CSP y demás cabeceras de seguridad presentes; `sitemap.xml` con las tres páginas públicas.
 - Portada examinada a 320 px de ancho, sin desbordamiento horizontal.
 - Registro real y envío del correo de verificación: el titular lo recibió en la carpeta de spam y `emailVerifiedAt` ya tiene valor en Neon.
-- Recuperación de contraseña real, confirmada por el titular: el correo llegó, el enlace permitió cambiar la contraseña y el inicio de sesión con la nueva funcionó. Tras el cambio, la página se quedaba en «Restablecer contraseña» y había que pulsar el enlace al login; la redirección automática al login está corregida en el código, pero aún no consta como desplegada ni comprobada en producción.
+- Recuperación de contraseña real, confirmada por el titular: el correo llegó, el enlace permitió cambiar la contraseña y el inicio de sesión con la nueva funcionó. Tras el cambio, la página se quedaba en «Restablecer contraseña» y había que pulsar el enlace al login; la redirección automática al login está corregida, cubierta por pruebas del enrutado y publicada en el despliegue web `dpl_FAFv8ozgBiJtjLrE3RfVRS2EQTzd`. No se ha repetido un restablecimiento real después de ese despliegue.
+- **Borrado de un inmueble** (18/11/2026, inmueble ficticio, desde la interfaz). Antes fallaba con un mensaje genérico: el cliente enviaba `DELETE /api/properties/:id` con `Content-Type: application/json` y sin cuerpo, y Fastify 5 lo rechazaba con `400 FST_ERR_CTP_EMPTY_JSON_BODY` antes de llegar a la ruta. La corrección, con una prueba de regresión sobre HTTP real (`apps/api/src/routes/property.routes.delete-contract.test.ts`), se publicó en el despliegue web `dpl_FAFv8ozgBiJtjLrE3RfVRS2EQTzd`. Tras borrar, la lista muestra «No hay inmuebles todavía» y la consulta SQL posterior devolvió 0 filas en `Property`, `Generation`, `PropertyPhoto` y `StorageCleanup`. No se ha inspeccionado por separado el contenido del Blob store.
+- **Primer OWNER** autorizado y asignado únicamente a la cuenta del titular; la sección Administración es visible en la interfaz.
+- **Search Console** verificada con la etiqueta `<meta>`; sitemap enviado y procesado correctamente (ver [Search Console](search-console.md)).
 - Vercel Cron registrado (diario, `0 4 * * *` UTC). Una llamada sin el secreto → 401.
 - **Vercel Blob privado, flujo básico** (navegador, cuenta verificada, solo datos sintéticos y ficticios; sin llamadas a proveedores de IA). Es una prueba acotada, no una medida de rendimiento:
   - inicio de sesión; creación de un inmueble ficticio y de su anuncio con la plantilla local (sin IA);
   - dos PNG sintéticos de 800×600 subidos directamente a Blob con URL firmada; miniaturas de 480×360 cargadas; visor de imagen completa (800×600) cargado; cambio de la foto principal y del orden, que persisten al recargar;
   - cartel JPEG (182 KB) generado, guardado en Blob y descargado;
   - vídeo MP4 sin sonido (17,028 s, 1280×720, 3,6 MB) generado, guardado en Blob y reproducido desde la URL firmada (`readyState` 4);
-  - 18/11/2026: vídeo regenerado como versión 2 (17 s) con la pista «Piano sereno», guardado y descargado. Codex inspeccionó el MP4 descargado (3 916 958 bytes): sus cajas ISO BMFF contienen manejadores (`hdlr`) `vide` y `soun`, lo que confirma una pista de vídeo y otra de audio. **No se ha hecho una prueba auditiva**, así que no está verificado que el sonido se reproduzca; tampoco se ha probado WebM en producción.
+  - 18/11/2026: vídeo regenerado como versión 2 (17 s) con la pista «Piano sereno», guardado y descargado. Se inspeccionó el MP4 descargado (3 916 958 bytes): sus cajas ISO BMFF contienen manejadores (`hdlr`) `vide` y `soun`, lo que confirma una pista de vídeo y otra de audio. **No se ha hecho una prueba auditiva**, así que no está verificado que el sonido se reproduzca; tampoco se ha probado WebM en producción.
 - Los datos de prueba son sintéticos y están autorizados para sustituirse y borrarse al terminar.
-- CI completo en GitHub sobre `2d04d2825adc7956465cbb4e4908d06641d450da`, integrado en `main`, `develop`, `release` y `feature`: [ejecución 44164287964](https://github.com/DavidOrtegaH/estateforge/actions/runs/44164287964) correcta (API 2321/2321 con PostgreSQL real, shared 212, web 670, scripts 60, tipos, lint, builds, importación de `shared` con Node y auditoría con la única excepción ya existente). El CI se ha lanzado manualmente; no se ha observado una ejecución automática por `push`.
+- CI completo en GitHub sobre `896cc3e`: [ejecución 44295533465](https://github.com/DavidOrtegaH/estateforge/actions/runs/44295533465) correcta (suite de la API con PostgreSQL real, incluidas las nuevas pruebas HTTP del borrado; web 683, shared 212, scripts 60; tipos, lint, builds, importación de `shared` con Node y auditoría). La ejecución anterior, [44164287964](https://github.com/DavidOrtegaH/estateforge/actions/runs/44164287964) sobre `2d04d28`, también pasó.
 - La etiqueta `v1.0.1` no se ha movido. Los cambios posteriores a 1.0.1 están en `main` y no forman parte de esa etiqueta.
 
 ### Pendiente
 
-- Los cambios de interfaz posteriores a la ejecución de CI citada aún no han pasado por el CI.
-- **Vercel Blob, partes avanzadas** (en local solo probadas con el simulador): respuestas `206` formales con Range; vídeo con sonido (el MP4 v2 con «Piano sereno» contiene pistas `vide` y `soun`, pero falta escucharlo) y WebM; cuotas con una galería de 50 fotografías; caducidad real de las URLs firmadas; restricciones del `PUT` (tipo, tamaño, sobrescritura); borrado y limpieza en Blob; caché de las respuestas de archivo; aislamiento entre cuentas públicas en producción.
-- Redirección automática al login tras restablecer la contraseña: pendiente de desplegar y comprobar en producción.
-- **Borrar un inmueble: falla en producción** (18/11/2026, inmueble sintético; la web solo muestra un mensaje genérico y el inmueble sigue existiendo). Causa reproducida en local: el cliente enviaba `DELETE /api/properties/:id` con `Content-Type: application/json` y sin cuerpo, y Fastify 5 lo rechaza con `400 FST_ERR_CTP_EMPTY_JSON_BODY` antes de llegar a la ruta. Corregido en el código con una prueba de regresión sobre HTTP real (`apps/api/src/routes/property.routes.delete-contract.test.ts`); **pendiente de desplegar y de repetir el borrado en producción**, y con él la limpieza de sus archivos en Blob.
+- **Vercel Blob, partes avanzadas** (en local solo probadas con el simulador): respuestas `206` formales con Range; vídeo con sonido (el MP4 v2 con «Piano sereno» contiene pistas `vide` y `soun`, pero falta escucharlo) y WebM; cuotas con una galería de 50 fotografías; caducidad real de las URLs firmadas; restricciones del `PUT` (tipo, tamaño, sobrescritura); comprobación directa en el store de que los objetos borrados ya no existen; caché de las respuestas de archivo; aislamiento entre cuentas públicas en producción.
+- Un restablecimiento de contraseña real posterior al despliegue de la redirección al login.
 - Cierre de sesión con cookie a través de la reescritura, pendiente de anotar como evidencia (el inicio de sesión ya consta arriba).
-- Primer OWNER: aún no asignado.
-- Primera ejecución real del cron (limpieza y purga de auditoría). La retención de 90 días solo está probada con pruebas unitarias y de integración.
-- MD-4 (IP del cliente detrás de la reescritura): `CLIENT_IP_SOURCE` sigue en `socket`.
-- Proveedores de IA con claves reales, Safari y dispositivos físicos.
-- Alta en Google Search Console: el contenido indexable y el mapa del sitio están listos, pero la propiedad no se ha creado, así que no hay garantía de aparecer en Google.
+- Primera ejecución programada del cron (limpieza y purga de auditoría). La retención de 90 días solo está probada con pruebas unitarias y de integración.
+- MD-4 (IP del cliente detrás de la reescritura, prueba desde dos redes): `CLIENT_IP_SOURCE` sigue en `socket`.
+- Proveedores de IA con claves reales, Safari y móviles físicos.
+- Indexación en Google: la portada no está indexada; la solicitud de indexación se rechazó por cuota diaria y no se ha reintentado. No hay garantía de aparecer en Google.
 
 El resto del documento conserva las instrucciones técnicas. Las marcas «pendiente de verificar» que siguen se refieren a lo que no aparece en «Comprobado en producción».
 
@@ -354,7 +354,7 @@ Estado de cada comprobación a la fecha de «Estado actual».
 11. **Pendiente.** Cuotas reales de Blob con una galería de 50 fotografías y vídeos con sonido: operaciones avanzadas y simples y transferencia.
 12. **Parcial. Correos tras la respuesta (`waitUntil`).** El correo de verificación de un registro real llegó (a spam) y el de recuperación llegó y permitió cambiar la contraseña. La llegada a spam sigue siendo una limitación.
 13. **Parcial. Vercel Cron.** Registrado en el proyecto api (diario, 4:00 UTC) y una llamada sin el secreto responde 401. Falta observar una ejecución programada con `Authorization: Bearer <CRON_SECRET>` y respuesta 200, idealmente con la cola vacía.
-14. **Pendiente.** Alta en [Search Console](search-console.md).
+14. **Parcial.** [Search Console](search-console.md): propiedad verificada y sitemap procesado; la portada aún no está indexada.
 
 ## Generación con IA (BYOK)
 
@@ -371,7 +371,7 @@ Detalle en [Carteles y vídeos con IA (BYOK)](../producto-ia-byok.md) y en el [c
 
 ## Procedimiento
 
-Para la publicación actual (CLI de Vercel, sin integración con Git) se han realizado los pasos 1 a 4 y 6, y del paso 5 el despliegue y `/health/ready`; las comprobaciones 1 a 8 tienen el estado indicado en «Comprobaciones en el despliegue». Pendientes: el paso 7 (no hay OWNER asignado), el 9 (Search Console) y el 10. El registro es público con verificación del email (paso 8). Se conserva como referencia para un despliegue nuevo.
+Para la publicación actual (CLI de Vercel, sin integración con Git) se han realizado los pasos 1 a 4, 6 y 7 (OWNER asignado a la cuenta del titular), y del paso 5 el despliegue y `/health/ready`; las comprobaciones 1 a 8 tienen el estado indicado en «Comprobaciones en el despliegue». El paso 9 está en curso (propiedad verificada y sitemap procesado, portada sin indexar) y el 10 sigue pendiente. El registro es público con verificación del email (paso 8). Se conserva como referencia para un despliegue nuevo.
 
 1. Crear el proyecto de Neon (región cercana a la de Vercel) y anotar las URL directa y con pooler.
 2. Crear dos proyectos de Vercel desde el repositorio (raíces `apps/api` y `apps/web`).

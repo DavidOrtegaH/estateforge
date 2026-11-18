@@ -1,8 +1,12 @@
 # Indexación y Google Search Console
 
-**Estado: web publicada en <https://estateforge-blush.vercel.app/>; propiedad de Search Console preparada, todavía sin verificar.** En producción se ha comprobado que la portada responde 200 sin `noindex`, que `/panel` lleva `X-Robots-Tag: noindex`, que una ruta desconocida da un 404 real y que `sitemap.xml` lista las tres páginas públicas.
+**Estado (18/11/2026): web publicada en <https://estateforge-blush.vercel.app/>; propiedad de Search Console verificada y sitemap procesado; portada todavía sin indexar.** En producción se ha comprobado que la portada responde 200 sin `noindex`, que `/panel` lleva `X-Robots-Tag: noindex`, que una ruta desconocida da un 404 real y que `sitemap.xml` lista las tres páginas públicas.
 
-El titular ha creado en su cuenta una propiedad de **prefijo de URL** para `https://estateforge-blush.vercel.app/`. La etiqueta `<meta name="google-site-verification">` que Google proporcionó (un identificador público, no un secreto) ya está en `apps/web/index.html`, pero **aún no se ha desplegado**, así que la propiedad no está verificada. También quedan pendientes el envío del sitemap y la inspección de URLs. No consta ninguna página indexada ni hay garantía de que la web aparezca en Google. Este documento describe cómo funciona el SEO de la web y los pasos que faltan.
+- **Propiedad.** De **prefijo de URL** para `https://estateforge-blush.vercel.app/`, verificada con la etiqueta `<meta name="google-site-verification">` (un identificador público, no un secreto) de `apps/web/index.html`. La etiqueta se mantiene: retirarla haría perder la verificación.
+- **Sitemap.** `sitemap.xml` enviado. El detalle final de Google indica que se procesó correctamente, con última lectura el 18/11/2026 y 3 páginas descubiertas. Un estado transitorio anterior («No se ha podido obtener») quedó resuelto en ese detalle.
+- **Indexación.** La solicitud de indexación de la portada se rechazó porque se había superado la cuota diaria; Google indica que la URL no está indexada. No se ha reintentado hoy. No hay garantía de que la web aparezca en Google.
+
+Este documento describe cómo funciona el SEO de la web y los pasos de alta.
 
 Documentación consultada el **17/11/2026**:
 
@@ -44,7 +48,7 @@ Los datos estructurados son solo `WebSite` (nombre, URL e idioma), que coinciden
 
 ## Alta en Search Console (a cargo del titular)
 
-Estado de cada paso para `https://estateforge-blush.vercel.app/`: propiedad de prefijo de URL **creada**; etiqueta `<meta>` **añadida al código, pendiente de desplegar**; verificación, envío del sitemap e inspección **pendientes**.
+Estado de cada paso para `https://estateforge-blush.vercel.app/`: propiedad de prefijo de URL **creada y verificada** con la etiqueta `<meta>`; sitemap **enviado y procesado** (3 páginas descubiertas); solicitud de indexación de `/` **rechazada por cuota diaria**, pendiente de repetir otro día; revisión de **Páginas** pendiente.
 
 1. Crear la propiedad:
    - **Dominio** (recomendado si hay dominio propio): verificación por registro DNS (TXT o CNAME). Cubre `http`, `https` y los subdominios. No borrar el registro después.
