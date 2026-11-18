@@ -13,10 +13,13 @@ Documentación oficial consultada el 18/11/2026: [Managing Cron Jobs](https://ve
 | Área | Resultado |
 |---|---|
 | Mantenimiento | M-1 y M-2 hechos. **La ejecución programada (M-3, M-4, M-5) sigue pendiente** |
-| Vercel Blob real | B-1, B-3, B-4, B-7, B-10 y B-12 hechos; B-2, B-5, B-6, B-8, B-9 y B-11 hechos con el alcance limitado que se indica en cada fila |
-| IP del cliente (MD-4) | Una sola red por la web; diagnóstico retirado. **MD-4 sigue abierto** y `CLIENT_IP_SOURCE` sigue en `socket` |
+| Vercel Blob real | B-1, B-3, B-4, B-5, B-7, B-10, B-11 y B-12 hechos; B-2, B-6, B-8 y B-9 hechos con el alcance limitado que se indica en cada fila |
+| Multimedia | MP4 con «Piano sereno» escuchado por el titular (manual). WebM en producción confirmado por el titular en Firefox: aparece como WebM, se escucha bien y se borra todo (manual, sin inspección del archivo). Quedan pendientes los dispositivos físicos |
+| IP del cliente (MD-4) | Una sola red por la web; diagnóstico retirado. **Riesgo aceptado, no resuelto técnicamente:** la prueba desde dos redes queda fuera de alcance y `CLIENT_IP_SOURCE` permanece en `socket` |
 | Aislamiento | Muestra con el OWNER y una cuenta USER temporal: sin fugas. No equivale a dos cuentas USER ni al barrido de todas las rutas |
-| Limpieza | Tres inmuebles sintéticos, sus anuncios y archivos borrados; cuenta temporal eliminada; OWNER conservado |
+| Limpieza | Primera ronda: tres inmuebles sintéticos, sus anuncios y archivos borrados; cuenta temporal eliminada. Segunda ronda (cierre de almacenamiento): dos inmuebles y otra cuenta temporal borrados por la API; base y store sin restos. Prueba manual de WebM: el titular borró su contenido de prueba; después, inmuebles del OWNER 0, `StorageCleanup` 0 y prefijo de Blob del OWNER vacío. OWNER conservado |
+
+**Segunda ronda (cierre de almacenamiento y multimedia, 18/11/2026, 16:38–16:58 UTC).** Mismo despliegue de la API (`dpl_6QefdFA6ZNPxZA6TFHr6F2AM9RBf`), sin cambios funcionales. Cuenta USER temporal nueva, verificada por el titular, con dos inmuebles sintéticos; contraseña, cookie y URLs firmadas solo en memoria del proceso de pruebas, que se cerró con normalidad al terminar. Sin leer `.env`, sin cambiar la configuración de los proveedores y sin llamadas a proveedores de IA. Resultados en B-5, B-6, B-10 y B-11 y en «Prioridad 3».
 
 ## Reglas para todas las comprobaciones
 
@@ -35,8 +38,8 @@ Documentación oficial consultada el 18/11/2026: [Managing Cron Jobs](https://ve
 | Acceso de lectura a la base de producción | Consultar `MaintenanceRun`, `StorageCleanup` y recuentos | Disponible |
 | CLI de Vercel autenticada en el proyecto `api` | `vercel crons`, `vercel logs`, listados de Blob | Disponible |
 | Dos cuentas sintéticas verificadas con rol USER | Aislamiento entre cuentas | **Parcial:** se usó el OWNER existente y una cuenta USER temporal, ya eliminada |
-| Dos redes con IP pública distinta | MD-4 | **No disponible:** aplazado por el titular |
-| Autorización para definir temporalmente `CLIENT_IP_DIAGNOSTIC_UNTIL` | Diagnóstico de MD-4 | Usada y retirada |
+| Dos redes con IP pública distinta | MD-4 | **Fuera de alcance** por decisión del titular: no se hará |
+| Autorización para definir temporalmente `CLIENT_IP_DIAGNOSTIC_UNTIL` | Diagnóstico de MD-4 | Usada y retirada; no se vuelve a activar |
 
 ## Prioridad 1: mantenimiento diario
 
@@ -76,13 +79,13 @@ Para obtener una URL de subida se envía `POST /api/uploads` con un JSON como `{
 | B-2 | Tipo distinto del autorizado | Cambiar solo la cabecera `Content-Type` **no** provoca rechazo de Blob (la extensión firmada fija el tipo). Enviar bytes de otro formato bajo una autorización PNG: la confirmación responde `415 TYPE_MISMATCH` | **Hecho (matriz corregida).** PNG con cabecera `image/jpeg`: Blob 200 (la confirmación dio `409 DUPLICATE` porque ese PNG ya existía en el inmueble). JPEG real bajo autorización PNG: `415 TYPE_MISMATCH` al confirmar. No se deduce fuga ni debilitamiento de la validación |
 | B-3 | Más bytes de los declarados | Rechazado por Blob | **Hecho.** N + 1000 bytes: `403` |
 | B-4 | Menos bytes de los declarados | Blob acepta; la confirmación responde `INVALID_FILE` y el objeto se borra | **Hecho.** Blob 200; confirmación `400 INVALID_FILE`; el objeto no aparece en el listado final |
-| B-5 | URL de subida caducada | `PUT` después del vencimiento rechazado; un intento **pendiente** que vence sin completarse responde `410 UPLOAD_EXPIRED` al confirmar | **Parcial.** El `PUT` se envió por error unos segundos antes del vencimiento (200) y el intento se confirmó antes de vencer. Después del vencimiento, la misma URL respondió `403` y una nueva confirmación, `200` idempotente (el intento ya estaba completado). **El `410` de un intento pendiente caducado no está validado en producción** |
-| B-6 | La URL de lectura se reutiliza hasta su caducidad | Varias lecturas `200`; `403` tras caducar | **Parcial.** Sonda con una URL de lectura emitida con el SDK y validez explícita de 120 s: tres `GET` 200 (90 909 bytes, `image/png`, caché `private`) antes del vencimiento y `403` después. **No acredita** la vigencia de las URLs que emite la ruta de la aplicación ni la renovación de la delegación de lectura de 2 h |
+| B-5 | URL de subida caducada | `PUT` después del vencimiento rechazado; un intento **pendiente** que vence sin completarse responde `410 UPLOAD_EXPIRED` al confirmar | **Hecho.** Primera ronda: el `PUT` se envió por error unos segundos antes del vencimiento (200) y el intento se confirmó antes de vencer; después, la misma URL respondió `403` y la confirmación, `200` idempotente. Segunda ronda: intento preparado a las 16:41:29 UTC con vencimiento 16:56:29.174 UTC, **sin `PUT` ni confirmación previos**; a las 16:56:35 UTC, ya vencido, `PUT` → `403` y confirmación → `410 UPLOAD_EXPIRED` |
+| B-6 | La URL de lectura se reutiliza hasta su caducidad | Varias lecturas `200`; `403` tras caducar | **Hecho para fotografías, con alcance acotado.** Primera ronda: sonda del SDK con 120 s (tres `GET` 200 y `403` tras vencer). Segunda ronda, **URL emitida por la propia aplicación** para una fotografía PNG sintética de 90 909 bytes subida por el flujo normal, con vencimiento 16:55:00 UTC: tres `GET` 200 con los mismos bytes y el mismo SHA-256; la respuesta de la app lleva `Cache-Control: private, no-store` y `Vary: Cookie`; el objeto, caché `private`. A las 16:55:05 UTC: `GET` con la URL antigua → `403`; nueva autorización de la app → `200`; lectura con la URL nueva → `200`. **No acredita** la renovación interna de la delegación de lectura de 2 h ni la caducidad de las URLs de audio y vídeo |
 | B-7 | Range | `206` con `Content-Range` correcto en el primer y el último bloque; `416` con `bytes */<total>` fuera de tamaño | **Hecho.** Fotografía, por la ruta de la API: `206` en el primer y el último bloque, `416` fuera de tamaño, caché `private`. Fotografía, directamente en Blob: `Content-Range` correcto en los primeros y los últimos 1024 bytes y `bytes */90909` en el `416`; `bytes=-` → `416`. MP4 sintético generado en la interfaz (13,53 s, 1280×720, 3 227 165 bytes), con URL de lectura temporal del SDK: `206` en el primer y el último bloque, `Accept-Ranges: bytes`, `416` con `bytes */3227165`, `Content-Type: video/mp4`. La respuesta `416` del proveedor puede incluir el contenido completo; se anota como comportamiento del proveedor |
 | B-8 | Cabeceras y caché de Blob | `Content-Type` igual al del archivo; ninguna caché pública | **Hecho (observación).** `image/png` y `video/mp4` correctos; `Cache-Control: private` en fotografía y vídeo |
 | B-9 | CORS desde la web | `fetch` y `PUT` funcionan desde el dominio de la web | **Parcial.** La subida real de fotografías y el guardado del cartel desde la interfaz funcionaron. Lectura del MP4 con el `Origin` de la web: `Access-Control-Allow-Origin: *`. Un `OPTIONS` sobre una URL firmada **solo para GET** respondió `403` con `ACAO *`; eso no demuestra un fallo del `GET` simple ni del flujo de la interfaz, y **no se ha verificado** la petición previa de un `PUT` con esta sonda |
-| B-10 | Los objetos borrados ya no existen en el store | Listado del prefijo vacío; `StorageCleanup` = 0 | **Hecho.** Tras borrar los tres inmuebles: SQL con 0 inmuebles, 0 anuncios y `StorageCleanup` = 0; listado directo con el SDK de los prefijos de las dos cuentas: 0 objetos, `hasMore` falso, incluidos los archivos fallidos y la segunda fotografía de B-5. Comprobación individual posterior: `head` del SDK sobre los cinco objetos originales → `BlobNotFoundError` en los cinco (ausentes 5, presentes 0); listado repetido de los dos prefijos: A 0 y B 0, `hasMore` falso. La sexta fotografía, creada en la prueba de caducidad (B-5), queda cubierta por el listado del prefijo B, no por esas cinco consultas `head`. Se comprobó con `head` del SDK, **no** con `GET` de las URLs antiguas: que esas URLs fallen tras el borrado no está probado |
-| B-11 | Cuota | Sin superar la cuota; ninguna `500` | **Hecho, secuencial (matriz corregida).** En un inmueble de la cuenta USER, con una fotografía y otro intento pendiente: 24 reservas de 4 194 304 bytes → `201`; la 25.ª y la 26.ª → `409 LIMIT_REACHED` (100 MB por inmueble). En un **segundo** inmueble, la reserva adicional → `409 QUOTA_EXCEEDED` (cuota de 100 MB del usuario). Cancelaciones `204`. Para probar la cuota de usuario hay que **repartir las reservas entre dos inmuebles**: con uno solo se alcanza antes el límite del inmueble. Las peticiones fueron secuenciales: **la concurrencia no está probada en remoto** (sí en local) |
+| B-10 | Los objetos borrados ya no existen en el store | Listado del prefijo vacío; `StorageCleanup` = 0 | **Hecho.** Tras borrar los tres inmuebles: SQL con 0 inmuebles, 0 anuncios y `StorageCleanup` = 0; listado directo con el SDK de los prefijos de las dos cuentas: 0 objetos, `hasMore` falso, incluidos los archivos fallidos y la segunda fotografía de B-5. Comprobación individual posterior: `head` del SDK sobre los cinco objetos originales → `BlobNotFoundError` en los cinco (ausentes 5, presentes 0); listado repetido de los dos prefijos: A 0 y B 0, `hasMore` falso. La sexta fotografía, creada en la prueba de caducidad (B-5), queda cubierta por el listado del prefijo B, no por esas cinco consultas `head`. Se comprobó con `head` del SDK, **no** con `GET` de las URLs antiguas: que esas URLs fallen tras el borrado no está probado. Segunda ronda: borrado normal por la API de los dos inmuebles (`200`/`200`) y de la cuenta temporal con su contraseña (`200`); SQL: cuenta temporal 0, inmuebles de prueba 0, intentos de subida 0, `StorageCleanup` 0, OWNER 1; listado del prefijo: 0 objetos, `hasMore` falso; `head` de la fotografía: ausente |
+| B-11 | Cuota | Sin superar la cuota; ninguna `500` | **Hecho, también con concurrencia.** Segunda ronda, a las 16:41:15 UTC: **40 solicitudes `POST /api/uploads` simultáneas** (reservas de espacio previas a la subida; no se transfirieron 40 archivos) de 4 194 304 bytes, repartidos entre dos inmuebles: 25 aceptados (exactamente 104 857 600 bytes = 100 MiB), 15 rechazados con `409 QUOTA_EXCEEDED`, ninguna `500` y sin superar la cuota; las 25 reservas se cancelaron (`204`) y no quedó ninguna pendiente. Valida esa carga y configuración concretas, no el rendimiento ni una carga sostenida. Primera ronda, secuencial (matriz corregida): en un inmueble de la cuenta USER, con una fotografía y otro intento pendiente: 24 reservas de 4 194 304 bytes → `201`; la 25.ª y la 26.ª → `409 LIMIT_REACHED` (100 MB por inmueble). En un **segundo** inmueble, la reserva adicional → `409 QUOTA_EXCEEDED` (cuota de 100 MB del usuario). Cancelaciones `204`. Para probar la cuota de usuario hay que **repartir las reservas entre dos inmuebles**: con uno solo se alcanza antes el límite del inmueble. Esas peticiones fueron secuenciales; la concurrencia se cubrió en la segunda ronda |
 | B-12 | Sin huérfanos | Cada objeto listado corresponde a un archivo visible | **Hecho.** Antes de la limpieza, listado directo: 3 objetos de la cuenta A y 1 de la cuenta USER, todos referenciados en la base, sin adicionales ni ausentes. Después, ambos prefijos vacíos (B-10) |
 
 Pasos detallados de referencia, por si se repiten:
@@ -91,32 +94,30 @@ Pasos detallados de referencia, por si se repiten:
 - **B-5:** preparar, **no** enviar nada, esperar a que venza (15 min) y confirmar: se espera `410 UPLOAD_EXPIRED`. Aparte, enviar el `PUT` después del vencimiento: rechazado.
 - **B-6:** con la URL que devuelve `GET /api/properties/<id>/photos/<foto>/file?as=url`, pedirla tres veces y otra vez pasado su plazo (10 a 15 min para imágenes).
 - **B-7:** `curl -s -D - -o /dev/null -H 'Range: bytes=0-1023' "$URL"`, luego `bytes=-1024`, `bytes=999999999-` y `bytes=-`.
-- **B-11:** cuota del inmueble con un inmueble; cuota del usuario repartiendo las reservas entre dos. Para la concurrencia, lanzar las peticiones en paralelo y comprobar que ninguna `201` supera la cuota y que no hay `500`.
+- **B-11:** cuota del inmueble con un inmueble; cuota del usuario repartiendo las reservas entre dos. Para la concurrencia, lanzar las peticiones en paralelo y comprobar que ninguna `201` supera la cuota y que no hay `500`; después, cancelar las reservas.
 
-## Prioridad 1: IP del cliente (MD-4)
+## Prioridad 1: IP del cliente (MD-4, riesgo aceptado)
 
-`CLIENT_IP_SOURCE` sigue en `socket`. La documentación de Vercel indica que una reescritura hacia un origen externo reenvía `x-forwarded-for` y `x-real-ip`, pero no qué recibe en `x-vercel-forwarded-for` un segundo proyecto de Vercel. Por eso hay que medirlo.
+**Decisión del titular (18/11/2026):** la prueba desde dos redes (y con ella IP-2 a IP-4) queda **fuera de alcance y no se hará**. MD-4 **no** se considera resuelto técnicamente: es un riesgo aceptado. `CLIENT_IP_SOURCE` permanece en `socket` y el diagnóstico, ya retirado, no se vuelve a activar. Consecuencia aceptada: las peticiones que llegan por la reescritura pueden compartir el cupo del rate-limit. No se ha probado desde dos redes ni con cabeceras suplantadas.
 
-Diagnóstico temporal (`apps/api/src/routes/client-ip-diagnostic.routes.ts`): `GET /api/admin/diagnostics/client-ip` solo existe si `CLIENT_IP_DIAGNOSTIC_UNTIL` contiene una fecha ISO 8601 futura, como mucho a 72 h; solo responde al OWNER; devuelve el dominio de llegada, la IP del socket, las cabeceras de proxy y la IP que usaría el rate-limit con cada valor de `CLIENT_IP_SOURCE`; no registra nada y lleva `Cache-Control: no-store`.
+La documentación de Vercel indica que una reescritura hacia un origen externo reenvía `x-forwarded-for` y `x-real-ip`, pero no qué recibe en `x-vercel-forwarded-for` un segundo proyecto de Vercel; no se ha medido más allá de IP-1.
+
+Diagnóstico temporal (usado el 18/11/2026 y retirado) (`apps/api/src/routes/client-ip-diagnostic.routes.ts`): `GET /api/admin/diagnostics/client-ip` solo existe si `CLIENT_IP_DIAGNOSTIC_UNTIL` contiene una fecha ISO 8601 futura, como mucho a 72 h; solo responde al OWNER; devuelve el dominio de llegada, la IP del socket, las cabeceras de proxy y la IP que usaría el rate-limit con cada valor de `CLIENT_IP_SOURCE`; no registra nada y lleva `Cache-Control: no-store`.
 
 | ID | Comprobación | Resultado esperado | Resultado (18/11/2026) |
 |---|---|---|---|
 | IP-0 | Activación | `401` sin sesión | **Hecho**, con autorización del titular y ventana acotada: `401` sin sesión |
 | IP-1 | Red 1, a través de la web | Anotar `socketIp`, `x-forwarded-for`, `x-vercel-forwarded-for` y `x-real-ip` | **Hecho.** IP del socket: loopback. `x-forwarded-for` y `x-vercel-forwarded-for` coinciden con la IP pública de la red (enmascarada en las evidencias). La cabecera `host` llega como el dominio de la API también a través de la reescritura, así que no identifica por sí sola el dominio público de origen |
-| IP-2 | Red 1, dominio de la API | `x-vercel-forwarded-for` con la IP pública de la red | Sin resultado anotado |
-| IP-3 | Red 2 | Las IP de cada red son distintas y coinciden con su IP pública | **Aplazado** por el titular: no dispone de una segunda red para el equipo |
-| IP-4 | Cabeceras falsificadas | `clientIp.vercel` nunca toma el valor falsificado | **No ejecutado** |
+| IP-2 | Red 1, dominio de la API | `x-vercel-forwarded-for` con la IP pública de la red | **Fuera de alcance** (no se hará): requiere reactivar el diagnóstico |
+| IP-3 | Red 2 | Las IP de cada red son distintas y coinciden con su IP pública | **Fuera de alcance** (no se hará): decisión del titular |
+| IP-4 | Cabeceras falsificadas | `clientIp.vercel` nunca toma el valor falsificado | **Fuera de alcance** (no se hará): requiere reactivar el diagnóstico |
 | IP-5 | Retirada | `404` con la sesión del OWNER | **Hecho.** Variable eliminada y API desplegada de nuevo (`dpl_6QefdFA6ZNPxZA6TFHr6F2AM9RBf`, mismo código); la ruta responde `404` con `no-store` al OWNER |
 
-Con una sola red no se puede deducir que el modo `vercel` sea seguro. **MD-4 sigue abierto.**
+Con una sola red no se puede deducir que el modo `vercel` sea seguro, así que **no se activa**. MD-4 queda como riesgo aceptado:
 
-Decisión cuando se complete:
-
-- **Se puede activar `CLIENT_IP_SOURCE=vercel`** solo si, por los dos dominios y desde las dos redes, `x-vercel-forwarded-for` contiene la IP pública de cada red e IP-4 no la altera. Después hay que repetir IP-1 y comprobar que `clientIp.configuredSource` es `vercel`.
-- **Hay que mantener `socket`** si por la web llega una IP de Vercel o la misma en las dos redes. Las alternativas (servir la web y la API desde un mismo proyecto, o una cabecera secreta añadida por la reescritura) son cambios de arquitectura.
-- En ningún caso se usa `x-forwarded-for` ni `x-real-ip` sin haber demostrado que el cliente no puede escribirlos.
-
-Una vez cerrado MD-4, la ruta de diagnóstico se elimina del código.
+- `CLIENT_IP_SOURCE` permanece en `socket`; `CLIENT_IP_DIAGNOSTIC_UNTIL` permanece sin definir.
+- No se usa `x-forwarded-for` ni `x-real-ip`.
+- Las alternativas (servir la web y la API desde un mismo proyecto, o una cabecera secreta añadida por la reescritura) serían cambios de arquitectura y no están previstas.
 
 ## Prioridad 2: aislamiento entre cuentas en producción
 
@@ -137,7 +138,10 @@ Pendiente: repetir la muestra con dos cuentas USER e incluir una pista de audio.
 ## Prioridad 3: otras comprobaciones
 
 - **Restablecimiento de contraseña tras la redirección al login: confirmado por el titular** (18/11/2026). Con la cuenta temporal completó el flujo normal: el enlace de recuperación, la redirección al inicio de sesión, el acceso con la contraseña nueva y la eliminación de la cuenta desde «Cuenta». Es una confirmación manual del titular, no una prueba automatizada del navegador.
-- Pendientes: escuchar el MP4 con «Piano sereno» y probar WebM en producción; tiempos de Neon tras escalar a cero; proveedores de IA con claves reales (necesitan autorización aparte, porque tienen coste); Safari y dispositivos físicos.
+- **MP4 con «Piano sereno»: escuchado por el titular** (18/11/2026). Reprodujo el MP4 descargado de producción (3 916 958 bytes) y confirmó que se oye correctamente, sin cortes ni distorsión evidentes. Es una confirmación humana de ese archivo, no una prueba automatizada ni de todos los dispositivos.
+- **WebM en producción: confirmado por el titular** (18/11/2026). El control automático de Firefox no fue posible (la herramienta no puede aplicar su política de URLs a ese navegador; no se eludió y no indica un fallo de EstateForge), así que el titular hizo la prueba a mano en Firefox, con acceso confirmado por él: inmueble sintético, imagen sintética, generación clásica con «Piano sereno» y borrado posterior. Respondió: «Se escucha bien, aparece como WebM, se elimina todo bien». Quedan acreditados por confirmación humana el formato WebM, la escucha correcta y el borrado. No es una prueba automatizada ni una inspección del binario ni de las cabeceras Range del WebM, no se verificaron por separado la imagen ni el avance, y no se infiere compatibilidad con Safari ni con todos los dispositivos. Comprobación posterior: OWNER conservado (1), inmuebles del OWNER 0, `StorageCleanup` 0 y listado de Blob del prefijo del OWNER con 0 objetos y `hasMore` falso.
+- Pendientes: tiempos de Neon tras escalar a cero; proveedores de IA con claves reales (necesitan autorización aparte, porque tienen coste); dispositivos físicos.
+- **Safari: fuera de alcance** por decisión del titular (18/11/2026). No se probará; queda sin validar, sin prometer compatibilidad validada y sin retirar el soporte existente.
 
 ## Registro de resultados
 

@@ -118,7 +118,7 @@ Plantilla: [`apps/api/.env.example`](../apps/api/.env.example). Nunca subas el `
 | `NODE_ENV` | No | `production` activa la cookie `Secure` y prohíbe el disco local como almacenamiento |
 | `STORAGE_DRIVER`, `STORAGE_LOCAL_DIR`, `STORAGE_LOCAL_SIGNED_URLS`, `STORAGE_LOCAL_SIGNING_SECRET`, `STORAGE_USER_QUOTA_MB` | No | Almacenamiento local (desarrollo) o `vercel-blob`, simulador de URLs firmadas y cuota por usuario |
 | `BLOB_READ_WRITE_TOKEN` / `BLOB_STORE_ID` | Con `vercel-blob` | Acceso al Blob store privado, solo en el servidor |
-| `CLIENT_IP_SOURCE` | No | `socket` (por defecto) o `vercel`, solo tras la comprobación descrita en [el plan de despliegue](despliegue/vercel-neon-blob.md) |
+| `CLIENT_IP_SOURCE` | No | `socket` (por defecto, y el valor de producción). `vercel` existe en el código, pero no se activa: la comprobación desde dos redes quedó fuera de alcance y MD-4 es un riesgo aceptado ([detalle](despliegue/vercel-neon-blob.md#ip-del-cliente-detrás-de-vercel-md-4)) |
 | `AI_MEDIA_SIMULATOR`, `AI_SIMULATOR_DELAY_MS`, `AI_MEDIA_MAX_CONCURRENT`, `AI_MEDIA_DAILY_LIMIT`, `AI_MEDIA_MONTHLY_LIMIT` | No | Simulador local de IA (nunca en producción) y límites por usuario |
 
 No existe ninguna variable para claves de proveedores de IA: cada usuario usa la suya.
@@ -133,4 +133,4 @@ No existe ninguna variable para claves de proveedores de IA: cada usuario usa la
 
 ## Despliegue
 
-Consulta la [guía de Vercel, Neon y Vercel Blob](despliegue/vercel-neon-blob.md). No apliques migraciones ni uses datos reales en un entorno externo sin comprobar primero su destino y configuración.
+La aplicación está publicada en Vercel (web y API), con Neon y Vercel Blob privado; el estado comprobado y lo pendiente están en la [guía de Vercel, Neon y Vercel Blob](despliegue/vercel-neon-blob.md#estado-actual). No apliques migraciones ni uses datos reales en un entorno externo sin comprobar primero su destino y configuración.

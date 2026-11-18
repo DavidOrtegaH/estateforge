@@ -24,18 +24,20 @@ Actualizado el **18/11/2026**. Las fechas de cada prueba concreta se conservan d
 - **Vercel Blob privado, contratos avanzados y aislamiento** (18/11/2026, datos sintéticos; detalle y alcance exacto en [Verificación remota](verificacion-remota.md#resumen-de-la-ronda-del-18112026)):
   - sin sobrescritura (segundo `PUT` 400), más bytes de los firmados rechazados (403), menos bytes rechazados al confirmar (`INVALID_FILE`);
   - tipo: Blob fija el tipo por la extensión de la ruta firmada, así que cambiar solo la cabecera `Content-Type` no provoca rechazo; la API valida los bytes reales (`415 TYPE_MISMATCH` con un JPEG bajo autorización PNG);
-  - `PUT` con la URL ya vencida → 403;
+  - `PUT` con la URL ya vencida → 403; un intento pendiente que vence sin subida ni confirmación previas: `PUT` → 403 y confirmación → `410 UPLOAD_EXPIRED`;
   - Range con `206` y `416` correctos en una fotografía (por la API y directamente en Blob) y en un MP4 sintético; caché `private`;
-  - una URL de lectura emitida con el SDK para 120 s se reutilizó (tres `GET` 200) y caducó con 403;
-  - límite de 100 MB por inmueble (`LIMIT_REACHED`) y cuota de 100 MB por usuario (`QUOTA_EXCEEDED`, repartiendo entre dos inmuebles), con peticiones secuenciales;
+  - una URL de lectura emitida con el SDK para 120 s se reutilizó (tres `GET` 200) y caducó con 403; una URL de fotografía **emitida por la aplicación** se reutilizó (tres `GET` 200, mismos bytes y hash; `private, no-store` y `Vary: Cookie` en la respuesta de la app), respondió 403 tras vencer y una autorización nueva de la app volvió a dar acceso (200/200);
+  - límite de 100 MB por inmueble (`LIMIT_REACHED`) y cuota de 100 MB por usuario (`QUOTA_EXCEEDED`, repartiendo entre dos inmuebles), con peticiones secuenciales y con **40 solicitudes simultáneas de reserva** de 4 MiB (`POST /api/uploads`, el paso previo a la subida; no se transfirieron 40 archivos): 25 aceptadas (exactamente 100 MiB), 15 `409 QUOTA_EXCEEDED`, ninguna 500; las 25 cancelaciones, 204;
   - listado directo del store: todos los objetos referenciados y, tras borrar los inmuebles, ambos prefijos vacíos con `StorageCleanup` = 0; después, `head` del SDK sobre los cinco objetos originales: `BlobNotFoundError` en los cinco (la sexta fotografía, de la prueba de caducidad, la cubre el listado). No se probó el `GET` de las URLs antiguas tras el borrado;
-  - aislamiento con el OWNER y una cuenta USER temporal: 404 uniformes en lecturas, escrituras y `from-property`, 403 en administración, datos del OWNER intactos. Cuenta temporal eliminada por su titular.
+  - aislamiento con el OWNER y una cuenta USER temporal: 404 uniformes en lecturas, escrituras y `from-property`, 403 en administración, datos del OWNER intactos. Cuenta temporal eliminada por su titular;
+  - limpieza de la segunda ronda por la API normal (dos inmuebles 200/200 y cuenta temporal 200): SQL sin cuenta, inmuebles, intentos ni cola (`StorageCleanup` 0), OWNER conservado; prefijo de Blob vacío (`hasMore` falso) y fotografía ausente con `head`.
 - **Vercel Blob privado, flujo básico** (navegador, cuenta verificada, solo datos sintéticos y ficticios; sin llamadas a proveedores de IA). Es una prueba acotada, no una medida de rendimiento:
   - inicio de sesión; creación de un inmueble ficticio y de su anuncio con la plantilla local (sin IA);
   - dos PNG sintéticos de 800×600 subidos directamente a Blob con URL firmada; miniaturas de 480×360 cargadas; visor de imagen completa (800×600) cargado; cambio de la foto principal y del orden, que persisten al recargar;
   - cartel JPEG (182 KB) generado, guardado en Blob y descargado;
   - vídeo MP4 sin sonido (17,028 s, 1280×720, 3,6 MB) generado, guardado en Blob y reproducido desde la URL firmada (`readyState` 4);
-  - 18/11/2026: vídeo regenerado como versión 2 (17 s) con la pista «Piano sereno», guardado y descargado. Se inspeccionó el MP4 descargado (3 916 958 bytes): sus cajas ISO BMFF contienen manejadores (`hdlr`) `vide` y `soun`, lo que confirma una pista de vídeo y otra de audio. **No se ha hecho una prueba auditiva**, así que no está verificado que el sonido se reproduzca; tampoco se ha probado WebM en producción.
+  - 18/11/2026: vídeo regenerado como versión 2 (17 s) con la pista «Piano sereno», guardado y descargado. Se inspeccionó el MP4 descargado (3 916 958 bytes): sus cajas ISO BMFF contienen manejadores (`hdlr`) `vide` y `soun`, lo que confirma una pista de vídeo y otra de audio. El titular reprodujo ese archivo y confirmó que se oye correctamente, sin cortes evidentes (comprobación manual, no automatizada).
+  - 18/11/2026, **WebM en producción (confirmación manual del titular).** En Firefox, con un inmueble sintético, una imagen sintética y generación clásica con «Piano sereno», el titular respondió: «Se escucha bien, aparece como WebM, se elimina todo bien». Quedan acreditados por confirmación humana el formato WebM, la escucha correcta y el borrado; no es una prueba automatizada ni una inspección del binario ni de las cabeceras Range del WebM, y no se verificó por separado la imagen ni el avance. Comprobación posterior: OWNER conservado (1), inmuebles del OWNER 0, `StorageCleanup` 0 y prefijo de Blob del OWNER vacío (0 objetos, `hasMore` falso).
 - Los datos de prueba son sintéticos y están autorizados para sustituirse y borrarse al terminar.
 - CI completo en GitHub sobre `896cc3e`: [ejecución 44295533465](https://github.com/DavidOrtegaH/estateforge/actions/runs/44295533465) correcta (suite de la API con PostgreSQL real, incluidas las nuevas pruebas HTTP del borrado; web 683, shared 212, scripts 60; tipos, lint, builds, importación de `shared` con Node y auditoría). La ejecución anterior, [44164287964](https://github.com/DavidOrtegaH/estateforge/actions/runs/44164287964) sobre `2d04d28`, también pasó.
 - La etiqueta `v1.0.1` no se ha movido. Los cambios posteriores a 1.0.1 están en `main` y no forman parte de esa etiqueta.
@@ -45,13 +47,18 @@ Actualizado el **18/11/2026**. Las fechas de cada prueba concreta se conservan d
 La matriz para comprobarlo en producción (pasos, resultado esperado y limpieza) está en [Verificación remota](verificacion-remota.md).
 
 - **Ejecución programada del cron**, acreditada con una fila `vercel-cron` de `MaintenanceRun` en la franja de las 04:00 UTC: primera ventana el 19/11/2026 (04:00–04:59 UTC) y un segundo día seguido. La retención de 90 días con registros caducados solo está probada con pruebas unitarias y de integración.
-- **Vercel Blob, lo no cubierto:** el `410 UPLOAD_EXPIRED` de un intento pendiente que caduca sin completarse (en la prueba, la subida se completó antes de vencer y la confirmación posterior fue un `200` idempotente); la vigencia de las URLs que emite la propia aplicación y la renovación de la delegación de lectura de 2 h (la sonda de 120 s no las acredita); la petición previa `OPTIONS` de un `PUT`; la cuota con peticiones concurrentes; una galería de 50 fotografías.
-- Vídeo con sonido (el MP4 v2 con «Piano sereno» contiene pistas `vide` y `soun`, pero falta escucharlo) y WebM en producción.
+- **Vercel Blob, lo no cubierto:** la renovación interna de la delegación de lectura de 2 h; la caducidad de las URLs de audio y vídeo; la petición previa `OPTIONS` de un `PUT`; una galería de 50 fotografías.
 - Aislamiento con dos cuentas USER y con una pista de audio (la muestra se hizo con el OWNER y una cuenta USER temporal).
 - Cierre de sesión con cookie a través de la reescritura, pendiente de anotar como evidencia (el inicio de sesión ya consta arriba).
-- MD-4 (IP del cliente detrás de la reescritura): medido desde una sola red; la prueba desde dos redes y con cabeceras falsificadas queda aplazada por decisión del titular. `CLIENT_IP_SOURCE` sigue en `socket` y el diagnóstico está retirado (404).
-- Proveedores de IA con claves reales, Safari y móviles físicos.
+- Proveedores de IA con claves reales y móviles físicos.
 - Indexación en Google: la portada no está indexada; la solicitud de indexación se rechazó por cuota diaria y no se ha reintentado. No hay garantía de aparecer en Google.
+
+### Limitaciones aceptadas (fuera de alcance)
+
+Decisión expresa del titular (18/11/2026). No son pruebas aplazadas: no se harán.
+
+- **MD-4, IP del cliente detrás de la reescritura: riesgo aceptado, no resuelto técnicamente.** Solo se midió desde una red; la prueba desde dos redes y con cabeceras falsificadas no se hará. `CLIENT_IP_SOURCE` permanece en `socket`, el diagnóstico está retirado (404) y no se vuelve a activar. Consecuencia: las peticiones que llegan por la reescritura pueden compartir el cupo del rate-limit. Es un riesgo aceptado, no resuelto: no se ha probado desde dos redes ni con cabeceras suplantadas.
+- **Safari: sin validar.** No se probará. No se promete compatibilidad validada con Safari; el código de compatibilidad existente se mantiene.
 
 El resto del documento conserva las instrucciones técnicas. Las marcas «pendiente de verificar» que siguen se refieren a lo que no aparece en «Comprobado en producción».
 
@@ -158,8 +165,8 @@ Por eso se emiten solo tras comprobar la sesión y la propiedad, con plazos cort
 | `BLOB_READ_WRITE_TOKEN` | La crea Vercel al conectar un Blob store **privado** | Solo en el backend. Alternativa: OIDC de Vercel (`VERCEL_OIDC_TOKEN`, que inyecta la plataforma) + `BLOB_STORE_ID`. Sin una de las dos, la API **no arranca** |
 | `BLOB_STORE_ID` | Identificador del store | Solo con OIDC |
 | `STORAGE_USER_QUOTA_MB` | Por ejemplo, `150` | Cuota por usuario (500 MB por defecto), con las subidas pendientes reservadas. Con 1 GB de Blob en total, ajústala al número de usuarios |
-| `CLIENT_IP_SOURCE` | `vercel` (solo tras la verificación de MD-4) | Origen de la IP para el rate-limit y Turnstile; `socket` por defecto. Ver más abajo |
-| `CLIENT_IP_DIAGNOSTIC_UNTIL` | **Sin definir**, salvo durante la prueba de MD-4: fecha ISO 8601 en UTC como mucho a 72 h vista | Abre el diagnóstico temporal de la IP, solo para el OWNER. Pasada la fecha la ruta responde 404; después se retira la variable |
+| `CLIENT_IP_SOURCE` | `socket` (o sin definir). No se activa `vercel`: MD-4 es un riesgo aceptado | Origen de la IP para el rate-limit y Turnstile. Ver más abajo |
+| `CLIENT_IP_DIAGNOSTIC_UNTIL` | **Sin definir.** El diagnóstico está retirado y no se vuelve a activar | Abriría el diagnóstico temporal de la IP, solo para el OWNER. Sin la variable la ruta responde 404 |
 | `CORS_ORIGIN` | `https://<proyecto-web>.vercel.app` | Con la reescritura las peticiones son del mismo origen; se mantiene por coherencia |
 | `WEB_APP_URL` | `https://<proyecto-web>.vercel.app` | Enlaces de los correos |
 | `API_PUBLIC_URL` | `https://<proyecto-web>.vercel.app` | La API se publica bajo `/api` del dominio de la web |
@@ -359,40 +366,40 @@ Mecanismo implementado en `apps/api/src/client-ip.ts` (DA-57, endurecido en DA-5
 
 El rate-limit y Turnstile obtienen la IP con la misma función (`requestClientIp`). Una prueba comprueba, analizando el código fuente, que ningún otro archivo usa `request.ip`. Cualquier otro valor de `CLIENT_IP_SOURCE` impide arrancar.
 
-**MD-4 sigue abierto.** El 18/11/2026 se activó el diagnóstico de forma temporal y se midió desde **una sola red** a través de la web: la IP del socket es de loopback y `x-forwarded-for` y `x-vercel-forwarded-for` coincidían con la IP pública de esa red; la cabecera `host` llega como el dominio de la API también a través de la reescritura. Sin una segunda red ni la prueba de cabeceras falsificadas (aplazadas por el titular) no se puede concluir que el modo `vercel` sea seguro. La variable se retiró y la ruta responde 404 al OWNER.
+**MD-4: riesgo aceptado, no resuelto técnicamente.** El 18/11/2026 se activó el diagnóstico de forma temporal y se midió desde **una sola red** a través de la web: la IP del socket es de loopback y `x-forwarded-for` y `x-vercel-forwarded-for` coincidían con la IP pública de esa red; la cabecera `host` llega como el dominio de la API también a través de la reescritura. Con una sola red no se puede concluir que el modo `vercel` sea seguro. Por decisión del titular, la prueba desde dos redes y con cabeceras falsificadas **queda fuera de alcance y no se hará**: `CLIENT_IP_SOURCE` permanece en `socket`, la variable del diagnóstico se retiró (la ruta responde 404 al OWNER) y el diagnóstico no se vuelve a activar.
 
 Con la arquitectura recomendada (reescritura `/api/*` desde el proyecto web), la petición llega a la API a través de otro despliegue de Vercel.
 
 - La documentación de [reescrituras](https://vercel.com/docs/routing/rewrites), consultada el 18/11/2026, indica que una reescritura hacia un origen externo reenvía `x-forwarded-for` y `x-real-ip`.
-- No indica qué recibe en `x-vercel-forwarded-for` el proyecto de destino. Hay que medirlo.
-- Mientras tanto, en modo `socket` todas las peticiones que llegan por la reescritura pueden compartir el cupo de la dirección del proxy. Es un límite más estricto de lo previsto, nunca uno más laxo.
+- No indica qué recibe en `x-vercel-forwarded-for` el proyecto de destino, y no se medirá (fuera de alcance).
+- En modo `socket` todas las peticiones que llegan por la reescritura pueden compartir el cupo de la dirección del proxy. Es un riesgo aceptado, no resuelto: no se ha probado desde dos redes ni con cabeceras suplantadas.
 
-**Diagnóstico temporal preparado** (`apps/api/src/routes/client-ip-diagnostic.routes.ts`):
+**Diagnóstico temporal, retirado y sin reactivación prevista** (`apps/api/src/routes/client-ip-diagnostic.routes.ts`; el código sigue en el repositorio, inactivo sin la variable):
 
 - `GET /api/admin/diagnostics/client-ip` solo existe si `CLIENT_IP_DIAGNOSTIC_UNTIL` contiene una fecha ISO 8601 futura y como mucho a 72 h. Pasada esa fecha responde 404.
 - Solo responde al OWNER (USER: 403; sin sesión: 401).
 - Devuelve el dominio de llegada, la IP del socket, `x-forwarded-for`, `x-vercel-forwarded-for`, `x-real-ip`, `forwarded`, `x-vercel-id` y la IP que usaría el rate-limit con cada valor de `CLIENT_IP_SOURCE`.
 - No registra nada y lleva `Cache-Control: no-store`. No cambia el rate-limit ni Turnstile.
-- Retirada: quitar la variable y volver a desplegar (o dejarla vencer); cuando MD-4 se cierre, se elimina el archivo.
+- Retirada: hecha el 18/11/2026 (variable eliminada y API desplegada de nuevo).
 
 Pruebas locales: `client-ip-diagnostic.routes.test.ts` (ventana, caducidad, permisos, cabeceras falsificadas, sin cookies ni secretos en la respuesta) y el barrido de aislamiento (USER 403, OWNER 200, OWNER con incidente abierto rechazado).
 
-Procedimiento desde dos redes, por los dos dominios y con cabeceras falsificadas, con la regla de decisión: [Verificación remota, IP del cliente](verificacion-remota.md#prioridad-1-ip-del-cliente-md-4). `CLIENT_IP_SOURCE=vercel` solo se activa si `x-vercel-forwarded-for` contiene la IP pública de cada red por los dos dominios y las cabeceras falsificadas no la alteran.
+Resultados medidos y filas fuera de alcance: [Verificación remota, IP del cliente](verificacion-remota.md#prioridad-1-ip-del-cliente-md-4-riesgo-aceptado). Sin la prueba desde dos redes no hay base para activar `CLIENT_IP_SOURCE=vercel`.
 
 ## Comprobaciones en el despliegue
 
 Estado de cada comprobación a la fecha de «Estado actual».
 
 1. **Hecho.** Arranque de Fastify con la entrada `apps/api/server.ts`, que importa `src/server.ts` (`tsc` comprueba sus tipos; está en el `include` de `apps/api/tsconfig.json`): `GET /health/ready` responde 200 sin `FUNCTION_INVOCATION_FAILED`. En un despliegue nuevo, conviene seguir revisando en el registro que la entrada sea `server.ts` (y no `src/app.ts`, como en `dpl_CNnq2BZsDHBikV1Bbt81e9afNq7V`) y que se ejecute `check:shared-runtime`.
-2. **Hecho en lo esencial. Blob real**, SDK `@vercel/blob` 2.8.2: flujo básico desde el navegador y, el 18/11/2026, sobrescritura, tamaño mayor y menor, `PUT` con URL vencida, validación del tipo real, borrado, listado y ausencia individual con `head` del SDK (filas B-1 a B-12 de la [verificación remota](verificacion-remota.md#prioridad-1-vercel-blob-real)). El `PUT` no se rechaza por cambiar solo la cabecera `Content-Type`: el tipo lo fija la extensión firmada y la API valida los bytes. Pendiente: el `410` de un intento pendiente que caduca sin completarse.
+2. **Hecho en lo esencial. Blob real**, SDK `@vercel/blob` 2.8.2: flujo básico desde el navegador y, el 18/11/2026, sobrescritura, tamaño mayor y menor, `PUT` con URL vencida, validación del tipo real, borrado, listado y ausencia individual con `head` del SDK, `410 UPLOAD_EXPIRED` de un intento pendiente caducado y cuota con 40 solicitudes simultáneas de reserva de subida (filas B-1 a B-12 de la [verificación remota](verificacion-remota.md#prioridad-1-vercel-blob-real)). El `PUT` no se rechaza por cambiar solo la cabecera `Content-Type`: el tipo lo fija la extensión firmada y la API valida los bytes.
 3. **Parcial. CORS.** El `PUT` y el `GET` prefirmados funcionaron desde el dominio de la web; la lectura del MP4 con el `Origin` de la web devuelve `Access-Control-Allow-Origin: *`. Falta verificar la petición previa `OPTIONS` de un `PUT`.
-4. **Hecho para MP4. Range.** `206` y `416` correctos en una fotografía y en un MP4 sintético (18/11/2026). WebM no probado.
-5. **Parcial. Caducidad real.** Una URL de lectura emitida con el SDK para 120 s se reutilizó y respondió 403 al caducar, y un `PUT` con la URL vencida respondió 403. Falta acreditar la vigencia de las URLs que emite la aplicación y la renovación de la delegación de lectura (se piden 2 h).
+4. **Hecho para MP4. Range.** `206` y `416` correctos en una fotografía y en un MP4 sintético (18/11/2026). En WebM no se inspeccionaron las cabeceras Range (la prueba de WebM fue manual).
+5. **Hecho para fotografías y subidas. Caducidad real.** Una URL de fotografía emitida por la aplicación se reutilizó, respondió 403 al vencer y se renovó con una autorización nueva; un `PUT` con la URL vencida respondió 403 y un intento pendiente caducado, `410 UPLOAD_EXPIRED`. Falta acreditar la renovación interna de la delegación de lectura (se piden 2 h) y la caducidad de las URLs de audio y vídeo.
 6. **Parcial.** Cookie de sesión a través de la reescritura `/api/*`: `/api/auth/me` sin sesión responde 401 con `no-store` y el inicio de sesión en el navegador funcionó; falta anotar como evidencia `/me` con sesión y el cierre.
-7. **Pendiente. IP del cliente para el rate-limit (MD-4).** Medido desde una sola red; diagnóstico retirado. Completar las filas IP-2 a IP-4 de la [verificación remota](verificacion-remota.md#prioridad-1-ip-del-cliente-md-4) antes de activar `CLIENT_IP_SOURCE=vercel`.
+7. **Fuera de alcance; riesgo aceptado. IP del cliente para el rate-limit (MD-4).** Medido desde una sola red; diagnóstico retirado y sin reactivación. Las filas IP-2 a IP-4 de la [verificación remota](verificacion-remota.md#prioridad-1-ip-del-cliente-md-4-riesgo-aceptado) no se harán; `CLIENT_IP_SOURCE` permanece en `socket`.
 8. **Hecho.** La API conecta con Neon (`/health/ready` 200), el registro guarda cuentas y la zona de las sesiones es UTC a través del pooler (validación del 17/11/2026).
 9. **Pendiente.** Tiempos con Neon tras escalar a cero.
-10. **Pendiente.** Prueba auditiva del vídeo con sonido en producción, WebM en producción, Safari y dispositivos físicos (en producción consta un MP4 sin sonido y un MP4 v2 con «Piano sereno» cuya estructura ISO BMFF tiene manejadores `vide` y `soun`, pero que no se ha escuchado). Está comprobada en Edge y Chrome 157 (MP4 + AAC), en Chrome por el camino WebM + Opus y en Firefox 160 (WebM VP8 + Opus), en local con el simulador de Blob.
+10. **Parcial.** MP4 con sonido: el MP4 v2 con «Piano sereno» (manejadores `vide` y `soun`) lo escuchó el titular y se oye correctamente (manual). WebM en producción: el titular confirmó en Firefox que el vídeo aparece como WebM, se escucha bien y se borra todo (manual, 18/11/2026). **Pendiente:** dispositivos físicos. Safari queda fuera de alcance, sin validar (ver «Limitaciones aceptadas»). Está comprobada en Edge y Chrome 157 (MP4 + AAC), en Chrome por el camino WebM + Opus y en Firefox 160 (WebM VP8 + Opus), en local con el simulador de Blob.
 11. **Pendiente.** Cuotas reales de Blob con una galería de 50 fotografías y vídeos con sonido: operaciones avanzadas y simples y transferencia.
 12. **Parcial. Correos tras la respuesta (`waitUntil`).** El correo de verificación de un registro real llegó (a spam) y el de recuperación llegó y permitió cambiar la contraseña. La llegada a spam sigue siendo una limitación.
 13. **Parcial. Vercel Cron.** Registrado en el proyecto api (diario, 4:00 UTC), una llamada sin el secreto responde 401 y una ejecución manual dejó su fila `ok`. Falta acreditar una ejecución programada: fila `vercel-cron` de `MaintenanceRun` con `status = 'ok'` en la franja de las 04:00 UTC ([M-3](verificacion-remota.md#prioridad-1-mantenimiento-diario)).
