@@ -1,6 +1,8 @@
 # Indexación y Google Search Console
 
-**Estado: preparado, no realizado.** No se ha creado ninguna propiedad ni se ha verificado ningún dominio. Este documento describe cómo funciona el SEO de la web y qué hay que hacer tras el primer despliegue de producción.
+**Estado: web publicada en <https://estateforge-blush.vercel.app/>; propiedad de Search Console preparada, todavía sin verificar.** En producción se ha comprobado que la portada responde 200 sin `noindex`, que `/panel` lleva `X-Robots-Tag: noindex`, que una ruta desconocida da un 404 real y que `sitemap.xml` lista las tres páginas públicas.
+
+El titular ha creado en su cuenta una propiedad de **prefijo de URL** para `https://estateforge-blush.vercel.app/`. La etiqueta `<meta name="google-site-verification">` que Google proporcionó (un identificador público, no un secreto) ya está en `apps/web/index.html`, pero **aún no se ha desplegado**, así que la propiedad no está verificada. También quedan pendientes el envío del sitemap y la inspección de URLs. No consta ninguna página indexada ni hay garantía de que la web aparezca en Google. Este documento describe cómo funciona el SEO de la web y los pasos que faltan.
 
 Documentación consultada el **17/11/2026**:
 
@@ -34,13 +36,15 @@ Los datos estructurados son solo `WebSite` (nombre, URL e idioma), que coinciden
 1. Desplegar producción y comprobar:
    - `curl -I https://<dominio>/` → 200, sin `X-Robots-Tag`.
    - `curl -I https://<dominio>/panel` → 200 con `X-Robots-Tag: noindex, nofollow`.
-   - `curl -I https://<dominio>/no-existe` → 404 con la página de error (**pendiente de verificar en Vercel**: que sirva `404.html` con estado 404).
+   - `curl -I https://<dominio>/no-existe` → 404 con la página de error (comprobado en producción: sirve `404.html` con estado 404).
    - `curl -I https://<dominio>/privacidad.html` → 308 a `/privacidad`.
    - `https://<dominio>/robots.txt` contiene `Sitemap: https://<dominio>/sitemap.xml` y `sitemap.xml` lista las tres páginas con ese mismo dominio.
    - La canónica de cada página (`view-source:`) apunta a sí misma con el dominio definitivo.
 2. Si se añade un dominio propio después del primer despliegue, volver a desplegar para que la canónica y el mapa lo usen.
 
 ## Alta en Search Console (a cargo del titular)
+
+Estado de cada paso para `https://estateforge-blush.vercel.app/`: propiedad de prefijo de URL **creada**; etiqueta `<meta>` **añadida al código, pendiente de desplegar**; verificación, envío del sitemap e inspección **pendientes**.
 
 1. Crear la propiedad:
    - **Dominio** (recomendado si hay dominio propio): verificación por registro DNS (TXT o CNAME). Cubre `http`, `https` y los subdominios. No borrar el registro después.

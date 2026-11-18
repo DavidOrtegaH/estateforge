@@ -1,58 +1,67 @@
 # EstateForge
 
-EstateForge es una aplicación para organizar inmuebles y preparar sus anuncios: fotografías, textos, carteles, vídeos y seguimiento de publicación en portales. La interfaz está en español.
+**[Abrir EstateForge → estateforge-blush.vercel.app](https://estateforge-blush.vercel.app/)**
 
-**Estado:** versión 1.0.1 publicada, con el CI de GitHub aprobado. El despliegue de la aplicación en Vercel está en preparación.
+EstateForge es una aplicación web en español para organizar inmuebles y preparar sus anuncios: fotografías, textos, carteles, vídeos y seguimiento de dónde se ha publicado cada uno.
+
+Es un proyecto personal y gratuito. El registro es público y exige verificar el email; los correos de la aplicación pueden llegar a la carpeta de spam, así que conviene revisarla.
 
 ## Qué puedes hacer
 
 - Guardar, buscar y editar inmuebles, con sus características, precio y estado comercial.
 - Organizar hasta 50 fotografías por inmueble, elegir la principal y cambiar su orden.
 - Crear y editar textos de anuncios en español o inglés.
-- Preparar carteles con seis plantillas y vídeos con fotografías, transiciones y música, sin contratar servicios de IA.
-- Anotar en qué portales has publicado cada anuncio y guardar sus enlaces. EstateForge no publica automáticamente en esos portales.
-- Usar opcionalmente IA para generar textos, imágenes o vídeos, con tus propias claves y confirmación del coste antes de cada operación. El consumo lo factura el proveedor que elijas.
+- Preparar carteles con seis plantillas y vídeos con fotografías, transiciones y música, sin servicios de IA.
+- Anotar en qué portales has publicado cada anuncio y guardar sus enlaces. EstateForge no publica en esos portales.
+- Opcionalmente, generar textos, imágenes o vídeos con IA usando tus propias claves, con confirmación del coste antes de cada operación. El consumo lo factura el proveedor que elijas.
 
-## Cómo se utiliza
+## Cómo se usa
 
-1. Accede a tu cuenta y crea un inmueble con sus datos.
-2. Añade las fotografías y selecciona la principal.
-3. Prepara el texto del anuncio y revísalo; puedes editarlo a mano.
-4. Elige una plantilla de cartel o compón un vídeo con las fotografías y el audio que prefieras.
-5. Descarga el material y registra los enlaces de los portales donde lo publiques.
+1. Regístrate, abre el enlace de verificación que recibes por correo (mira también en spam) e inicia sesión.
+2. Crea un inmueble con sus datos y su estado comercial.
+3. Sube las fotografías, elige la principal y ordénalas.
+4. Prepara el texto del anuncio y crea un cartel o un vídeo a partir de las fotografías.
+5. Descarga el material, publícalo en los portales que quieras y guarda sus enlaces en la checklist del anuncio.
 
-Las funciones clásicas no necesitan claves de IA. Las conexiones opcionales se configuran desde Ajustes; sus claves se guardan cifradas y no se muestran de nuevo en el navegador.
+Las funciones clásicas no necesitan claves de IA. Las conexiones opcionales se configuran en Ajustes; las claves se guardan cifradas y no vuelven a mostrarse en el navegador.
 
-## Problemas encontrados, soluciones y resultados
+## Problemas que encontré, cómo los solucioné y qué conseguí
 
-**Concurrencia y datos precisos.** Empecé con SQLite, pero los flujos de recuperación de cuentas y publicación necesitaban controlar escrituras simultáneas y guardar los precios sin pérdida de precisión. Migré a PostgreSQL, con bloqueos de fila, tipos decimales y restricciones en la base. Las pruebas de integración comprueban estos comportamientos contra un PostgreSQL real.
+**Concurrencia y precisión de los datos.** Empecé con SQLite, pero la recuperación de cuentas y la checklist de publicación necesitaban controlar escrituras simultáneas, y los precios no podían perder precisión. Migré a PostgreSQL con bloqueos de fila, tipos decimales y restricciones en la base. Las pruebas de integración lo comprueban contra un PostgreSQL real.
 
-**Separar las claves y el consumo de cada usuario.** El planteamiento inicial podía cargar consumo a una clave de la aplicación. Lo cambié por un modelo en el que cada usuario aporta sus claves, elige el proveedor y confirma las operaciones de pago. Ahora EstateForge no financia las generaciones y las conexiones quedan aisladas por cuenta.
+**Claves y consumo de cada usuario.** El planteamiento inicial podía cargar el consumo a una clave de la aplicación. Lo cambié a un modelo en el que cada usuario aporta sus claves (BYOK), elige el proveedor y confirma las operaciones de pago. EstateForge no financia generaciones y las conexiones quedan aisladas por cuenta.
 
-**Fotografías y vídeos demasiado grandes para la API.** Para evitar que los archivos atraviesen las funciones del servidor, preparé transferencias directas al almacenamiento mediante URLs firmadas, con límites y caducidad. La API valida el archivo antes de asociarlo al inmueble. Los flujos están probados con un simulador; la comprobación del almacenamiento real forma parte del despliegue.
+**Archivos demasiado grandes para la API.** Para que fotografías y vídeos no atraviesen las funciones del servidor, preparé transferencias directas al almacenamiento con URLs firmadas, límites y caducidad. La API valida el archivo antes de asociarlo al inmueble. Además de las pruebas con simulador, en producción se ha comprobado con el almacenamiento privado real una prueba acotada con datos ficticios: subida de fotografías, miniaturas, visor, foto principal y orden, y guardado de un cartel y un vídeo MP4. Otros casos siguen sin verificarse en real (ver [guía de despliegue](docs/despliegue/vercel-neon-blob.md#estado-actual)).
 
-**Material publicitario sin depender de servicios externos.** Compuse los carteles con Canvas y los vídeos con MediaRecorder. Como los navegadores no admiten los mismos formatos, la aplicación elige entre MP4 y WebM según sus capacidades. Esto permite generar material clásico en Edge, Chrome y Firefox sin claves de IA.
+**Material publicitario en el navegador.** Compuse los carteles con Canvas y los vídeos con MediaRecorder. Como cada navegador admite formatos distintos, la aplicación elige entre MP4 y WebM según sus capacidades. Así se genera material en Edge, Chrome y Firefox sin claves de IA.
 
-**Selectores que se solapaban en pantallas pequeñas.** El formulario de generación recortaba campos en algunos anchos. Ajusté su distribución al espacio disponible y comprobé la geometría en varios navegadores y tamaños. La portada también se revisó entre 320 y 1440 píxeles para evitar desbordamientos.
+**Pantallas pequeñas.** El formulario de generación recortaba campos en algunos anchos. Ajusté su distribución y comprobé la geometría en varios navegadores y tamaños. En producción, la portada se ha revisado a 320 píxeles sin desbordamiento horizontal.
 
-**Pruebas que pasaban en Windows y fallaban en Linux.** El primer CI descubrió dependencias del orden de los títulos, del recuento global de conexiones y de la forma de los errores de red. Corregí las comparaciones y el tratamiento de PostgreSQL inaccesible. Al reproducirlo apareció además un problema con las fechas: ahora cada conexión trabaja en UTC para que las caducidades no cambien con la zona horaria del servidor. La versión 1.0.1 supera el CI completo en GitHub.
+**Pruebas que pasaban en Windows y fallaban en Linux.** El primer CI reveló dependencias del orden de los títulos, del recuento global de conexiones y de la forma de los errores de red. Corregí las comparaciones y el tratamiento de PostgreSQL inaccesible, y descubrí un problema de fechas: ahora cada conexión trabaja en UTC para que las caducidades no dependan de la zona horaria del servidor.
 
-**Una portada privada y una carga inicial excesiva.** Separé una presentación pública estática del panel privado y cargué las páginas de la aplicación bajo demanda. La medida del paquete inicial pasó de unos 858 kB a 350 kB. La portada puede tener contenido indexable sin exponer los inmuebles ni los datos de las cuentas.
+**Una portada indexable y una carga inicial más ligera.** Separé una portada pública estática del panel privado y cargué las páginas de la aplicación bajo demanda: el paquete inicial pasó de unos 858 kB a 350 kB. La portada tiene contenido indexable y un mapa del sitio sin exponer inmuebles ni cuentas.
 
-## Tecnología y validación
+**Una construcción correcta con una API que no arrancaba.** En Vercel la construcción terminaba bien, pero la API fallaba al recibir peticiones: el paquete compartido exportaba TypeScript sin compilar y el detector de Vercel elegía como entrada la factoría de pruebas en lugar del servidor. Ahora el paquete compartido se compila a JavaScript (y se comprueba con Node antes de terminar la construcción) y la entrada de la API es explícita.
 
-React y Vite en la interfaz; Fastify en la API; TypeScript y PostgreSQL con Prisma. Los archivos se almacenan fuera de la base de datos.
+**Correos en segundo plano.** Algunos correos se envían sin que la respuesta los espere, para no revelar si una cuenta existe. Como la plataforma puede congelar la función tras responder, esos envíos se registran con `waitUntil`.
 
-- [CI de GitHub](https://github.com/DavidOrtegaH/estateforge/actions): tipos, lint, pruebas, migraciones, build y auditoría de dependencias.
-- Pruebas de integración con PostgreSQL real en Windows y Linux.
-- Flujos de navegador comprobados en Edge, Chrome y Firefox de escritorio. Safari y móviles físicos siguen pendientes.
-- Los proveedores de IA están probados con simuladores y contratos; todavía no se han validado con claves reales.
+## Estado
 
-## Documentación
+- La web y la API están publicadas en Vercel y la base de datos en Neon. El registro, el correo de verificación, la recuperación de contraseña por correo y el inicio de sesión con la contraseña nueva se han comprobado en producción.
+- Con una cuenta verificada y datos ficticios se ha comprobado en producción: crear un inmueble y su anuncio con la plantilla local (sin IA), subir fotografías al almacenamiento privado, ver miniaturas e imagen completa, cambiar la principal y el orden, y generar, guardar y descargar un cartel y un vídeo MP4 sin sonido.
+- Una [ejecución completa del CI en GitHub](https://github.com/DavidOrtegaH/estateforge/actions/runs/44164287964) pasó (tipos, lint, pruebas con PostgreSQL real, builds y auditoría); se lanzó manualmente. Los últimos cambios de interfaz aún no han pasado por el CI.
+- Borrar un inmueble falla en producción con un mensaje genérico. La causa está reproducida y corregida en el código, pero el arreglo aún no está desplegado ni comprobado.
+- Pendiente: vídeo con audio (se generó y descargó un MP4 con pista musical; su estructura confirma pistas de vídeo y audio, pero no se ha escuchado) y WebM, descargas parciales, límites y caducidades en real, aislamiento entre cuentas en producción, proveedores de IA con claves reales, Safari y dispositivos físicos, y el alta en Google Search Console. Los correos pueden seguir llegando a spam.
+
+Detalle de lo comprobado y lo pendiente en la [guía de despliegue](docs/despliegue/vercel-neon-blob.md#estado-actual).
+
+## Tecnología y documentación
+
+React y Vite en la interfaz; Fastify en la API; TypeScript y PostgreSQL con Prisma. Los archivos se guardan fuera de la base de datos.
 
 - [Desarrollo y configuración](docs/desarrollo.md): instalación local, arquitectura, variables y comandos.
 - [Documentación del producto y seguridad](docs/README.md).
-- [Despliegue en Vercel](docs/despliegue/vercel-neon-blob.md) y [registro de cambios](CHANGELOG.md).
+- [Despliegue en Vercel, Neon y Blob](docs/despliegue/vercel-neon-blob.md) y [registro de cambios](CHANGELOG.md).
 
 ## Licencia
 

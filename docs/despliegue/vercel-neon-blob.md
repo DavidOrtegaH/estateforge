@@ -1,15 +1,46 @@
-# Preparación para Vercel (Hobby), Neon (Free) y Vercel Blob
+# Despliegue en Vercel (Hobby), Neon (Free) y Vercel Blob
 
-**Estado: preparado, no desplegado ni verificado contra los servicios reales.**
+## Estado actual
 
-- No se ha creado ninguna cuenta, ningún proyecto ni ningún Blob store.
-- No se ha conectado ningún servicio externo ni se ha ejecutado ninguna operación en la nube.
-- Todo lo que sigue está comprobado en local:
-  - pruebas unitarias del adaptador de Blob con el SDK simulado;
-  - el simulador local de Blob con URLs firmadas;
-  - E2E en Edge y Chrome.
-- Lo que depende de la plataforma se señala como **pendiente de verificar en el despliegue**.
-- **La integración con Vercel Blob no está verificada.**
+Actualizado el **18/11/2026**. Las fechas de cada prueba concreta se conservan donde se indican.
+
+**Publicado en producción.** Web: <https://estateforge-blush.vercel.app/>. API: <https://estateforge-api.vercel.app/>.
+
+**Plataforma.** Vercel Hobby (proyectos `web` y `api`) y Neon Free. La API, el Blob store y la base de datos están en la región de Frankfurt. No se usa GitHub Pages. Los despliegues se hacen con la CLI de Vercel; no hay integración automática con Git configurada.
+
+### Comprobado en producción
+
+- `GET https://estateforge-api.vercel.app/health/ready` → 200 con la base de datos disponible. La entrada `apps/api/server.ts` y `@estateforge/shared` compilado funcionan en la plataforma (ver los dos incidentes de «Construcción y migraciones»).
+- `GET /api/auth/me` a través de la reescritura de la web, sin sesión → 401 con `Cache-Control: no-store`.
+- Portada → 200 sin `noindex`; `/panel` → `X-Robots-Tag: noindex`; una ruta desconocida → 404 real; CSP y demás cabeceras de seguridad presentes; `sitemap.xml` con las tres páginas públicas.
+- Portada examinada a 320 px de ancho, sin desbordamiento horizontal.
+- Registro real y envío del correo de verificación: el titular lo recibió en la carpeta de spam y `emailVerifiedAt` ya tiene valor en Neon.
+- Recuperación de contraseña real, confirmada por el titular: el correo llegó, el enlace permitió cambiar la contraseña y el inicio de sesión con la nueva funcionó. Tras el cambio, la página se quedaba en «Restablecer contraseña» y había que pulsar el enlace al login; la redirección automática al login está corregida en el código, pero aún no consta como desplegada ni comprobada en producción.
+- Vercel Cron registrado (diario, `0 4 * * *` UTC). Una llamada sin el secreto → 401.
+- **Vercel Blob privado, flujo básico** (navegador, cuenta verificada, solo datos sintéticos y ficticios; sin llamadas a proveedores de IA). Es una prueba acotada, no una medida de rendimiento:
+  - inicio de sesión; creación de un inmueble ficticio y de su anuncio con la plantilla local (sin IA);
+  - dos PNG sintéticos de 800×600 subidos directamente a Blob con URL firmada; miniaturas de 480×360 cargadas; visor de imagen completa (800×600) cargado; cambio de la foto principal y del orden, que persisten al recargar;
+  - cartel JPEG (182 KB) generado, guardado en Blob y descargado;
+  - vídeo MP4 sin sonido (17,028 s, 1280×720, 3,6 MB) generado, guardado en Blob y reproducido desde la URL firmada (`readyState` 4);
+  - 18/11/2026: vídeo regenerado como versión 2 (17 s) con la pista «Piano sereno», guardado y descargado. Codex inspeccionó el MP4 descargado (3 916 958 bytes): sus cajas ISO BMFF contienen manejadores (`hdlr`) `vide` y `soun`, lo que confirma una pista de vídeo y otra de audio. **No se ha hecho una prueba auditiva**, así que no está verificado que el sonido se reproduzca; tampoco se ha probado WebM en producción.
+- Los datos de prueba son sintéticos y están autorizados para sustituirse y borrarse al terminar.
+- CI completo en GitHub sobre `2d04d2825adc7956465cbb4e4908d06641d450da`, integrado en `main`, `develop`, `release` y `feature`: [ejecución 44164287964](https://github.com/DavidOrtegaH/estateforge/actions/runs/44164287964) correcta (API 2321/2321 con PostgreSQL real, shared 212, web 670, scripts 60, tipos, lint, builds, importación de `shared` con Node y auditoría con la única excepción ya existente). El CI se ha lanzado manualmente; no se ha observado una ejecución automática por `push`.
+- La etiqueta `v1.0.1` no se ha movido. Los cambios posteriores a 1.0.1 están en `main` y no forman parte de esa etiqueta.
+
+### Pendiente
+
+- Los cambios de interfaz posteriores a la ejecución de CI citada aún no han pasado por el CI.
+- **Vercel Blob, partes avanzadas** (en local solo probadas con el simulador): respuestas `206` formales con Range; vídeo con sonido (el MP4 v2 con «Piano sereno» contiene pistas `vide` y `soun`, pero falta escucharlo) y WebM; cuotas con una galería de 50 fotografías; caducidad real de las URLs firmadas; restricciones del `PUT` (tipo, tamaño, sobrescritura); borrado y limpieza en Blob; caché de las respuestas de archivo; aislamiento entre cuentas públicas en producción.
+- Redirección automática al login tras restablecer la contraseña: pendiente de desplegar y comprobar en producción.
+- **Borrar un inmueble: falla en producción** (18/11/2026, inmueble sintético; la web solo muestra un mensaje genérico y el inmueble sigue existiendo). Causa reproducida en local: el cliente enviaba `DELETE /api/properties/:id` con `Content-Type: application/json` y sin cuerpo, y Fastify 5 lo rechaza con `400 FST_ERR_CTP_EMPTY_JSON_BODY` antes de llegar a la ruta. Corregido en el código con una prueba de regresión sobre HTTP real (`apps/api/src/routes/property.routes.delete-contract.test.ts`); **pendiente de desplegar y de repetir el borrado en producción**, y con él la limpieza de sus archivos en Blob.
+- Cierre de sesión con cookie a través de la reescritura, pendiente de anotar como evidencia (el inicio de sesión ya consta arriba).
+- Primer OWNER: aún no asignado.
+- Primera ejecución real del cron (limpieza y purga de auditoría). La retención de 90 días solo está probada con pruebas unitarias y de integración.
+- MD-4 (IP del cliente detrás de la reescritura): `CLIENT_IP_SOURCE` sigue en `socket`.
+- Proveedores de IA con claves reales, Safari y dispositivos físicos.
+- Alta en Google Search Console: el contenido indexable y el mapa del sitio están listos, pero la propiedad no se ha creado, así que no hay garantía de aparecer en Google.
+
+El resto del documento conserva las instrucciones técnicas. Las marcas «pendiente de verificar» que siguen se refieren a lo que no aparece en «Comprobado en producción».
 
 Cuotas y comportamiento consultados el **11/11/2026** en la documentación oficial. Pueden cambiar, así que revísalos antes de desplegar:
 
@@ -39,13 +70,13 @@ Navegador ──► proyecto web (Vercel, estático: apps/web/dist)
 
 **`apps/web/vercel.json` (en el repositorio).** Define las URLs limpias, la SPA acotada a las rutas de la aplicación (cualquier otra ruta es un 404 real, no `index.html`), las cabeceras de seguridad, la CSP, la caché de los recursos con huella y `X-Robots-Tag` en las rutas privadas. Detalle en [la aplicación web](../../apps/web/README.md) y en [Search Console](search-console.md).
 
-Falta solo la reescritura hacia la API, porque necesita su dominio real. Al desplegar, se añade como **primera** regla de `rewrites` (Vercel sirve antes los archivos estáticos y después aplica las reescrituras en orden):
+La reescritura hacia la API es la **primera** regla de `rewrites` (Vercel sirve antes los archivos estáticos y después aplica las reescrituras en orden) y apunta al dominio real del proyecto api:
 
 ```json
-{ "source": "/api/:path*", "destination": "https://<dominio-del-proyecto-api>/api/:path*" }
+{ "source": "/api/:path*", "destination": "https://estateforge-api.vercel.app/api/:path*" }
 ```
 
-Sin ella, `/api/*` responde 404: la web no funciona, pero tampoco cae en la SPA ni expone nada.
+Sin ella, `/api/*` respondería 404: la web no funcionaría, pero tampoco caería en la SPA ni expondría nada. `apps/web/tooling/site.test.ts` comprueba la regla.
 
 ### Transferencias directas (DA-58)
 
@@ -156,7 +187,7 @@ Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el 
     2. importa ese artefacto con Node sin cargador y falla la construcción si no resuelve a `dist/index.js` o no carga;
     3. genera el cliente de Prisma en `src/generated/prisma`, que no está en el repositorio;
     4. comprueba los tipos;
-  - entrada de la función: `apps/api/server.ts`, que hace `import 'fastify'` e `import './src/server.js'`. El builder de Vercel para Fastify (`packages/fastify/src/build.ts`, `generateNodeBuilderFunctions`) recorre los candidatos `app`, `index`, `server`, `src/app`, `src/index`, `src/server` y **solo acepta uno cuyo código contenga una importación literal de `fastify`**. La primera versión de `server.ts` solo importaba `./src/server.js`, así que el builder la descartó y eligió `src/app.ts`, la factoría de pruebas. En el despliegue `dpl_CNnq2BZsDHBikV1Bbt81e9afNq7V` la construcción terminó bien, pero al invocar `/health/ready` el registro mostró `Invalid export found in module /var/task/apps/api/src/app.js. The default export must be a function or server.` El `import 'fastify'` (solo por efecto, sin cambiar el arranque) hace que `server.ts` sea elegible; `src/vercel-entrypoint.test.ts` reproduce el contrato del detector y falla si se quita. En la raíz de `apps/api` no hay `app.*` ni `index.*`. **No se ha comprobado aún en la plataforma** que el nuevo despliegue elija `server.ts` y responda: hay que confirmarlo en el registro;
+  - entrada de la función: `apps/api/server.ts`, que hace `import 'fastify'` e `import './src/server.js'`. El builder de Vercel para Fastify (`packages/fastify/src/build.ts`, `generateNodeBuilderFunctions`) recorre los candidatos `app`, `index`, `server`, `src/app`, `src/index`, `src/server` y **solo acepta uno cuyo código contenga una importación literal de `fastify`**. La primera versión de `server.ts` solo importaba `./src/server.js`, así que el builder la descartó y eligió `src/app.ts`, la factoría de pruebas. En el despliegue `dpl_CNnq2BZsDHBikV1Bbt81e9afNq7V` la construcción terminó bien, pero al invocar `/health/ready` el registro mostró `Invalid export found in module /var/task/apps/api/src/app.js. The default export must be a function or server.` El `import 'fastify'` (solo por efecto, sin cambiar el arranque) hace que `server.ts` sea elegible; `src/vercel-entrypoint.test.ts` reproduce el contrato del detector y falla si se quita. En la raíz de `apps/api` no hay `app.*` ni `index.*`. **Comprobado en producción:** con este cambio, `GET /health/ready` responde 200 con la base de datos disponible;
   - **las migraciones no se ejecutan en la construcción**: así una vista previa nunca modifica la base de producción. El titular las aplica a mano, antes de promover una versión que las necesite, con `prisma migrate deploy` y la URL **directa** (sin `-pooler`) de Neon (`DATABASE_URL=<directa> pnpm --filter api db:migrate`). `migrate deploy` aplica solo migraciones revisadas y nunca crea ni reinicia datos;
   - las vistas previas usan una base o una rama de Neon propia, nunca la de producción (variables del entorno Preview distintas de las de Production).
 - **web**:
@@ -187,11 +218,9 @@ Ninguna variable `VITE_` debe contener secretos, porque Vite las incrusta en el 
     - `node --input-type=module -e "await import('@estateforge/shared')"` desde `apps/api` resuelve a `packages/shared/dist/index.js`;
     - con `--conditions=development` (Node o `tsx`) resuelve a `src/index.ts`;
   - `pnpm --filter api build` y `pnpm --filter web build` correctos.
-- **No comprobado:**
-  - un despliegue en Vercel con este cambio;
-  - que el rastreo de archivos de Vercel incluya `packages/shared/dist` (debería, porque sigue `exports` con las condiciones de Node);
-  - `db:generate` en esta verificación (carga `.env`);
-  - la suite completa de la API.
+- **Comprobado después:**
+  - el despliegue de producción con este cambio y la entrada explícita: `/health/ready` responde 200 y las rutas de la API cargan `@estateforge/shared` (`/api/auth/me` responde 401 sin sesión);
+  - la suite completa de la API (2321 pruebas, con PostgreSQL real) y la importación de `shared` con Node en el CI de GitHub (ver «Estado actual»).
 
 - Migraciones actuales, todas aditivas:
   - `0_postgresql_baseline`;
@@ -249,7 +278,7 @@ Lo que supone para el plan Hobby:
 - Se entrega la **promesa protegida**, la que nunca rechaza: un fallo SMTP no llega al runtime como rechazo sin gestionar. El seguimiento local y la espera del cierre ordenado (servidor propio, `SIGTERM`) no cambian.
 - **Fuera de Vercel** no hay contexto de petición y `waitUntil` no hace nada; si lanzara, `track` lo ignora y el envío sigue en el seguimiento local.
 - **Límites reales.** `waitUntil` solo prolonga la invocación hasta la duración máxima de la función (300 s en Hobby). Los tiempos de espera SMTP (10 s de conexión, 10 s de saludo y 30 s de inactividad del socket) quedan dentro. Si la plataforma termina la invocación antes, el envío se pierde igual que ante una caída y el titular puede pedir otro enlace.
-- Pruebas locales: sin contexto, con el SDK real, y con contexto simulado sustituyendo la exportación pública `waitUntil` (`pending-deliveries.wait-until.test.ts`). **No se ha comprobado en Vercel.**
+- Pruebas locales: sin contexto, con el SDK real, y con contexto simulado sustituyendo la exportación pública `waitUntil` (`pending-deliveries.wait-until.test.ts`). En producción, el correo de verificación de un registro real llegó (a la carpeta de spam); el de recuperación de contraseña también llegó y permitió cambiarla. No se ha medido por separado el comportamiento de `waitUntil` en Vercel.
 
 ### Mantenimiento programado (Vercel Cron)
 
@@ -272,13 +301,13 @@ Lo que supone para el plan Hobby:
   - Según la documentación de Vercel (no comprobado en la plataforma): en Hobby un cron se ejecuta como mucho una vez al día y la hora exacta puede variar dentro de la hora indicada; solo se ejecuta en el despliegue de Production; no se reintenta si falla.
   - Con un lote de 50 al día, una cola mayor tarda varios días en vaciarse; `pnpm --filter api storage:cleanup` sigue disponible para vaciarla a mano.
   - Dos ejecuciones simultáneas (por ejemplo, una manual y la programada) pueden coger las mismas filas. El borrado en Blob es idempotente; la segunda cuenta la fila como fallo y no borra nada más.
-- Pruebas locales con dobles de Prisma y del almacenamiento: autenticación y delegación segura (`maintenance.routes.test.ts`, `audit-retention.service.test.ts`). Retención contra PostgreSQL efímero en localhost (`audit-retention.integration.test.ts`): frontera, incidente abierto y resuelto, cuentas eliminadas, lotes sin starvation, concurrencia con apertura de incidente y fallo con ROLLBACK. **No se ha ejecutado ninguna limpieza ni purga de auditoría real, ni el cron en Vercel.**
+- Pruebas locales con dobles de Prisma y del almacenamiento: autenticación y delegación segura (`maintenance.routes.test.ts`, `audit-retention.service.test.ts`). Retención contra PostgreSQL efímero en localhost (`audit-retention.integration.test.ts`): frontera, incidente abierto y resuelto, cuentas eliminadas, lotes sin starvation, concurrencia con apertura de incidente y fallo con ROLLBACK. En producción el cron está registrado (diario a las 4:00 UTC) y una llamada sin el secreto responde 401. **No consta todavía ninguna ejecución del cron, ni ninguna limpieza o purga de auditoría real.**
 
 ### Caché de las respuestas de la API
 
 - Sin `Cache-Control` propio, Vercel añade `public, max-age=0, must-revalidate` (observado en pruebas reales sin sesión). Como endurecimiento, el `onSend` global de `apps/api/src/app.ts` fija `Cache-Control: no-store` en todas las respuestas de la API (incluidos errores, 404 y la respuesta preliminar de CORS), junto a las cabeceras de seguridad existentes.
 - Se conserva la política de la ruta solo si ya impide guardar la respuesta en cachés compartidas (`private` o `no-store`; `apps/api/src/cache-control.ts`): `private, no-store` de las URL firmadas, `private, no-cache` con ETag de los archivos y `private, max-age=N` de la reproducción firmada. Cualquier otra se sustituye por `no-store`.
-- No cambia la caché de los recursos de la web (`apps/web/vercel.json`). No se ha observado ninguna fuga a través de cachés; es una medida preventiva. Pendiente de comprobar en el despliegue con `curl -I`.
+- No cambia la caché de los recursos de la web (`apps/web/vercel.json`). No se ha observado ninguna fuga a través de cachés; es una medida preventiva. Comprobado en producción en `/api/auth/me` sin sesión (401 con `Cache-Control: no-store`, a través de la reescritura). Las cabeceras de las rutas de archivo están implementadas, pero no se han revisado en producción.
 
 ## IP del cliente detrás de Vercel (MD-4)
 
@@ -306,24 +335,26 @@ Prueba externa necesaria (cuando se autorice el despliegue):
 5. Enviar `X-Forwarded-For: 1.2.3.4` y `X-Vercel-Forwarded-For: 1.2.3.4` desde el cliente, y comprobar que la IP detectada no cambia.
 6. Retirar la ruta de diagnóstico.
 
-## Comprobaciones pendientes en el despliegue (no realizadas)
+## Comprobaciones en el despliegue
 
-1. Arranque de Fastify en el entorno de funciones de Vercel con la entrada `apps/api/server.ts`, que importa `src/server.ts`. `tsc` ya comprueba los tipos de esa entrada (está en el `include` de `apps/api/tsconfig.json`). Hay que confirmar en el registro de construcción que la entrada elegida es `server.ts` (y no `src/app.ts`, como ocurrió en `dpl_CNnq2BZsDHBikV1Bbt81e9afNq7V` antes del `import 'fastify'`), que se ejecutó `check:shared-runtime` y que `GET /health` y `GET /health/ready` responden sin `FUNCTION_INVOCATION_FAILED` (ver el incidente de `@estateforge/shared`).
-2. **Blob real**, SDK `@vercel/blob` 2.8.2:
-   - `issueSignedToken` y `presignUrl` con un store privado;
-   - el `PUT` firmado respeta el tipo, el tamaño máximo, la caducidad y `allowOverwrite: false`;
-   - `head`, la lectura completa en la confirmación, el borrado y el listado.
-3. **CORS** del `PUT` prefirmado (con petición previa `OPTIONS`) y del `GET` prefirmado con `fetch` desde el dominio de la web.
-4. **Range.** Respuestas `206` del `GET` prefirmado al avanzar un vídeo MP4 y WebM. La documentación no lo menciona; en local está probado con el simulador.
-5. **Caducidad real** de las URLs (`403` al caducar) y de la delegación de lectura reutilizada (como máximo 7 días según la documentación; se piden 2 h).
-6. Cookie de sesión a través de la reescritura `/api/*` (inicio de sesión, `/me` y cierre).
-7. **IP del cliente para el rate-limit (MD-4).** Seguir la «Prueba externa necesaria» del apartado anterior antes de activar `CLIENT_IP_SOURCE=vercel`.
-8. Migraciones con la URL directa de Neon y conexión de la API con la URL del pooler (`sslmode=require`).
-9. Tiempos con Neon tras escalar a cero.
-10. Grabación del vídeo con sonido en Safari. Está comprobada en Edge y Chrome 157 (MP4 + AAC), en Chrome por el camino WebM + Opus y en Firefox 160 (WebM VP8 + Opus), en local con el simulador de Blob.
-11. Cuotas reales de Blob con una galería de 50 fotografías y vídeos con sonido: operaciones avanzadas y simples y transferencia.
-12. **`waitUntil` con Fastify en Vercel.** Comprobar que el runtime ofrece el contexto de petición al manejador de Fastify y que un correo de verificación o restablecimiento llega aunque la respuesta ya se haya enviado.
-13. **Vercel Cron.** Comprobar que el cron aparece en el proyecto api, que la llamada lleva `Authorization: Bearer <CRON_SECRET>` y responde 200, y que sin el secreto o con otro valor responde 503 o 401. Hacerlo primero con la cola vacía.
+Estado de cada comprobación a la fecha de «Estado actual».
+
+1. **Hecho.** Arranque de Fastify con la entrada `apps/api/server.ts`, que importa `src/server.ts` (`tsc` comprueba sus tipos; está en el `include` de `apps/api/tsconfig.json`): `GET /health/ready` responde 200 sin `FUNCTION_INVOCATION_FAILED`. En un despliegue nuevo, conviene seguir revisando en el registro que la entrada sea `server.ts` (y no `src/app.ts`, como en `dpl_CNnq2BZsDHBikV1Bbt81e9afNq7V`) y que se ejecute `check:shared-runtime`.
+2. **Parcial. Blob real**, SDK `@vercel/blob` 2.8.2:
+   - **hecho (flujo básico):** URLs firmadas con un store privado para subir dos imágenes, sus miniaturas, un cartel JPEG y un vídeo MP4 sin sonido, y leerlos desde el navegador; la confirmación de cada subida terminó bien (ver «Estado actual»);
+   - pendiente: comprobar de forma explícita que el `PUT` firmado rechaza otro tipo, un tamaño mayor, una URL caducada y la sobrescritura (`allowOverwrite: false`), y el borrado y el listado.
+3. **Parcial. CORS.** El `PUT` y el `GET` prefirmados funcionaron desde el dominio de la web en el flujo básico; falta revisar de forma explícita la petición previa `OPTIONS` y sus cabeceras.
+4. **Pendiente. Range.** El vídeo MP4 se reprodujo (`readyState` 4), pero no se han verificado formalmente las respuestas `206` al avanzar un MP4 o un WebM. La documentación no lo menciona; en local está probado con el simulador.
+5. **Pendiente. Caducidad real** de las URLs (`403` al caducar) y de la delegación de lectura reutilizada (como máximo 7 días según la documentación; se piden 2 h).
+6. **Parcial.** Cookie de sesión a través de la reescritura `/api/*`: `/api/auth/me` sin sesión responde 401 con `no-store` y el inicio de sesión en el navegador funcionó; falta anotar como evidencia `/me` con sesión y el cierre.
+7. **Pendiente. IP del cliente para el rate-limit (MD-4).** Seguir la «Prueba externa necesaria» del apartado anterior antes de activar `CLIENT_IP_SOURCE=vercel`.
+8. **Parcial.** La API conecta con Neon (`/health/ready` 200) y el registro guarda cuentas. Falta verificar `SELECT current_setting('TimeZone')` a través del pooler.
+9. **Pendiente.** Tiempos con Neon tras escalar a cero.
+10. **Pendiente.** Prueba auditiva del vídeo con sonido en producción, WebM en producción, Safari y dispositivos físicos (en producción consta un MP4 sin sonido y un MP4 v2 con «Piano sereno» cuya estructura ISO BMFF tiene manejadores `vide` y `soun`, pero que no se ha escuchado). Está comprobada en Edge y Chrome 157 (MP4 + AAC), en Chrome por el camino WebM + Opus y en Firefox 160 (WebM VP8 + Opus), en local con el simulador de Blob.
+11. **Pendiente.** Cuotas reales de Blob con una galería de 50 fotografías y vídeos con sonido: operaciones avanzadas y simples y transferencia.
+12. **Parcial. Correos tras la respuesta (`waitUntil`).** El correo de verificación de un registro real llegó (a spam) y el de recuperación llegó y permitió cambiar la contraseña. La llegada a spam sigue siendo una limitación.
+13. **Parcial. Vercel Cron.** Registrado en el proyecto api (diario, 4:00 UTC) y una llamada sin el secreto responde 401. Falta observar una ejecución programada con `Authorization: Bearer <CRON_SECRET>` y respuesta 200, idealmente con la cola vacía.
+14. **Pendiente.** Alta en [Search Console](search-console.md).
 
 ## Generación con IA (BYOK)
 
@@ -338,7 +369,9 @@ Prueba externa necesaria (cuando se autorice el despliegue):
 
 Detalle en [Carteles y vídeos con IA (BYOK)](../producto-ia-byok.md) y en el [catálogo de proveedores](../proveedores-ia.md).
 
-## Procedimiento (cuando se autorice)
+## Procedimiento
+
+Para la publicación actual (CLI de Vercel, sin integración con Git) se han realizado los pasos 1 a 4 y 6, y del paso 5 el despliegue y `/health/ready`; las comprobaciones 1 a 8 tienen el estado indicado en «Comprobaciones en el despliegue». Pendientes: el paso 7 (no hay OWNER asignado), el 9 (Search Console) y el 10. El registro es público con verificación del email (paso 8). Se conserva como referencia para un despliegue nuevo.
 
 1. Crear el proyecto de Neon (región cercana a la de Vercel) y anotar las URL directa y con pooler.
 2. Crear dos proyectos de Vercel desde el repositorio (raíces `apps/api` y `apps/web`).
