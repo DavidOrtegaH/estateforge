@@ -105,7 +105,7 @@ describe('generation.service - ownership', () => {
         language: 'español',
         userId: 'user-b',
       }),
-    ).rejects.toThrow('Property not found')
+    ).rejects.toMatchObject({ message: 'Property not found', statusCode: 404 })
 
     expect(mocks.propertyFindFirst).toHaveBeenCalledWith({
       where: {

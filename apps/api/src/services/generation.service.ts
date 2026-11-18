@@ -402,8 +402,11 @@ export async function generateListingForExistingProperty(
     })
 
   if (!property) {
-    throw new Error(
-      'Property not found',
+    // 404 como el resto de rutas de inmuebles: un inmueble ajeno o inexistente responde igual. Sin
+    // statusCode, el manejador global lo trataba como un fallo interno (500) y lo registraba como error.
+    throw Object.assign(
+      new Error('Property not found'),
+      { statusCode: 404 },
     )
   }
 
