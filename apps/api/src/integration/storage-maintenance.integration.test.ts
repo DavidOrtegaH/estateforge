@@ -387,3 +387,133 @@ describe('confirmación, cancelación y caducidad a la vez', () => {
     expect((await admin.query(`SELECT count(*)::int AS n FROM "PropertyPhoto" WHERE "propertyId" = $1`, [propertyId])).rows[0].n).toBe(1)
   })
 })
+
+describe('contrato del almacenamiento (simulador local de Blob)', () => {
+  const withQuota = async (mb: string, run: () => Promise<void>) => {
+    const previous = process.env.STORAGE_USER_QUOTA_MB
+    process.env.STORAGE_USER_QUOTA_MB = mb
+    try {
+      await run()
+    } finally {
+      if (previous === undefined) delete process.env.STORAGE_USER_QUOTA_MB
+      else process.env.STORAGE_USER_QUOTA_MB = previous
+    }
+  }
+  const reservedAndUsed = async (userId: string) =>
+    Number(
+      (await admin.query(
+        `SELECT (SELECT COALESCE(SUM(size), 0) FROM "UploadAttempt" WHERE "userId" = $1 AND status IN ('pending', 'processing') AND "expiresAt" > now())
+              + (SELECT COALESCE(SUM(f.size + COALESCE(f."thumbSize", 0)), 0) FROM "PropertyPhoto" f JOIN "Property" p ON p.id = f."propertyId" WHERE p."userId" = $1)
+              + (SELECT COALESCE(SUM(size), 0) FROM "AudioTrack" WHERE "userId" = $1) AS total`,
+        [userId],
+      )).rows[0].total,
+    )
+
+  it('cuota con subidas simultáneas de distinto tipo y en dos inmuebles: nunca se supera', async () => {
+    await withQuota('10', async () => {
+      const owner = await account()
+      const first = await property(owner.userId)
+      const second = await property(owner.userId)
+      const big = 3_500_000
+      const requests = [
+        ...Array.from({ length: 4 }, () => ({ kind: 'photo', contentType: 'image/png', size: big, propertyId: first.propertyId })),
+        ...Array.from({ length: 4 }, () => ({ kind: 'photo', contentType: 'image/jpeg', size: big, propertyId: second.propertyId })),
+        ...Array.from({ length: 4 }, () => ({ kind: 'audio', contentType: 'audio/mpeg', size: big, fileName: 'p.mp3', rightsConfirmed: true })),
+      ]
+      const results = await Promise.all(requests.map(body => prepare(owner.cookie, body)))
+      // 10 MB / 3,5 MB: caben dos reservas; el resto se rechaza por cuota, no por otro motivo.
+      expect(results.filter(r => r.statusCode === 201)).toHaveLength(2)
+      expect(results.filter(r => r.statusCode !== 201).every(r => r.json().code === 'QUOTA_EXCEEDED')).toBe(true)
+      expect(await reservedAndUsed(owner.userId)).toBeLessThanOrEqual(10 * 1024 * 1024)
+    })
+  })
+
+  it('dos confirmaciones simultáneas dentro de la cuota: ambas se guardan y el total no la supera', async () => {
+    await withQuota('10', async () => {
+      const owner = await account()
+      const { propertyId } = await property(owner.userId)
+      const one = await uploaded(owner.cookie, propertyId, 61)
+      const two = await uploaded(owner.cookie, propertyId, 62)
+      const [x, y] = await Promise.all([complete(owner.cookie, one.attemptId), complete(owner.cookie, two.attemptId)])
+      expect([x.statusCode, y.statusCode]).toEqual([200, 200])
+      expect(await reservedAndUsed(owner.userId)).toBeLessThanOrEqual(10 * 1024 * 1024)
+    })
+  })
+
+  it('la URL de lectura firmada se puede reutilizar hasta que caduca (no es de un solo uso) y después se rechaza', async () => {
+    const owner = await account()
+    const { propertyId } = await property(owner.userId)
+    const { attemptId, key } = await uploaded(owner.cookie, propertyId, 63)
+    const photo = (await complete(owner.cookie, attemptId)).json().photo
+    const access = await app.inject({ url: `${photo.url}&as=url`, remoteAddress: ipFor(owner.cookie), headers: { cookie: owner.cookie } })
+    expect(access.headers['cache-control']).toBe('private, no-store')
+    const signed = pathOf(access.json().url)
+    const reads = await Promise.all([app.inject({ url: signed }), app.inject({ url: signed }), app.inject({ url: signed })])
+    expect(reads.map(r => r.statusCode)).toEqual([200, 200, 200])
+    for (const read of reads) {
+      expect(read.headers['cache-control']).toMatch(/^private, max-age=\d+$/)
+      expect(read.headers['x-content-type-options']).toBe('nosniff')
+    }
+    const expired = storage.signer!.sign({ op: 'get', key, exp: Date.now() - 1 })
+    expect((await app.inject({ url: pathOf(expired) })).statusCode).toBe(403)
+  })
+
+  it('Range: válidos (206), fuera del archivo (416) y mal formados (se ignoran: 200 completo)', async () => {
+    const key = `u/${id('u')}/g/${id('g')}/video/00000000-0000-4000-8000-00000000beef.mp4`
+    const body = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 251))
+    await storage.put(key, body)
+    const url = pathOf(storage.signer!.sign({ op: 'get', key, exp: Date.now() + 60_000 }))
+    const get = (range: string) => app.inject({ url, headers: { range } })
+    const valid = await get('bytes=10-19')
+    expect(valid.statusCode).toBe(206)
+    expect(valid.headers['content-range']).toBe('bytes 10-19/1000')
+    expect(valid.headers['content-length']).toBe('10')
+    expect(valid.rawPayload.equals(body.subarray(10, 20))).toBe(true)
+    expect((await get('bytes=990-5000')).headers['content-range']).toBe('bytes 990-999/1000')
+    expect((await get('bytes=-2000')).rawPayload.equals(body)).toBe(true)
+    for (const unsatisfiable of ['bytes=1000-', 'bytes=1500-1600', 'bytes=-0', 'bytes=20-10']) {
+      const response = await get(unsatisfiable)
+      expect(response.statusCode, unsatisfiable).toBe(416)
+      expect(response.headers['content-range']).toBe('bytes */1000')
+    }
+    // Sintaxis no válida o varios rangos: el servidor puede ignorar Range y enviar el archivo completo.
+    for (const ignored of ['bytes=-', 'bytes=abc', 'items=0-10', 'bytes=0-1,5-6', 'bytes= 0-1']) {
+      const response = await get(ignored)
+      expect(response.statusCode, ignored).toBe(200)
+      expect(response.headers['content-range'], ignored).toBeUndefined()
+      expect(response.rawPayload.equals(body), ignored).toBe(true)
+    }
+  })
+
+  it('sustituir una fotografía borra su archivo y su miniatura anteriores; borrarla, los dos; borrar el inmueble, todo', async () => {
+    const owner = await account()
+    const { propertyId } = await property(owner.userId)
+    const first = await uploaded(owner.cookie, propertyId, 50)
+    const photoId = (await complete(owner.cookie, first.attemptId)).json().photo.id as string
+    const thumb = makeJpeg(40, 30, 9)
+    const t = (await prepare(owner.cookie, { kind: 'thumbnail', contentType: 'image/jpeg', size: thumb.length, propertyId, photoId })).json()
+    await transfer(t, thumb)
+    expect((await complete(owner.cookie, t.attemptId)).statusCode).toBe(200)
+    const oldThumb = (await admin.query(`SELECT "thumbKey" FROM "PropertyPhoto" WHERE id = $1`, [photoId])).rows[0].thumbKey as string
+
+    const replacement = makePng(80, 60, 64)
+    const r = (await prepare(owner.cookie, { kind: 'photo-replace', contentType: 'image/png', size: replacement.length, propertyId, photoId })).json()
+    await transfer(r, replacement)
+    expect((await complete(owner.cookie, r.attemptId)).statusCode).toBe(200)
+    const newKey = (await admin.query(`SELECT "storageKey" FROM "PropertyPhoto" WHERE id = $1`, [photoId])).rows[0].storageKey as string
+    expect(await exists(first.key)).toBe(false)
+    expect(await exists(oldThumb)).toBe(false)
+    expect(await exists(newKey)).toBe(true)
+
+    const other = await uploaded(owner.cookie, propertyId, 65)
+    expect((await complete(owner.cookie, other.attemptId)).statusCode).toBe(200)
+    expect((await app.inject({ method: 'DELETE', url: `/api/properties/${propertyId}/photos/${photoId}`, remoteAddress: ipFor(owner.cookie), headers: { cookie: owner.cookie } })).statusCode).toBe(204)
+    expect(await exists(newKey)).toBe(false)
+    expect(await exists(other.key)).toBe(true)
+
+    expect((await app.inject({ method: 'DELETE', url: `/api/properties/${propertyId}`, remoteAddress: ipFor(owner.cookie), headers: { cookie: owner.cookie } })).statusCode).toBe(200)
+    expect(await exists(other.key)).toBe(false)
+    expect(await storage.list(`u/${owner.userId}/p/${propertyId}/`)).toEqual([])
+    expect(await queued(other.key)).toBeNull()
+  })
+})

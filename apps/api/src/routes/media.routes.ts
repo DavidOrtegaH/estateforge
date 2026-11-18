@@ -561,7 +561,9 @@ export async function mediaRoutes(app: FastifyInstance) {
     if (grant === 'expired') return reply.code(403).send({ code: 'EXPIRED', message: 'La URL ha caducado.' })
     const info = await target.storage.head(target.key)
     if (!info) return reply.code(404).send({ code: 'NOT_FOUND', message: 'No existe.' })
-    const range = /^bytes=(\d*)-(\d*)$/.exec(String(request.headers.range ?? ''))
+    // Un solo rango «inicio-[fin]» o «-sufijo» (RFC 9110, 14.1.2). «bytes=-» no es válido: como cualquier
+    // otra cabecera no reconocida o con varios rangos, se ignora y se envía el archivo completo (200).
+    const range = /^bytes=(?:(\d+)-(\d*)|()-(\d+))$/.exec(String(request.headers.range ?? ''))?.filter(part => part !== undefined) ?? null
     let start = 0
     let end = info.size - 1
     if (range) {
