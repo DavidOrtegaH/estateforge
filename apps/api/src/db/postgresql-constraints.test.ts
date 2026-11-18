@@ -211,7 +211,13 @@ describe('restricciones manuales del catálogo amplio de proveedores (DA-82, DA-
 describe('restricciones manuales del diagnóstico y de las pruebas reales controladas (DA-87 a DA-89)', () => {
   const migration = readFileSync(join(migrationsDir, '20261115200000_ai_provider_trials', 'migration.sql'), 'utf8')
   const START = '-- Diagnóstico de conexiones y pruebas reales controladas (DA-87, DA-89).'
-  const block = (sql: string) => sql.slice(sql.indexOf(START)).replace(/\r\n/g, '\n').trim()
+  // En constraints.sql el bloque termina donde empieza el de la migración siguiente.
+  const NEXT = '-- Constancia de las ejecuciones del mantenimiento diario'
+  const block = (sql: string) => {
+    const from = sql.slice(sql.indexOf(START))
+    const end = from.indexOf(NEXT)
+    return (end === -1 ? from : from.slice(0, end)).replace(/\r\n/g, '\n').trim()
+  }
 
   it('el bloque de constraints.sql coincide exactamente con la migración', () => {
     expect(postgres.indexOf(START)).toBeGreaterThan(-1)
@@ -232,5 +238,21 @@ describe('restricciones manuales del diagnóstico y de las pruebas reales contro
     const list = (name: string) => /CHECK \("\w+" IN \(([^)]+)\)\)/.exec(migration.split('\n').find(line => line.includes(name))!)![1].split(', ').map(item => item.slice(1, -1))
     expect(list('AiProviderTrial_kind_allowed')).toEqual([...AI_TRIAL_KINDS])
     expect(list('AiProviderTrial_status_allowed')).toEqual([...AI_TRIAL_STATUSES])
+  })
+})
+
+describe('constancia de las ejecuciones del mantenimiento (MaintenanceRun)', () => {
+  const migration = readFileSync(join(migrationsDir, '20261118120000_maintenance_runs', 'migration.sql'), 'utf8')
+  const constraint = (sql: string) => sql.split('\n').find(line => line.includes('ADD CONSTRAINT "MaintenanceRun_values_allowed"'))?.trim()
+
+  it('la restricción de constraints.sql coincide exactamente con la migración', () => {
+    expect(constraint(postgres)).toBeDefined()
+    expect(constraint(postgres)).toBe(constraint(migration))
+  })
+
+  it('la migración es aditiva y la tabla no guarda datos personales ni enlaza cuentas', () => {
+    expect(migration).not.toMatch(/DROP |DELETE FROM|TRUNCATE|ALTER COLUMN|RENAME|UPDATE /i)
+    expect(migration).toContain('CREATE TABLE "MaintenanceRun"')
+    expect(migration).not.toMatch(/FOREIGN KEY|userId|email|storageKey|"ip"/i)
   })
 })

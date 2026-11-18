@@ -161,3 +161,6 @@ ALTER TABLE "AiProviderTrial" ADD CONSTRAINT "AiProviderTrial_provider_format" C
 ALTER TABLE "AiProviderTrial" ADD CONSTRAINT "AiProviderTrial_video_duration" CHECK (("kind" = 'video') = ("durationSeconds" IS NOT NULL) AND ("durationSeconds" IS NULL OR "durationSeconds" BETWEEN 1 AND 30));
 ALTER TABLE "AiProviderTrial" ADD CONSTRAINT "AiProviderTrial_moderation_pair" CHECK (("moderationProvider" IS NULL) = ("moderationKeyId" IS NULL));
 ALTER TABLE "AiProviderTrial" ADD CONSTRAINT "AiProviderTrial_counters_range" CHECK ("pollCount" >= 0 AND ("estimatedCostMicroUsd" IS NULL OR "estimatedCostMicroUsd" >= 0) AND char_length("report") <= 16000);
+
+-- Constancia de las ejecuciones del mantenimiento diario (migración 20261118120000_maintenance_runs).
+ALTER TABLE "MaintenanceRun" ADD CONSTRAINT "MaintenanceRun_values_allowed" CHECK ("trigger" IN ('vercel-cron', 'manual') AND "status" IN ('ok', 'error') AND "durationMs" >= 0 AND ("storageDeleted" IS NULL OR "storageDeleted" >= 0) AND ("storageFailed" IS NULL OR "storageFailed" >= 0) AND ("auditDeleted" IS NULL OR "auditDeleted" >= 0) AND ("queuePending" IS NULL OR "queuePending" >= 0));

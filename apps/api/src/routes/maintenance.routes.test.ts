@@ -21,6 +21,7 @@ const fake = vi.hoisted(() => {
     audioTrack: { count: countFor('storageKey') },
     uploadAttempt: { count: countFor('storageKey') },
     aiMediaJob: { count: countFor('resultKey') },
+    maintenanceRun: { create: vi.fn(async () => ({ id: 'run' })) },
     user: { delete: vi.fn(), deleteMany: vi.fn() },
     session: { deleteMany: vi.fn() },
     adminAuditLog: { deleteMany: vi.fn() },
@@ -233,5 +234,80 @@ describe('delegación en drainStorageCleanup (mecanismo existente, dobles de Pri
 
     expect(fake.prisma.storageCleanup.findMany).not.toHaveBeenCalled()
     expect(fake.storage.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('constancia de cada ejecución (MaintenanceRun)', () => {
+  it('Vercel Cron (user-agent vercel-cron/1.0) y una llamada manual se distinguen; solo contadores y duración', async () => {
+    const records: unknown[] = []
+    const app = Fastify()
+    await app.register(maintenanceRoutes, {
+      env: { CRON_SECRET: SECRET },
+      drain: vi.fn(async () => ({ deleted: 4, failed: 1 })),
+      purgeAudit: vi.fn(async () => ({ deleted: 2 })),
+      countPending: vi.fn(async () => 7),
+      recordRun: vi.fn(async record => void records.push(record)),
+    })
+    await app.ready()
+
+    const scheduled = await app.inject({ url: STORAGE_CLEANUP_CRON_PATH, headers: { authorization: `Bearer ${SECRET}`, 'user-agent': 'vercel-cron/1.0' } })
+    const manual = await app.inject({ url: STORAGE_CLEANUP_CRON_PATH, headers: { authorization: `Bearer ${SECRET}`, 'user-agent': 'curl/8.0' } })
+    // La respuesta no cambia: el disparador solo se anota.
+    expect(scheduled.json()).toEqual({ status: 'ok', deleted: 4, failed: 1, auditDeleted: 2 })
+    expect(manual.json()).toEqual(scheduled.json())
+    expect(records).toHaveLength(2)
+    expect(records[0]).toEqual({ trigger: 'vercel-cron', status: 'ok', storageDeleted: 4, storageFailed: 1, auditDeleted: 2, queuePending: 7, durationMs: expect.any(Number), startedAt: expect.any(Date) })
+    expect(records[1]).toMatchObject({ trigger: 'manual', status: 'ok' })
+    // Variaciones de la cabecera no cuentan como Vercel Cron.
+    for (const agent of ['vercel-cron/1.0 ', 'Vercel-Cron/1.0', 'vercel-cron/2.0', 'x vercel-cron/1.0']) {
+      await app.inject({ url: STORAGE_CLEANUP_CRON_PATH, headers: { authorization: `Bearer ${SECRET}`, 'user-agent': agent } })
+      expect(records.at(-1)).toMatchObject({ trigger: 'manual' })
+    }
+  })
+
+  it('una ejecución con fallo queda anotada como error, con los contadores que sí se obtuvieron', async () => {
+    const recordRun = vi.fn(async () => undefined)
+    const app = Fastify()
+    await app.register(maintenanceRoutes, {
+      env: { CRON_SECRET: SECRET },
+      drain: vi.fn(async () => { throw new Error('cola no disponible') }),
+      purgeAudit: vi.fn(async () => ({ deleted: 3 })),
+      countPending: vi.fn(async () => { throw new Error('sin base') }),
+      recordRun,
+    })
+    await app.ready()
+    const response = await app.inject({ url: STORAGE_CLEANUP_CRON_PATH, headers: { authorization: `Bearer ${SECRET}` } })
+    expect(response.statusCode).toBe(500)
+    expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'manual', status: 'error', storageDeleted: null, storageFailed: null, auditDeleted: 3, queuePending: null }))
+  })
+
+  it('si no se puede anotar la ejecución, el mantenimiento responde igual', async () => {
+    const app = Fastify()
+    await app.register(maintenanceRoutes, { env: { CRON_SECRET: SECRET }, drain: drainSpy(), purgeAudit: purgeAuditSpy, countPending: vi.fn(async () => 0), recordRun: vi.fn(async () => { throw new Error('tabla no migrada') }) })
+    await app.ready()
+    const response = await app.inject({ url: STORAGE_CLEANUP_CRON_PATH, headers: { authorization: `Bearer ${SECRET}` } })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ status: 'ok', deleted: 0, failed: 0, auditDeleted: 0 })
+  })
+
+  it('sin autorización o sin CRON_SECRET no se anota nada (una petición anónima no puede escribir filas)', async () => {
+    const recordRun = vi.fn(async () => undefined)
+    for (const env of [{ CRON_SECRET: SECRET }, {}]) {
+      const app = Fastify()
+      await app.register(maintenanceRoutes, { env, drain: drainSpy(), purgeAudit: purgeAuditSpy, countPending: vi.fn(async () => 0), recordRun })
+      await app.ready()
+      const response = await app.inject({ url: STORAGE_CLEANUP_CRON_PATH, headers: { authorization: 'Bearer otro-secreto-cualquiera-123456', 'user-agent': 'vercel-cron/1.0' } })
+      expect([401, 503]).toContain(response.statusCode)
+    }
+    expect(recordRun).not.toHaveBeenCalled()
+  })
+
+  it('por defecto escribe en MaintenanceRun solo los campos cerrados', async () => {
+    const app = await appWith({ CRON_SECRET: SECRET }, drainSpy())
+    await app.inject({ url: STORAGE_CLEANUP_CRON_PATH, headers: { authorization: `Bearer ${SECRET}`, 'user-agent': 'vercel-cron/1.0' } })
+    expect(fake.prisma.maintenanceRun.create).toHaveBeenCalledTimes(1)
+    const [args] = fake.prisma.maintenanceRun.create.mock.calls[0] as unknown as [{ data: Record<string, unknown> }]
+    expect(Object.keys(args.data).sort()).toEqual(['auditDeleted', 'durationMs', 'queuePending', 'startedAt', 'status', 'storageDeleted', 'storageFailed', 'trigger'])
+    expect(JSON.stringify(args.data)).not.toContain(SECRET)
   })
 })

@@ -334,6 +334,25 @@ model StorageCleanup {
   updatedAt  DateTime @default(now()) @db.Timestamptz(3)
 }
 
+/// Constancia de cada ejecución autorizada del mantenimiento diario (Vercel Cron o manual). Solo
+/// contadores, duración y el disparador declarado; sin datos personales, claves ni secretos. Los
+/// registros de funciones de Vercel Hobby duran una hora: esta tabla permite acreditar después que la
+/// ejecución programada ocurrió. No se purga (una fila al día).
+model MaintenanceRun {
+  id             String   @id @default(cuid())
+  trigger        String
+  status         String
+  storageDeleted Int?
+  storageFailed  Int?
+  auditDeleted   Int?
+  queuePending   Int?
+  durationMs     Int
+  startedAt      DateTime @db.Timestamptz(3)
+  finishedAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([startedAt])
+}
+
 /// Registro manual de dónde ha publicado el usuario un anuncio. EstateForge no publica en los portales.
 model ListingPublication {
   id           String     @id @default(cuid())

@@ -280,6 +280,20 @@ describe('ejecuciones simultáneas y fallos parciales', () => {
     for (const key of keys) expect(await exists(key)).toBe(false)
   })
 
+  it('cada ejecución autorizada deja una fila MaintenanceRun con su disparador; una petición sin secreto, ninguna', async () => {
+    await admin.query(`DELETE FROM "MaintenanceRun"`)
+    expect((await runCron()).statusCode).toBe(200)
+    expect((await cron.inject({ method: 'GET', url: '/api/internal/cron/storage-cleanup', headers: { authorization: `Bearer ${CRON_SECRET}`, 'user-agent': 'curl/8.9.1' } })).statusCode).toBe(200)
+    expect((await cron.inject({ method: 'GET', url: '/api/internal/cron/storage-cleanup', headers: { 'user-agent': 'vercel-cron/1.0' } })).statusCode).toBe(401)
+    const rows = (await admin.query(`SELECT trigger, status, "storageDeleted", "storageFailed", "auditDeleted", "queuePending", "durationMs" >= 0 AS timed, "finishedAt" >= "startedAt" AS ordered FROM "MaintenanceRun" ORDER BY "startedAt"`)).rows
+    expect(rows).toEqual([
+      { trigger: 'vercel-cron', status: 'ok', storageDeleted: 0, storageFailed: 0, auditDeleted: 0, queuePending: 0, timed: true, ordered: true },
+      { trigger: 'manual', status: 'ok', storageDeleted: 0, storageFailed: 0, auditDeleted: 0, queuePending: 0, timed: true, ordered: true },
+    ])
+    // La restricción de la tabla rechaza valores fuera de lo previsto.
+    await expect(admin.query(`INSERT INTO "MaintenanceRun" (id, trigger, status, "durationMs", "startedAt") VALUES ('x', 'otro', 'ok', 0, now())`)).rejects.toThrow(/MaintenanceRun_values_allowed/)
+  })
+
   it('el lote de una ejecución está acotado a 50: lo que queda se procesa en la siguiente', async () => {
     const owner = await account()
     const { propertyId } = await property(owner.userId)

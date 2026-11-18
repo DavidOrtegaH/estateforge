@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify'
 import { drainStorageCleanup } from '../media/storage-cleanup.js'
 import { AUDIT_RETENTION_BATCH, purgeExpiredAuditLogs } from '../services/audit-retention.service.js'
 import { safeErrorName } from '../services/log-safety.js'
+import { countPendingCleanup, maintenanceTrigger, recordMaintenanceRun, type MaintenanceRunRecord } from '../services/maintenance-run.service.js'
 
 // Mantenimiento programado (Vercel Cron). Dos tareas independientes, cada una con un lote acotado:
 //
@@ -23,6 +24,10 @@ import { safeErrorName } from '../services/log-safety.js'
 // Autenticación: Vercel Cron envía `Authorization: Bearer <CRON_SECRET>`. Fallo cerrado: sin
 // CRON_SECRET (o demasiado corto) la ruta responde 503 y no hace nada; con una cabecera distinta,
 // 401. La comparación es en tiempo constante sobre resúmenes SHA-256 de igual longitud.
+//
+// Observabilidad (services/maintenance-run.service.ts): cada ejecución autorizada escribe una línea de
+// registro con campos cerrados y una fila en MaintenanceRun con el disparador (Vercel Cron o manual),
+// los contadores y la duración. Si esa constancia falla, el mantenimiento y su respuesta no cambian.
 
 export const STORAGE_CLEANUP_CRON_PATH = '/api/internal/cron/storage-cleanup'
 // Lote acotado por invocación: una sola llamada a drainStorageCleanup, sin bucle. Lo que quede
@@ -41,6 +46,10 @@ export interface MaintenanceRoutesOptions {
   drain?: Drain
   /** Solo para pruebas: por defecto, purgeExpiredAuditLogs. */
   purgeAudit?: PurgeAudit
+  /** Solo para pruebas: por defecto, recordMaintenanceRun. */
+  recordRun?: (record: MaintenanceRunRecord) => Promise<void>
+  /** Solo para pruebas: por defecto, countPendingCleanup. */
+  countPending?: () => Promise<number>
 }
 
 function digest(value: string): Buffer {
@@ -64,6 +73,8 @@ export async function maintenanceRoutes(app: FastifyInstance, options: Maintenan
   const env = options.env ?? process.env
   const drain = options.drain ?? drainStorageCleanup
   const purgeAudit = options.purgeAudit ?? purgeExpiredAuditLogs
+  const recordRun = options.recordRun ?? recordMaintenanceRun
+  const countPending = options.countPending ?? countPendingCleanup
 
   app.get(
     STORAGE_CLEANUP_CRON_PATH,
@@ -80,6 +91,9 @@ export async function maintenanceRoutes(app: FastifyInstance, options: Maintenan
       if (!cronAuthorizationMatches(request.headers.authorization, secret)) {
         return reply.code(401).send({ status: 'unauthorized' })
       }
+
+      const startedAt = new Date()
+      const started = performance.now()
 
       // Las dos tareas se ejecutan aunque falle la otra; cualquier fallo responde 500 sin detalles.
       let storage: { deleted: number; failed: number } | null = null
@@ -98,6 +112,31 @@ export async function maintenanceRoutes(app: FastifyInstance, options: Maintenan
         // Fallo seguro: la transacción se deshace y ese lote no se borra; se reintenta al día
         // siguiente con el mismo umbral de 90 días. Solo el nombre del error, nunca su mensaje.
         request.log.error({ errorName: safeErrorName(error) }, 'La retención de la auditoría no ha podido completarse')
+      }
+
+      let queuePending: number | null = null
+      try {
+        queuePending = await countPending()
+      } catch (error) {
+        request.log.warn({ errorName: safeErrorName(error) }, 'No se pudo contar la cola de limpieza tras el mantenimiento')
+      }
+
+      const record: MaintenanceRunRecord = {
+        trigger: maintenanceTrigger(request.headers['user-agent']),
+        status: storage === null || auditDeleted === null ? 'error' : 'ok',
+        storageDeleted: storage?.deleted ?? null,
+        storageFailed: storage?.failed ?? null,
+        auditDeleted,
+        queuePending,
+        durationMs: Math.max(0, Math.round(performance.now() - started)),
+        startedAt,
+      }
+      // Campos cerrados: ni cabeceras, ni claves de almacenamiento, ni identificadores de cuentas.
+      request.log.info({ maintenance: { ...record, startedAt: startedAt.toISOString() } }, 'Mantenimiento diario ejecutado')
+      try {
+        await recordRun(record)
+      } catch (error) {
+        request.log.error({ errorName: safeErrorName(error) }, 'No se pudo dejar constancia de la ejecución del mantenimiento')
       }
 
       if (storage === null || auditDeleted === null) return reply.code(500).send({ status: 'error' })
