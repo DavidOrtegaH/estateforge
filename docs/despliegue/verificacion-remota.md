@@ -1,38 +1,50 @@
 # Verificación remota: mantenimiento, almacenamiento, IP y aislamiento
 
-Matriz de comprobaciones en producción para lo que las pruebas locales no pueden demostrar. Preparada el **18/11/2026** sobre el código posterior a `ea5dbf0` (rama `feature`). Ninguna de estas comprobaciones se ha ejecutado todavía en producción: **todas están pendientes** hasta que se anote su resultado.
+Matriz de comprobaciones en producción para lo que las pruebas locales no pueden demostrar, con los resultados de la ronda del **18/11/2026**. Una fila sin resultado anotado sigue **pendiente**.
 
-Las pruebas locales usan PostgreSQL 17 real y el **simulador** de Vercel Blob (`STORAGE_LOCAL_SIGNED_URLS=1`). El simulador reproduce el contrato que espera la API, pero no demuestra cómo se comporta el servicio real: por eso cada fila de Blob de esta guía tiene que repetirse contra el store privado de producción.
+Las pruebas locales usan PostgreSQL 17 real y el **simulador** de Vercel Blob (`STORAGE_LOCAL_SIGNED_URLS=1`). El simulador reproduce el contrato que espera la API, pero no demuestra cómo se comporta el servicio real: por eso las filas de Blob se repiten contra el store privado de producción.
 
 Documentación oficial consultada el 18/11/2026: [Managing Cron Jobs](https://vercel.com/docs/cron-jobs/manage-cron-jobs) (cabecera `Authorization: Bearer <CRON_SECRET>`, `user-agent: vercel-cron/1.0`, solo en Production, ejecución manual desde el panel), [`vercel crons`](https://vercel.com/docs/cli/crons), [Runtime Logs](https://vercel.com/docs/logs/runtime) (Hobby: **1 hora** de retención), [`vercel blob`](https://vercel.com/docs/cli/blob), [Request headers](https://vercel.com/docs/headers/request-headers) y [Rewrites](https://vercel.com/docs/routing/rewrites).
+
+## Resumen de la ronda del 18/11/2026
+
+**Código desplegado.** El CI de Linux pasó sobre `3dc83ee` ([ejecución 44338627147](https://github.com/DavidOrtegaH/estateforge/actions/runs/44338627147); cifras verificadas en GitHub: API 2361, web 683, shared 212, scripts 60) y los cambios de código se integraron por avance rápido en `feature`, `develop`, `release` y `main`. Versiones y etiquetas, sin cambios. La migración `20261118120000_maintenance_runs` se probó antes en una rama temporal de Neon (eliminada después) y se aplicó en producción con `prisma migrate deploy`. El despliegue de la API vigente es `dpl_6QefdFA6ZNPxZA6TFHr6F2AM9RBf`. La web no ha cambiado.
+
+| Área | Resultado |
+|---|---|
+| Mantenimiento | M-1 y M-2 hechos. **La ejecución programada (M-3, M-4, M-5) sigue pendiente** |
+| Vercel Blob real | B-1, B-3, B-4, B-7, B-10 y B-12 hechos; B-2, B-5, B-6, B-8, B-9 y B-11 hechos con el alcance limitado que se indica en cada fila |
+| IP del cliente (MD-4) | Una sola red por la web; diagnóstico retirado. **MD-4 sigue abierto** y `CLIENT_IP_SOURCE` sigue en `socket` |
+| Aislamiento | Muestra con el OWNER y una cuenta USER temporal: sin fugas. No equivale a dos cuentas USER ni al barrido de todas las rutas |
+| Limpieza | Tres inmuebles sintéticos, sus anuncios y archivos borrados; cuenta temporal eliminada; OWNER conservado |
 
 ## Reglas para todas las comprobaciones
 
 - Solo datos sintéticos: inmuebles, textos e imágenes inventados, PNG generados y audio sintético. Ningún dato real de personas ni de inmuebles.
 - Sin proveedores de IA: ninguna comprobación necesita claves ni llama a un proveedor.
-- Ningún secreto en las evidencias: ni `CRON_SECRET`, ni cookies de sesión, ni tokens de Blob, ni URLs firmadas completas (se anotan sin la cadena de consulta). Las IP públicas de quien prueba son datos personales: en las evidencias se anotan enmascaradas (por ejemplo, `83.45.x.x`).
-- Los secretos que haya que usar se cargan en una variable del shell sin mostrarlos (`read -rs`) y se borran al terminar (`unset`). No se escriben en archivos ni en el historial.
+- Ningún secreto en las evidencias: ni `CRON_SECRET`, ni cookies de sesión, ni tokens de Blob, ni URLs firmadas completas (se anotan sin la cadena de consulta). Las IP públicas de quien prueba son datos personales: en las evidencias se anotan enmascaradas y no se publican.
+- Los secretos que haya que usar se mantienen solo en memoria, sin mostrarlos, y se descartan al terminar. No se escriben en archivos ni en el historial.
 - Sin consultas SQL de escritura en producción. Las consultas de esta guía son de solo lectura.
 - Cada comprobación termina con su limpieza. Lo que no se pueda limpiar se anota.
 
 ## Requisitos previos
 
-| Requisito | Para qué | Quién |
+| Requisito | Para qué | Estado |
 |---|---|---|
-| Aplicar la migración `20261118120000_maintenance_runs` con `prisma migrate deploy` y la URL **directa** de Neon, y después desplegar la API con este código | Tabla `MaintenanceRun` (constancia de cada ejecución del mantenimiento). Es aditiva: una tabla nueva, sin tocar datos. Si se despliega antes de migrar, el mantenimiento funciona igual, pero registra un error y no deja constancia | Codex, con autorización del titular |
-| Acceso de lectura a la base de producción (consola SQL de Neon o `psql` con la URL directa) | Consultar `MaintenanceRun`, `StorageCleanup` y recuentos | Codex |
-| CLI de Vercel autenticada en el equipo y el proyecto `api` | `vercel crons`, `vercel logs`, `vercel blob list` | Codex |
-| Dos cuentas sintéticas verificadas, A y B, con rol USER | Aislamiento entre cuentas. La segunda necesita una dirección de correo más que controle el titular (por ejemplo, un alias) | Titular (registro y verificación) |
-| Dos redes con IP pública distinta (por ejemplo, la wifi de casa y los datos del móvil) | MD-4 | Titular o Codex |
-| Autorización del titular para definir temporalmente `CLIENT_IP_DIAGNOSTIC_UNTIL` y volver a desplegar la API | Diagnóstico de MD-4 | Titular |
+| Aplicar la migración `20261118120000_maintenance_runs` con `prisma migrate deploy` y la URL **directa** de Neon, y después desplegar la API | Tabla `MaintenanceRun` | **Hecho** (18/11/2026) |
+| Acceso de lectura a la base de producción | Consultar `MaintenanceRun`, `StorageCleanup` y recuentos | Disponible |
+| CLI de Vercel autenticada en el proyecto `api` | `vercel crons`, `vercel logs`, listados de Blob | Disponible |
+| Dos cuentas sintéticas verificadas con rol USER | Aislamiento entre cuentas | **Parcial:** se usó el OWNER existente y una cuenta USER temporal, ya eliminada |
+| Dos redes con IP pública distinta | MD-4 | **No disponible:** aplazado por el titular |
+| Autorización para definir temporalmente `CLIENT_IP_DIAGNOSTIC_UNTIL` | Diagnóstico de MD-4 | Usada y retirada |
 
 ## Prioridad 1: mantenimiento diario
 
 Distingue tres cosas que no son lo mismo:
 
-- **Registro:** el cron figura en el proyecto. Ya comprobado: diario, `0 4 * * *` UTC.
-- **Ejecución manual:** alguien la lanza desde el panel («Run») o con `vercel crons run`.
-- **Ejecución programada:** Vercel la lanza solo, dentro de la hora indicada. Es lo que falta por acreditar.
+- **Registro:** el cron figura en el proyecto. Comprobado: diario, `0 4 * * *` UTC.
+- **Ejecución manual:** alguien la lanza desde el panel («Run») o con `vercel crons run`. Comprobada (M-2).
+- **Ejecución programada:** Vercel la lanza solo, dentro de la hora indicada. **Pendiente.**
 
 Cada ejecución autorizada deja una fila en `MaintenanceRun` con:
 
@@ -42,90 +54,90 @@ Cada ejecución autorizada deja una fila en `MaintenanceRun` con:
 
 No guarda datos personales, claves de archivos ni secretos. Una petición sin el secreto no deja ninguna fila.
 
-| ID | Comprobación | Pasos | Resultado esperado | Limpieza |
+| ID | Comprobación | Pasos | Resultado esperado | Resultado (18/11/2026) |
 |---|---|---|---|---|
-| M-1 | Rechazo sin secreto | `curl -s -o /dev/null -w '%{http_code}\n' https://estateforge-api.vercel.app/api/internal/cron/storage-cleanup` y lo mismo con `-H 'Authorization: Bearer incorrecto-0000000000000000'` | `401` las dos veces, con `Cache-Control: no-store`. `SELECT count(*) FROM "MaintenanceRun"` no cambia | Ninguna |
-| M-2 | Ejecución manual desde Vercel | Antes, anotar la hora UTC exacta y `SELECT count(*) FROM "StorageCleanup"`. Lanzar el cron desde el panel (pestaña de Cron Jobs, «Run») o con `vercel crons run /api/internal/cron/storage-cleanup`. Antes de una hora, revisar los registros de esa invocación en el panel | La invocación responde `200`. En los registros aparece «Mantenimiento diario ejecutado» con el objeto `maintenance` (contadores, duración, disparador). Hay una fila nueva en `MaintenanceRun` con `status = 'ok'`, `startedAt` dentro del minuto anotado y `storageFailed = 0`. **Anotar qué disparador registra**: si Vercel usa el mismo `user-agent` para las ejecuciones manuales, aparecerá `vercel-cron` y la ejecución solo se distingue por su hora | Ninguna. Ejecuta la misma limpieza que el cron programado (solo archivos sin referencia de la cola y auditoría de más de 90 días sin incidente abierto) |
-| M-3 | **Ejecución programada** | Al día siguiente del despliegue, después de las 05:00 UTC: `SELECT trigger, status, "storageDeleted", "storageFailed", "auditDeleted", "queuePending", "durationMs", "startedAt" FROM "MaintenanceRun" ORDER BY "startedAt" DESC LIMIT 5;` | Una fila con `trigger = 'vercel-cron'`, `status = 'ok'` y `startedAt` entre las 04:00 y las 04:59:59 UTC de ese día, y ninguna ejecución manual anotada en esa franja (la de M-2 tiene su propia hora). Es la evidencia de la ejecución programada. Los registros de Vercel solo duran 1 hora en Hobby: si se consultan entre las 04:00 y las 05:00 UTC, también deben mostrar la invocación | Ninguna |
-| M-4 | Repetición diaria | Repetir la consulta de M-3 dos días seguidos | Una fila `vercel-cron` por día. Si falta un día, revisar el registro del cron en el panel; Vercel no reintenta una ejecución fallida | Ninguna |
-| M-5 | Cola acotada | `SELECT count(*), max(attempts) FROM "StorageCleanup";` tras M-3 | `queuePending` de la fila coincide con el recuento. Si `max(attempts)` crece día a día, hay un archivo que no se puede borrar: anotar su `lastError` (solo el nombre del error) | Ninguna |
+| M-1 | Rechazo sin secreto | `curl` a `https://estateforge-api.vercel.app/api/internal/cron/storage-cleanup` sin cabecera y con `Authorization: Bearer incorrecto-…` | `401` las dos veces, con `Cache-Control: no-store`; `MaintenanceRun` no cambia | **Hecho.** `401` y `no-store` en los dos casos; la tabla siguió vacía |
+| M-2 | Ejecución manual | Anotar la hora UTC, lanzar `vercel crons run` una sola vez y consultar `MaintenanceRun` | Fila nueva con `status = 'ok'` dentro del minuto anotado | **Hecho** a las 15:47:54 UTC: `trigger = 'vercel-cron'`, `status = 'ok'`, todos los contadores a 0, `durationMs` 171. La ejecución manual de la CLI usa el **mismo** `user-agent` que la programada, así que solo se distingue por la hora. Esta fila **no** acredita M-3 |
+| M-3 | **Ejecución programada** | Después de las 05:00 UTC del 19/11/2026: `SELECT trigger, status, "storageDeleted", "storageFailed", "auditDeleted", "queuePending", "durationMs", "startedAt" FROM "MaintenanceRun" ORDER BY "startedAt" DESC LIMIT 5;` | Una fila `vercel-cron`, `status = 'ok'`, con `startedAt` entre las 04:00 y las 04:59:59 UTC, sin ninguna ejecución manual en esa franja | **Pendiente:** ventana del 19/11/2026, 04:00–04:59 UTC. No se lanza nada a mano en esa franja |
+| M-4 | Repetición diaria | Repetir M-3 al día siguiente (20/11/2026) | Una fila `vercel-cron` por día. Vercel no reintenta una ejecución fallida | **Pendiente** |
+| M-5 | Cola acotada | `SELECT count(*), max(attempts) FROM "StorageCleanup";` tras M-3 | `queuePending` coincide con el recuento; `max(attempts)` no crece día a día | **Pendiente** (tras la limpieza de esta ronda, la cola estaba en 0) |
 
 Qué no acredita una ejecución programada: un `200` en M-2, la presencia del cron en el panel o una fila `vercel-cron` fuera de la franja de las 04:00 UTC.
 
 ## Prioridad 1: Vercel Blob real
 
-Flujo de cada prueba con la cuenta A en el navegador (herramientas de desarrollo, pestaña Red) o con `curl` y la cookie de A cargada sin mostrarla (`read -rs EF_COOKIE`).
+Para obtener una URL de subida se envía `POST /api/uploads` con un JSON como `{"kind":"photo","contentType":"image/png","size":<bytes>,"propertyId":"<inmueble sintético>"}`. La respuesta trae `attemptId` y `upload.url`. Las URLs firmadas no se copian completas en las evidencias.
 
-Para obtener una URL de subida, enviar `POST /api/uploads` con un JSON como `{"kind":"photo","contentType":"image/png","size":<bytes>,"propertyId":"<inmueble sintético>"}`. La respuesta trae `attemptId` y `upload.url`. Las URLs firmadas no se copian completas en las evidencias.
+**Cómo valida el tipo cada capa.** Blob deduce el tipo del objeto a partir de la **extensión de la ruta firmada**, que fija la API; la cabecera `Content-Type` del `PUT` por sí sola no provoca un rechazo. La API valida los **bytes reales** al confirmar (firma del formato, dimensiones y coincidencia con el tipo autorizado).
 
-| ID | Comprobación | Pasos | Resultado esperado | Limpieza |
-|---|---|---|---|---|
-| B-1 | Sin sobrescritura | Subir un PNG sintético a `upload.url` con `PUT` (`curl -T archivo.png -H 'Content-Type: image/png' "$URL"`) y repetir el mismo `PUT` | Primer `PUT` 2xx; el segundo, rechazado (4xx). Tras confirmar (`POST /api/uploads/<id>/complete`), la fotografía es la primera | Borrar la fotografía desde la interfaz |
-| B-2 | Tipo distinto del autorizado | Preparar con `image/png` y enviar el `PUT` con `Content-Type: image/jpeg` | Rechazado por Blob (4xx). `complete` responde `409 UPLOAD_MISSING` | `DELETE /api/uploads/<id>` |
-| B-3 | Más bytes de los declarados | Preparar con `size` = N y enviar N + 1000 bytes | Rechazado por Blob (4xx, `maximumSizeInBytes`) | `DELETE /api/uploads/<id>` |
-| B-4 | Menos bytes de los declarados | Preparar con N y enviar un PNG válido de menos de N bytes | Blob lo acepta; `complete` responde `INVALID_FILE`, el intento queda `failed` y el objeto desaparece (comprobar con B-10) | Ninguna adicional |
-| B-5 | URL de subida caducada | Preparar, esperar 16 minutos y enviar el `PUT` | Rechazado (4xx). `complete` responde `410 UPLOAD_EXPIRED` | Ninguna (el intento caduca solo) |
-| B-6 | La URL de lectura **se reutiliza** hasta su caducidad (no es de un solo uso) | `GET /api/properties/<id>/photos/<foto>/file?as=url` y pedir esa URL tres veces; volver a pedirla pasados 16 minutos | Tres `200` con el mismo contenido; pasado el plazo (10 a 15 min para imágenes), `403` | Ninguna |
-| B-7 | Range | Con la URL de lectura de un vídeo: `curl -s -D - -o /dev/null -H 'Range: bytes=0-1023' "$URL"`, luego `bytes=-1024`, `bytes=999999999-` y `bytes=-` | `206` con `Content-Range: bytes 0-1023/<total>` y `Accept-Ranges: bytes`; `206` con los últimos 1024 bytes; `416` con `Content-Range: bytes */<total>`; el último, `200` completo o `416` (anotar cuál) | Ninguna |
-| B-8 | Cabeceras y caché de Blob | Anotar las cabeceras de la respuesta de B-6: `Cache-Control`, `Content-Type`, `X-Content-Type-Options`, `Content-Disposition`, `ETag`, `Age` y las `x-vercel-cache` | `Content-Type` igual al del archivo; ninguna cabecera de caché pública con contenido de otra cuenta. **Es una observación**: la documentación no especifica la caché de las lecturas privadas | Ninguna |
-| B-9 | CORS desde la web | Desde la consola de `https://estateforge-blush.vercel.app`, `fetch(urlDeLectura)` y una subida real desde la interfaz; anotar la petición previa `OPTIONS` del `PUT` en la pestaña Red | `fetch` y `PUT` funcionan desde el dominio de la web; `OPTIONS` con `Access-Control-Allow-Origin` aceptable y sin credenciales | Borrar la fotografía |
-| B-10 | **Los objetos borrados ya no existen en el store** | Antes de borrar, guardar (sin publicarla) la URL de lectura de una fotografía, de su miniatura y de un cartel. Borrar el inmueble sintético desde la interfaz. Pedir de nuevo esas URLs y listar con `vercel blob list --prefix u/<id de la cuenta A>/p/<id del inmueble>/` | Las URLs responden `404`; el listado del prefijo, vacío. `SELECT count(*) FROM "StorageCleanup"` = 0 | Ninguna |
-| B-11 | Cuota con subidas simultáneas | Con la cuota de 100 MB y la cuenta A sin archivos, lanzar 40 `POST /api/uploads` simultáneos de `size` = 4 194 304 para un inmueble sintético, sin subir nada (`for i in $(seq 40); do curl … & done; wait`) | Como mucho 25 respuestas `201` (`STORAGE_USER_QUOTA_MB=100`: 104 857 600 bytes / 4 194 304, sin superar la cuota) y el resto `QUOTA_EXCEEDED`; ninguna `500`. En local, con PostgreSQL real y el simulador, el mismo caso a menor escala está en `storage-maintenance.integration.test.ts` | `DELETE /api/uploads/<id>` de cada `201` (o dejar que caduquen en 15 min) |
-| B-12 | Sin huérfanos tras las pruebas | Al terminar, `vercel blob list --prefix u/<id de la cuenta A>/` y comparar con las fotografías, miniaturas, materiales y pistas que muestra la interfaz | Cada objeto listado corresponde a un archivo visible; ninguno de los intentos fallidos, cancelados o caducados de B-2 a B-5 | Anotar cualquier diferencia; no borrar a mano sin revisarla |
+| ID | Comprobación | Resultado esperado | Resultado (18/11/2026) |
+|---|---|---|---|
+| B-1 | Sin sobrescritura: dos `PUT` iguales a la misma URL | Primer `PUT` 2xx; el segundo, rechazado; una sola fotografía tras confirmar | **Hecho.** `PUT` 200, repetición 400, confirmación 200; una sola fotografía PNG (90 909 bytes) |
+| B-2 | Tipo distinto del autorizado | Cambiar solo la cabecera `Content-Type` **no** provoca rechazo de Blob (la extensión firmada fija el tipo). Enviar bytes de otro formato bajo una autorización PNG: la confirmación responde `415 TYPE_MISMATCH` | **Hecho (matriz corregida).** PNG con cabecera `image/jpeg`: Blob 200 (la confirmación dio `409 DUPLICATE` porque ese PNG ya existía en el inmueble). JPEG real bajo autorización PNG: `415 TYPE_MISMATCH` al confirmar. No se deduce fuga ni debilitamiento de la validación |
+| B-3 | Más bytes de los declarados | Rechazado por Blob | **Hecho.** N + 1000 bytes: `403` |
+| B-4 | Menos bytes de los declarados | Blob acepta; la confirmación responde `INVALID_FILE` y el objeto se borra | **Hecho.** Blob 200; confirmación `400 INVALID_FILE`; el objeto no aparece en el listado final |
+| B-5 | URL de subida caducada | `PUT` después del vencimiento rechazado; un intento **pendiente** que vence sin completarse responde `410 UPLOAD_EXPIRED` al confirmar | **Parcial.** El `PUT` se envió por error unos segundos antes del vencimiento (200) y el intento se confirmó antes de vencer. Después del vencimiento, la misma URL respondió `403` y una nueva confirmación, `200` idempotente (el intento ya estaba completado). **El `410` de un intento pendiente caducado no está validado en producción** |
+| B-6 | La URL de lectura se reutiliza hasta su caducidad | Varias lecturas `200`; `403` tras caducar | **Parcial.** Sonda con una URL de lectura emitida con el SDK y validez explícita de 120 s: tres `GET` 200 (90 909 bytes, `image/png`, caché `private`) antes del vencimiento y `403` después. **No acredita** la vigencia de las URLs que emite la ruta de la aplicación ni la renovación de la delegación de lectura de 2 h |
+| B-7 | Range | `206` con `Content-Range` correcto en el primer y el último bloque; `416` con `bytes */<total>` fuera de tamaño | **Hecho.** Fotografía, por la ruta de la API: `206` en el primer y el último bloque, `416` fuera de tamaño, caché `private`. Fotografía, directamente en Blob: `Content-Range` correcto en los primeros y los últimos 1024 bytes y `bytes */90909` en el `416`; `bytes=-` → `416`. MP4 sintético generado en la interfaz (13,53 s, 1280×720, 3 227 165 bytes), con URL de lectura temporal del SDK: `206` en el primer y el último bloque, `Accept-Ranges: bytes`, `416` con `bytes */3227165`, `Content-Type: video/mp4`. La respuesta `416` del proveedor puede incluir el contenido completo; se anota como comportamiento del proveedor |
+| B-8 | Cabeceras y caché de Blob | `Content-Type` igual al del archivo; ninguna caché pública | **Hecho (observación).** `image/png` y `video/mp4` correctos; `Cache-Control: private` en fotografía y vídeo |
+| B-9 | CORS desde la web | `fetch` y `PUT` funcionan desde el dominio de la web | **Parcial.** La subida real de fotografías y el guardado del cartel desde la interfaz funcionaron. Lectura del MP4 con el `Origin` de la web: `Access-Control-Allow-Origin: *`. Un `OPTIONS` sobre una URL firmada **solo para GET** respondió `403` con `ACAO *`; eso no demuestra un fallo del `GET` simple ni del flujo de la interfaz, y **no se ha verificado** la petición previa de un `PUT` con esta sonda |
+| B-10 | Los objetos borrados ya no existen en el store | Listado del prefijo vacío; `StorageCleanup` = 0 | **Hecho.** Tras borrar los tres inmuebles: SQL con 0 inmuebles, 0 anuncios y `StorageCleanup` = 0; listado directo con el SDK de los prefijos de las dos cuentas: 0 objetos, `hasMore` falso, incluidos los archivos fallidos y la segunda fotografía de B-5. Comprobación individual posterior: `head` del SDK sobre los cinco objetos originales → `BlobNotFoundError` en los cinco (ausentes 5, presentes 0); listado repetido de los dos prefijos: A 0 y B 0, `hasMore` falso. La sexta fotografía, creada en la prueba de caducidad (B-5), queda cubierta por el listado del prefijo B, no por esas cinco consultas `head`. Se comprobó con `head` del SDK, **no** con `GET` de las URLs antiguas: que esas URLs fallen tras el borrado no está probado |
+| B-11 | Cuota | Sin superar la cuota; ninguna `500` | **Hecho, secuencial (matriz corregida).** En un inmueble de la cuenta USER, con una fotografía y otro intento pendiente: 24 reservas de 4 194 304 bytes → `201`; la 25.ª y la 26.ª → `409 LIMIT_REACHED` (100 MB por inmueble). En un **segundo** inmueble, la reserva adicional → `409 QUOTA_EXCEEDED` (cuota de 100 MB del usuario). Cancelaciones `204`. Para probar la cuota de usuario hay que **repartir las reservas entre dos inmuebles**: con uno solo se alcanza antes el límite del inmueble. Las peticiones fueron secuenciales: **la concurrencia no está probada en remoto** (sí en local) |
+| B-12 | Sin huérfanos | Cada objeto listado corresponde a un archivo visible | **Hecho.** Antes de la limpieza, listado directo: 3 objetos de la cuenta A y 1 de la cuenta USER, todos referenciados en la base, sin adicionales ni ausentes. Después, ambos prefijos vacíos (B-10) |
 
-Coste orientativo: menos de 60 operaciones avanzadas y unos pocos MB de transferencia, dentro de la cuota mensual de Hobby (2 000 avanzadas y 10 GB).
+Pasos detallados de referencia, por si se repiten:
+
+- **B-2:** preparar con `image/png` y, en una URL, enviar un PNG con `Content-Type: image/jpeg`; en otra, enviar bytes JPEG. Confirmar cada una.
+- **B-5:** preparar, **no** enviar nada, esperar a que venza (15 min) y confirmar: se espera `410 UPLOAD_EXPIRED`. Aparte, enviar el `PUT` después del vencimiento: rechazado.
+- **B-6:** con la URL que devuelve `GET /api/properties/<id>/photos/<foto>/file?as=url`, pedirla tres veces y otra vez pasado su plazo (10 a 15 min para imágenes).
+- **B-7:** `curl -s -D - -o /dev/null -H 'Range: bytes=0-1023' "$URL"`, luego `bytes=-1024`, `bytes=999999999-` y `bytes=-`.
+- **B-11:** cuota del inmueble con un inmueble; cuota del usuario repartiendo las reservas entre dos. Para la concurrencia, lanzar las peticiones en paralelo y comprobar que ninguna `201` supera la cuota y que no hay `500`.
 
 ## Prioridad 1: IP del cliente (MD-4)
 
-`CLIENT_IP_SOURCE` sigue en `socket` y no se cambia durante estas pruebas. La documentación de Vercel indica que una reescritura hacia un origen externo reenvía `x-forwarded-for` y `x-real-ip`. No dice qué recibe en `x-vercel-forwarded-for` un segundo proyecto de Vercel. Por eso hay que medirlo.
+`CLIENT_IP_SOURCE` sigue en `socket`. La documentación de Vercel indica que una reescritura hacia un origen externo reenvía `x-forwarded-for` y `x-real-ip`, pero no qué recibe en `x-vercel-forwarded-for` un segundo proyecto de Vercel. Por eso hay que medirlo.
 
-Diagnóstico temporal (`apps/api/src/routes/client-ip-diagnostic.routes.ts`):
+Diagnóstico temporal (`apps/api/src/routes/client-ip-diagnostic.routes.ts`): `GET /api/admin/diagnostics/client-ip` solo existe si `CLIENT_IP_DIAGNOSTIC_UNTIL` contiene una fecha ISO 8601 futura, como mucho a 72 h; solo responde al OWNER; devuelve el dominio de llegada, la IP del socket, las cabeceras de proxy y la IP que usaría el rate-limit con cada valor de `CLIENT_IP_SOURCE`; no registra nada y lleva `Cache-Control: no-store`.
 
-- `GET /api/admin/diagnostics/client-ip` solo existe si `CLIENT_IP_DIAGNOSTIC_UNTIL` contiene una fecha ISO 8601 futura y como mucho a **72 horas**. Pasada esa fecha responde 404 aunque la variable siga definida.
-- Solo responde al OWNER; cualquier otra cuenta recibe 403.
-- Devuelve:
-  - el dominio de llegada;
-  - la IP del socket;
-  - las cabeceras `x-forwarded-for`, `x-vercel-forwarded-for`, `x-real-ip`, `forwarded` y `x-vercel-id`;
-  - la IP que usaría el rate-limit con cada valor de `CLIENT_IP_SOURCE`.
-- No registra nada y lleva `Cache-Control: no-store`.
+| ID | Comprobación | Resultado esperado | Resultado (18/11/2026) |
+|---|---|---|---|
+| IP-0 | Activación | `401` sin sesión | **Hecho**, con autorización del titular y ventana acotada: `401` sin sesión |
+| IP-1 | Red 1, a través de la web | Anotar `socketIp`, `x-forwarded-for`, `x-vercel-forwarded-for` y `x-real-ip` | **Hecho.** IP del socket: loopback. `x-forwarded-for` y `x-vercel-forwarded-for` coinciden con la IP pública de la red (enmascarada en las evidencias). La cabecera `host` llega como el dominio de la API también a través de la reescritura, así que no identifica por sí sola el dominio público de origen |
+| IP-2 | Red 1, dominio de la API | `x-vercel-forwarded-for` con la IP pública de la red | Sin resultado anotado |
+| IP-3 | Red 2 | Las IP de cada red son distintas y coinciden con su IP pública | **Aplazado** por el titular: no dispone de una segunda red para el equipo |
+| IP-4 | Cabeceras falsificadas | `clientIp.vercel` nunca toma el valor falsificado | **No ejecutado** |
+| IP-5 | Retirada | `404` con la sesión del OWNER | **Hecho.** Variable eliminada y API desplegada de nuevo (`dpl_6QefdFA6ZNPxZA6TFHr6F2AM9RBf`, mismo código); la ruta responde `404` con `no-store` al OWNER |
 
-| ID | Comprobación | Pasos | Resultado esperado | Limpieza |
-|---|---|---|---|---|
-| IP-0 | Activación | Definir en el proyecto `api` (Production) `CLIENT_IP_DIAGNOSTIC_UNTIL` = ahora + 24 h, en UTC (`2026-11-20T18:00:00Z`), y volver a desplegar la API. Sin sesión, `GET https://estateforge-blush.vercel.app/api/admin/diagnostics/client-ip` | `401` sin sesión; con una cuenta USER, `403` | — |
-| IP-1 | Red 1, a través de la web | Con la sesión del OWNER en el navegador, abrir `https://estateforge-blush.vercel.app/api/admin/diagnostics/client-ip` | `host` es el dominio de la web. Anotar (enmascarados) `socketIp`, `x-forwarded-for`, `x-vercel-forwarded-for` y `x-real-ip`, y compararlos con la IP pública de la red (por ejemplo, la que muestra el router) | — |
-| IP-2 | Red 1, dominio de la API | `curl -s -H "Cookie: $EF_COOKIE" https://estateforge-api.vercel.app/api/admin/diagnostics/client-ip` con la cookie del OWNER cargada con `read -rs` | `host` es el de la API; `x-vercel-forwarded-for` debería ser la IP pública de la red | — |
-| IP-3 | Red 2 | Repetir IP-1 e IP-2 desde la segunda red | Las IP de cada red son distintas. Si en IP-1 `x-vercel-forwarded-for` cambia con la red y coincide con la IP pública, la reescritura conserva la IP del cliente | — |
-| IP-4 | Cabeceras falsificadas | Repetir IP-1 (con `curl` y la cookie) e IP-2 añadiendo `-H 'X-Forwarded-For: 1.2.3.4' -H 'X-Vercel-Forwarded-For: 1.2.3.4' -H 'X-Real-IP: 1.2.3.4'` | `clientIp.vercel` sigue siendo la IP pública de la red, nunca `1.2.3.4`. Si alguna ruta devuelve `1.2.3.4` en `x-vercel-forwarded-for`, el modo `vercel` **no** es seguro por esa ruta | — |
-| IP-5 | Retirada | Eliminar `CLIENT_IP_DIAGNOSTIC_UNTIL` y volver a desplegar (o dejarla vencer). Pedir la ruta con la sesión del OWNER | `404` | Anotar la hora de retirada |
+Con una sola red no se puede deducir que el modo `vercel` sea seguro. **MD-4 sigue abierto.**
 
-Decisión con los resultados:
+Decisión cuando se complete:
 
-- **Se puede activar `CLIENT_IP_SOURCE=vercel`** solo si, por los dos dominios y desde las dos redes, `x-vercel-forwarded-for` contiene la IP pública de cada red e IP-4 no la altera. Después de activarlo, hay que repetir IP-1 y comprobar que `clientIp.configuredSource` es `vercel`.
-- **Hay que mantener `socket`** si por la web llega una IP de Vercel o la misma en las dos redes. Todas las peticiones compartirían cupo de rate-limit. Las alternativas (servir la web y la API desde un mismo proyecto, o una cabecera secreta añadida por la reescritura) son cambios de arquitectura y quedan fuera de esta verificación.
+- **Se puede activar `CLIENT_IP_SOURCE=vercel`** solo si, por los dos dominios y desde las dos redes, `x-vercel-forwarded-for` contiene la IP pública de cada red e IP-4 no la altera. Después hay que repetir IP-1 y comprobar que `clientIp.configuredSource` es `vercel`.
+- **Hay que mantener `socket`** si por la web llega una IP de Vercel o la misma en las dos redes. Las alternativas (servir la web y la API desde un mismo proyecto, o una cabecera secreta añadida por la reescritura) son cambios de arquitectura.
 - En ningún caso se usa `x-forwarded-for` ni `x-real-ip` sin haber demostrado que el cliente no puede escribirlos.
 
 Una vez cerrado MD-4, la ruta de diagnóstico se elimina del código.
 
 ## Prioridad 2: aislamiento entre cuentas en producción
 
-En local, `apps/api/src/integration/account-isolation.integration.test.ts` recorre todas las rutas con identificador como cuenta intrusa. En producción basta una muestra que demuestre que la configuración real (reescritura, cookies y caché) no cambia ese resultado.
+En local, `apps/api/src/integration/account-isolation.integration.test.ts` recorre todas las rutas con identificador como cuenta intrusa. En producción se tomó una muestra para comprobar que la configuración real (reescritura, cookies y caché) no cambia ese resultado.
 
-| ID | Comprobación | Pasos | Resultado esperado | Limpieza |
-|---|---|---|---|---|
-| I-1 | Datos de A | Con A: crear un inmueble sintético con una fotografía, una pista sintética y un cartel. Anotar los identificadores del inmueble, la fotografía, el anuncio y la pista (pestaña Red) | — | Se limpia en I-5 |
-| I-2 | Lecturas de B | Con la sesión de B: `GET /api/properties/<inmueble de A>`, `/api/properties/<inmueble de A>/photos/<foto>/file?as=url`, `/api/generations/<anuncio de A>/media/poster/file?as=url` y `/api/audio-tracks/<pista de A>/file?as=url` | `404` en todas, sin redirección ni URL firmada, con `Cache-Control: no-store` o `private` | — |
-| I-3 | Escrituras de B | Con B: `PUT /api/properties/<inmueble de A>` con `{"title":"x"}`, `DELETE /api/properties/<inmueble de A>/photos/<foto>` y `POST /api/uploads` con `{"kind":"photo","contentType":"image/png","size":100,"propertyId":"<inmueble de A>"}` | `404` en todas; los datos de A, sin cambios en la interfaz de A | — |
-| I-4 | Administración | Con B: `GET /api/admin/users` | `403` | — |
-| I-5 | Limpieza | A borra su inmueble y su pista; B, si creó algo, también. Comprobar con B-10 | Sin objetos de A ni de B en el store | Si se quieren eliminar las cuentas sintéticas, desde «Cuenta» en la interfaz |
+**Alcance exacto de la ronda del 18/11/2026.** Cuenta A: el OWNER existente, con un inmueble sintético creado para la prueba (fotografía y cartel). Cuenta B: una cuenta USER temporal, verificada por el titular. Solo se usaron recursos sintéticos de esta ronda. **No equivale** a la prueba con dos cuentas USER ni al barrido de todas las rutas; la pista de audio no se incluyó.
 
-## Prioridad 3: otras comprobaciones abiertas
+| ID | Comprobación | Resultado esperado | Resultado (18/11/2026) |
+|---|---|---|---|
+| I-1 | Datos de A | — | Inmueble sintético con fotografía y cartel creados desde la interfaz |
+| I-2 | Lecturas de B | `404` sin URL firmada, con `no-store` o `private` | **Hecho.** `404` con `no-store` al leer el inmueble, la fotografía y el cartel de A. Las mismas respuestas que con identificadores inexistentes. La lectura del inmueble propio de B: `200` |
+| I-3 | Escrituras de B | `404`; datos de A sin cambios | **Hecho.** `404` con `no-store` al cambiar el título, borrar la fotografía, preparar una subida contra el inmueble de A y crear un anuncio desde él (`POST /api/generations/from-property`, que antes respondía `500`). La consulta SQL posterior confirmó el título de A intacto, una fotografía y un cartel |
+| I-4 | Administración | `403` | **Hecho.** `403` con `no-store` |
+| I-5 | Limpieza | Sin objetos de A ni de B en el store | **Hecho** (ver B-10). B borró sus dos inmuebles con la API y A el suyo desde la interfaz. La cuenta temporal la eliminó su titular desde «Cuenta», tras recuperar la contraseña por el flujo normal; el OWNER se conserva |
 
-- Restablecer la contraseña de verdad después del despliegue que añadió la redirección al login.
-- Escuchar el MP4 con «Piano sereno» y probar WebM en producción.
-- Tiempos de Neon tras escalar a cero.
-- Proveedores de IA con claves reales: necesitan autorización aparte, porque tienen coste.
-- Safari y dispositivos físicos.
+Pendiente: repetir la muestra con dos cuentas USER e incluir una pista de audio.
+
+## Prioridad 3: otras comprobaciones
+
+- **Restablecimiento de contraseña tras la redirección al login: confirmado por el titular** (18/11/2026). Con la cuenta temporal completó el flujo normal: el enlace de recuperación, la redirección al inicio de sesión, el acceso con la contraseña nueva y la eliminación de la cuenta desde «Cuenta». Es una confirmación manual del titular, no una prueba automatizada del navegador.
+- Pendientes: escuchar el MP4 con «Piano sereno» y probar WebM en producción; tiempos de Neon tras escalar a cero; proveedores de IA con claves reales (necesitan autorización aparte, porque tienen coste); Safari y dispositivos físicos.
 
 ## Registro de resultados
 
@@ -134,7 +146,5 @@ Para cada fila, anotar:
 - fecha y hora UTC;
 - quién la ejecutó;
 - el resultado obtenido, junto al esperado;
-- la evidencia saneada: capturas sin cookies ni URLs firmadas e IP enmascaradas;
+- la evidencia saneada: sin cookies, URLs firmadas ni identificadores privados, y con las IP enmascaradas;
 - la limpieza realizada.
-
-Una fila sin resultado anotado sigue **pendiente**.

@@ -15,19 +15,23 @@ All notable changes to EstateForge are documented here. The format follows
   is resolved; entries with no account reference are always kept. Deleting an account does not delete
   its audit entries immediately: they follow the same 90-day period. Protected entries do not block
   eligible ones, and each batch locks the affected accounts (`lockUserRow`) and re-checks the
-  exception before deleting. No other table is affected and no migration is needed. The purge has not
-  been run against any real database.
+  exception before deleting. No other table is affected and no migration is needed. In production it
+  has only run once, manually, with no expired entries to delete; the scheduled run is still to be
+  observed.
 - Evidence of every authorised run of the daily maintenance: a `MaintenanceRun` row (additive
   migration `20261118120000_maintenance_runs`) with the trigger (`vercel-cron` when the user agent is
   exactly `vercel-cron/1.0`, otherwise `manual`), status, counters, remaining queue size and duration,
   plus one structured log line. It stores no personal data, storage keys or secrets, and an
   unauthenticated request writes nothing. Hobby function logs are kept for one hour, so this is what
   lets the scheduled run be proven afterwards. If the row cannot be written, the maintenance response
-  does not change.
+  does not change. The migration is applied in production and a manual run left its row; a manual run
+  from the Vercel CLI sends the same user agent, so only a row inside the 04:00 UTC window proves the
+  scheduled run, which has not been observed yet.
 - A temporary, owner-only client IP diagnostic (`GET /api/admin/diagnostics/client-ip`) to close
   MD-4. It exists only while `CLIENT_IP_DIAGNOSTIC_UNTIL` holds a future ISO 8601 date at most 72 hours
   ahead, returns only the caller's own addresses and proxy headers, logs nothing and does not change
-  the rate limit or Turnstile.
+  the rate limit or Turnstile. Used once in production from a single network and then disabled (the
+  route answers 404); MD-4 stays open and `CLIENT_IP_SOURCE` stays `socket`.
 - Integration tests with two synthetic accounts that call every route taking an identifier with the
   other account's identifiers, combine own and foreign resources, compare each rejection with that of a
   non-existent identifier, and check that nothing of the first account changes or leaks.
@@ -62,7 +66,7 @@ All notable changes to EstateForge are documented here. The format follows
   state was already correct; the counters and warnings were not.
 - Asking for a listing from another account's property (`POST /api/generations/from-property`)
   answered `500` and was logged as an internal error; it now answers `404`, the same as for a property
-  that does not exist. Nothing was leaked or changed.
+  that does not exist. Nothing was leaked or changed. Checked in production with a synthetic property.
 - The local Blob simulator ignores a malformed `Range` header such as `bytes=-` (serving the whole
   file with `200`, as RFC 9110 allows) instead of answering `206`. Development and tests only.
 

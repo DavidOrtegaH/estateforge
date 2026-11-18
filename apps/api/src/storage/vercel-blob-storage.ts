@@ -19,8 +19,9 @@ import { assertValidKey, isValidPrefix, type ObjectStorage, type PresignGetOptio
 //   El clientSigningToken (la clave de firma) nunca sale del servidor; el delegationToken sí viaja en
 //   la URL, como prevé el diseño de Vercel, pero sin la clave no permite firmar nada.
 //
-// No se ha probado contra el servicio real (no hay credenciales ni despliegue autorizados): las
-// llamadas siguen los tipos del SDK instalado y están cubiertas con el SDK simulado.
+// Validado contra el store privado real de producción en una ronda acotada (18/11/2026, datos
+// sintéticos) y cubierto con el SDK simulado. Alcance y pendientes: docs/despliegue/vercel-neon-blob.md
+// y docs/despliegue/verificacion-remota.md (filas B-1 a B-12).
 
 const READ_DELEGATION_MS = 2 * 60 * 60 * 1000
 
