@@ -18,7 +18,7 @@ React 19, React Router 8, Vite 8 (`@vitejs/plugin-react`), TypeScript, Tailwind 
 
 ## Rutas
 
-Páginas públicas estáticas (HTML completo, sin JavaScript, indexables): `/` (presentación, `index.html`), `/privacidad` y `/condiciones`. `404.html` es la respuesta a cualquier ruta desconocida.
+Páginas públicas estáticas (HTML completo, indexables, sin React): `/` (presentación, `index.html`), `/privacidad` y `/condiciones`. `404.html` es la respuesta a cualquier ruta desconocida. Solo la presentación carga un script externo, `public/site-theme.js`, para el selector de tema claro/oscuro: comparte la preferencia `estateforge-theme` de la aplicación, sin ella sigue al sistema, y el contenido no depende de él. Las demás páginas siguen el tema del sistema y no llevan JavaScript.
 
 La aplicación (SPA, `app.html`, no indexable) responde solo a estas rutas:
 

@@ -22,19 +22,29 @@
     <meta name="google-site-verification" content="StEYbr7BWDRLh9mXXTqdGuOnjq_boE78tUS-sbJ46gc" />
     <!--seo:head-->
     <link rel="stylesheet" href="/src/site/site.css" />
+    <script src="/site-theme.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
-    <header class="site-header">
+    <header class="site-header site-header-landing">
       <div class="container">
         <a class="brand" href="/" aria-label="EstateForge, página principal">
-          <img src="/favicon.svg" alt="" width="36" height="22" />
-          <span>EstateForge</span>
+          <img class="brand-logo brand-logo-light" src="/src/assets/appLogo.svg" alt="" width="94" height="80" />
+          <img class="brand-logo brand-logo-dark" src="/src/assets/appLogoWhite.svg" alt="" width="94" height="80" />
         </a>
         <nav class="header-actions" aria-label="Acceso">
           <a class="button button-secondary" href="/login">Iniciar sesión</a>
           <a class="button button-primary" href="/registro">Crear cuenta</a>
         </nav>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar el tema de color">
+          <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M20.8 14.4A8.7 8.7 0 0 1 9.6 3.2 8.7 8.7 0 1 0 20.8 14.4Z" />
+          </svg>
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2m-7.07-17.07 1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M6.35 17.65l-1.42 1.42M19.07 4.93l-1.42 1.42" />
+          </svg>
+        </button>
       </div>
     </header>
 

@@ -47,6 +47,8 @@ All notable changes to EstateForge are documented here. The format follows
   link, so the token leaves the URL and the history) and shows an accessible "password reset"
   confirmation. Only a boolean travels in the navigation state; no automatic login. Errors stay on
   the reset form.
+- The landing page header shows the large anvil logo instead of the small icon and name, and adds a
+  light/dark theme toggle that shares the app's saved preference and otherwise follows the system.
 
 ### Fixed
 
