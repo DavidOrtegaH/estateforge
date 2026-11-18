@@ -20,6 +20,7 @@ import { aiKeyRoutes } from './routes/ai-key.routes.js'
 import { adminRoutes } from './routes/admin.routes.js'
 import { mediaRoutes } from './routes/media.routes.js'
 import { aiMediaRoutes } from './routes/ai-media.routes.js'
+import { clientIpDiagnosticRoutes } from './routes/client-ip-diagnostic.routes.js'
 
 import { trackRequestWork } from './request-work.js'
 import { keepsRouteCacheControl } from './cache-control.js'
@@ -338,6 +339,9 @@ export async function buildApp() {
   // sus propios parsers binarios y límites de tamaño.
   await app.register(mediaRoutes)
   await app.register(aiMediaRoutes)
+  // Diagnóstico temporal de MD-4, solo OWNER: no registra ninguna ruta salvo que
+  // CLIENT_IP_DIAGNOSTIC_UNTIL abra una ventana de como mucho 72 h.
+  await app.register(clientIpDiagnosticRoutes)
 
   // ==========================================================
   // HEALTH CHECK

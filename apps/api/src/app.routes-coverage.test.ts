@@ -450,6 +450,8 @@ const REVIEWED_ENTRIES: Record<string, 'peticion' | 'aplicacion' | 'plugin' | 'c
   'app.ts | register:generationRoutes | referencia': 'plugin',
   'app.ts | register:mediaRoutes | referencia': 'plugin',
   'app.ts | register:aiMediaRoutes | referencia': 'plugin',
+  // MD-4: diagnóstico temporal de la IP, solo OWNER y solo con CLIENT_IP_DIAGNOSTIC_UNTIL (ventana ≤ 72 h).
+  'app.ts | register:clientIpDiagnosticRoutes | referencia': 'plugin',
   'app.ts | register:propertyRoutes | referencia': 'plugin',
   'app.ts | register:rateLimit | referencia': 'plugin',
   'app.ts | setErrorHandler | sincrona': 'peticion',
