@@ -1,0 +1,51 @@
+EstateForge - portal identification assets
+Retrieved: 2026-11-19
+
+These original files identify the destination portals in the publication record.
+The trademarks and artwork belong to their respective holders. No open-source
+or free-redistribution license is asserted for these official assets. Inclusion
+was requested by the owner of EstateForge; that instruction is not represented
+as permission from the portals. No authorisation requests have been sent.
+No affiliation, endorsement or automatic publishing capability is implied.
+Files are served locally and remain unmodified; CSS scales them proportionally.
+The marks are not part of EstateForge branding. Its proprietary software license
+does not grant rights to these third-party assets.
+
+Portal: idealista
+File: idealista.png
+Source: https://www.idealista.com/sala-de-prensa/materiales/
+Origin: logos_idealista/PNG/ID.png del ZIP oficial
+SHA-256: 4557d3e4a429ca16270a8974c4ec8f23ba4d6565fbdedf278be5cd1c49b29c62
+Changes: none
+
+Portal: fotocasa
+File: fotocasa.png
+Source: https://frtassets.fotocasa.es/statics/img/favicon-96x96.png
+Origin: Enlazado por https://www.fotocasa.es/
+SHA-256: eae4bc61fdcb56c7557235782d8c3df73dbc94f5e48ec6f875cecdb47fab8437
+Changes: none
+
+Portal: pisos
+File: pisos.png
+Source: https://statics.imghs.net/dist/img/favicon/favicon-48x48.png
+Origin: Enlazado por https://www.pisos.com/
+SHA-256: 34ff8a4b40f243bd484f6d8274d78de00ba885e16ca3373fcba98eabf2871de0
+Changes: none
+
+Portal: yaencontre
+File: yaencontre.ico
+Source: https://www.yaencontre.com/favicon.ico
+Origin: Favicon servido por el dominio oficial
+SHA-256: e4f37f735fa8d6a4aca5ec978ff86145b32a072fac7916de5ce390e194bbb95f
+Changes: none
+
+Portal: habitaclia
+File: habitaclia.png
+Source: https://assets.gw.habitaclia.com/statics/favicon-96x96.png
+Origin: Enlazado por https://www.habitaclia.com/
+SHA-256: 1843644195dfe9879c7cf40eb0f720fe65180ebc7691e120b642a9b72e862b2a
+Changes: none
+
+The previous Commons wordmark (Logopisos.png, CC BY-SA 3.0 as declared there)
+is not included in this distribution. It was replaced by the official square
+Pisos.com favicon linked from its current website.

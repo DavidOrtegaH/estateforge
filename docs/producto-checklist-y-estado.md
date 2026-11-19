@@ -110,9 +110,27 @@ Prisma no modela los `CHECK` ni los índices parciales. Si una migración futura
 
 ## Identificación de los portales
 
-Desde la versión 1.0.0 la checklist no muestra logotipos de marca. Cada fila, de un portal del catálogo o «Otro/a», lleva el mismo icono genérico de Lucide (`Globe`, licencia ISC, decorativo y oculto a los lectores de pantalla) en una casilla de 32×32 y el nombre visible del portal, que también nombra la casilla («Publicado en Idealista»). Los enlaces, la validación por dominio y el tamaño de los controles no cambian.
+**Requisito actualizado (19/11/2026):** mostrar un icono identificativo de cada portal junto a su nombre, con recursos oficiales o verificables y respetando sus condiciones de uso y distribución.
 
-Hasta entonces se usaban los favicons publicados por cada portal en su web (descargados el 9 de noviembre de 2026). Eran marcas y obras de sus titulares sin una licencia que permitiera redistribuirlos, así que se retiraron del árbol y del historial publicado (DA-102).
+**Estado: cinco recursos incorporados con servicio local.** El usuario ha indicado expresamente que se utilicen los iconos y que no se envíen solicitudes. Los cinco portales muestran su imagen original, junto al nombre visible; «Otro/a» conserva el icono genérico.
+
+| Portal | Archivo local | Procedencia |
+|---|---|---|
+| idealista | `/portales/idealista.png` | [Fuente](https://www.idealista.com/sala-de-prensa/materiales/); logos_idealista/PNG/ID.png del ZIP oficial |
+| fotocasa | `/portales/fotocasa.png` | [Fuente](https://frtassets.fotocasa.es/statics/img/favicon-96x96.png); Enlazado por https://www.fotocasa.es/ |
+| pisos | `/portales/pisos.png` | [Fuente](https://statics.imghs.net/dist/img/favicon/favicon-48x48.png); Enlazado por https://www.pisos.com/ |
+| yaencontre | `/portales/yaencontre.ico` | [Fuente](https://www.yaencontre.com/favicon.ico); Favicon servido por el dominio oficial |
+| habitaclia | `/portales/habitaclia.png` | [Fuente](https://assets.gw.habitaclia.com/statics/favicon-96x96.png); Enlazado por https://www.habitaclia.com/ |
+
+Los archivos se han descargado de nuevo; no se ha modificado el historial de Git. No se ha alterado, recortado ni redibujado ningún recurso. El logotipo textual anterior de Pisos.com (Commons) ha sido sustituido por el favicon cuadrado enlazado por su web actual.
+
+**Presentación.** Casilla uniforme de 32×32, fondo blanco en ambos temas y proporciones conservadas. Los PNG se muestran a 24×24; el favicon de Yaencontre, de 16×16, conserva su tamaño para no ampliarlo. Las imágenes son decorativas (`alt=""`, `aria-hidden`); el nombre visible y la etiqueta de la casilla identifican cada portal. Si un archivo falla, aparece `Globe` sin cambiar las dimensiones. Una URL nueva se puede cargar después de un fallo. Los enlaces, casillas y validación por dominio conservan su comportamiento.
+
+**Servicio local y procedencia.** El registro está en `apps/web/src/lib/portalIcons.ts`; cada entrada documenta la fuente, fecha y situación de derechos. No se realizan peticiones a los portales ni a servicios de favicons al abrir el Checklist. `portales/NOTICE.txt`, incluido también en `third-party-notices.txt`, conserva fuentes y SHA-256.
+
+**Situación de derechos.** Las marcas y recursos pertenecen a sus titulares. La instrucción del usuario no se presenta como una autorización de los portales ni se atribuye a estos recursos una licencia libre. Se usan para identificar destinos externos, sin sugerir afiliación ni publicación automática. Las solicitudes preparadas quedan archivadas y **no se enviarán**, conforme a la instrucción del usuario. No se redistribuye el ZIP completo de Idealista, solo su símbolo original `ID.png`.
+
+Las verificaciones de esta continuación se documentan en `revision/evidencias_iconos_portales_completos_2026-11-19/`, fuera del checkout.
 
 ## Estado del inmueble
 

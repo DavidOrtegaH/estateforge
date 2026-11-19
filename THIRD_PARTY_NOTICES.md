@@ -55,10 +55,25 @@ the OFL does not restrict documents or images created with the fonts.
 
 Audio presets are synthesised in the browser at run time; no audio files are included.
 
-Real estate portals (Idealista, Fotocasa, Pisos.com, Yaencontre and Habitaclia) are named in the
-publication record but no longer shown with their logos: the favicons used before version 1.0.0 had
-no license allowing redistribution, so they were removed from the tree and from the published
-history (see [docs/release/history-rewrite.md](docs/release/history-rewrite.md)).
+The publication record includes five original portal-identification assets served from
+`apps/web/public/portales/`: Idealista's `ID.png` from its official press kit, and the official
+favicons of Fotocasa, Pisos.com, Yaencontre and Habitaclia. Their source URLs, checksums and unchanged
+status are recorded in `apps/web/public/portales/NOTICE.txt`. This notice is also included in the
+built `third-party-notices.txt` linked from the application footer.
+
+The user expressly instructed EstateForge to include these assets and not send permission requests.
+That instruction is not a grant of rights by the portals. These trademarks and artwork remain the
+property of their holders; no open-source license or free redistribution permission is asserted.
+They identify the external destinations only, separate from EstateForge's branding, and do not
+indicate affiliation, endorsement or automatic publication. EstateForge's proprietary license does
+not grant rights to these assets.
+
+The earlier Commons wordmark for Pisos.com is no longer distributed. Its original and declared
+CC BY-SA provenance remain in the local historical evidence outside this checkout. The current
+square favicon was downloaded from the URL linked by the official Pisos.com website. The source
+history was not modified; the files in this working tree were obtained anew.
+
+See [portal identification](docs/producto-checklist-y-estado.md#identificación-de-los-portales).
 
 ## 4. Material present only in the history
 

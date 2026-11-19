@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Globe } from 'lucide-react'
 import { useBlocker } from 'react-router'
+import { portalIconFor } from '@/lib/portalIcons'
+import { PortalIcon } from './PortalIcon'
 
 import {
   OTHER_NAME_MAX_LENGTH,
@@ -54,9 +55,6 @@ const inputClass =
 
 const linkClass =
   'text-sm font-medium text-primary hover:underline'
-
-const logoTileClass =
-  'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border'
 
 export interface ChecklistRowHandlers {
   onToggle: (key: string) => void
@@ -123,16 +121,12 @@ function ChecklistRowItem({
             className="h-4 w-4 shrink-0"
           />
 
-          {/* Icono genérico para todas las filas: los portales se identifican por su nombre, sin
-              logotipos de marca (DA-102). */}
-          <span
-            className={`${logoTileClass} bg-muted/70 text-muted-foreground`}
-          >
-            <Globe
-              aria-hidden="true"
-              className="h-5 w-5"
-            />
-          </span>
+          {/* Icono del portal si hay un recurso local con procedencia documentada (lib/portalIcons.ts);
+              si no, o si no carga, el genérico. «Otro/a» usa siempre el genérico. Decorativo: el nombre
+              visible identifica la fila. */}
+          <PortalIcon
+            icon={portalIconFor(row.kind === 'portal' ? row.platform : null)}
+          />
 
           <span className="break-words text-sm font-medium">
             {row.kind === 'portal'

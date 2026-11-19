@@ -76,8 +76,15 @@ describe('construcción de la web', () => {
     expect(notices).toMatch(/Copyright 2016 The Inter Project Authors/)
     expect(notices).toMatch(/Copyright 2019 The Manrope Project Authors/)
     expect(notices.match(/SIL OPEN FONT LICENSE Version 1\.1/g)?.length).toBeGreaterThanOrEqual(2)
-    // Ningún logotipo de portal en lo que se publica.
-    expect(fs.existsSync(path.join(outDir, 'portales'))).toBe(false)
+    // El recurso local y su atribución se publican con la web, sin depender de imágenes externas.
+    expect(fs.readFileSync(path.join(outDir, 'portales/pisos.png'))).toEqual(fs.readFileSync(path.join(root, 'public/portales/pisos.png')))
+    const assetNotice = fs.readFileSync(path.join(outDir, 'portales/NOTICE.txt'), 'utf8').trim()
+    expect(notices).toContain(assetNotice)
+    expect(assetNotice).toContain('portal identification assets')
+    for (const file of ['idealista.png', 'fotocasa.png', 'pisos.png', 'yaencontre.ico', 'habitaclia.png']) {
+      expect(fs.readFileSync(path.join(outDir, 'portales', file))).toEqual(fs.readFileSync(path.join(root, 'public/portales', file)))
+      expect(assetNotice).toContain(`File: ${file}`)
+    }
   }, 120_000)
 
   it('las páginas públicas enlazan los avisos de terceros', () => {

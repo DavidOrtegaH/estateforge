@@ -6,6 +6,14 @@ All notable changes to EstateForge are documented here. The format follows
 
 ## Unreleased
 
+### Portal icons
+
+- Include the original official assets of all five portals, served locally in uniform 32px tiles,
+  with their source and rights status in the built third-party notices. Use the current square
+  Pisos.com favicon instead of the earlier Commons wordmark. Preserve visible names and the generic
+  fallback for Other rows and image failures. The 16px Yaencontre favicon is not upscaled.
+- No permission requests have been sent, following the user's express instruction to use the assets.
+
 ### Added
 
 - Retention for the security audit log (`AdminAuditLog`), authorised by the owner: entries are kept
@@ -35,9 +43,23 @@ All notable changes to EstateForge are documented here. The format follows
 - Integration tests with two synthetic accounts that call every route taking an identifier with the
   other account's identifiers, combine own and foreign resources, compare each rejection with that of a
   non-existent identifier, and check that nothing of the first account changes or leaks.
+- The local template (no AI) writes listings in English when English is selected: title, description,
+  highlights and call to action are built from the structured property data. Labels for the generated
+  content, the poster and the video come from one shared source (`listing-copy.ts`). Prices stay in
+  euros and areas in m² with the exact digits of the data; English ordinals, ground floor and basements
+  are handled.
+- Posters (six templates and "random") and classic videos use the language saved in each listing,
+  including the footer, the features heading and the rent suffix. The media source exposes the
+  language; it enters the source hash only for non-Spanish listings, so Spanish material stays valid.
+- When the English template leaves out the property notes (free text written by the user), the API
+  returns the notice `FREE_TEXT_NOT_INCLUDED` and the web asks the user to add an English version by
+  editing the listing. Nothing is translated automatically.
+- The publication checklist shows the five locally served portal images with documented provenance,
+  and retains a neutral fallback for Other rows and images that fail to load.
 
 ### Changed
 
+- Simplify the landing project note by removing the sentence about the interface language.
 - API responses are sent with `Cache-Control: no-store` unless the route already sets a private
   policy (`private` or `no-store`, e.g. gallery files with ETag). Without it, the hosting platform
   adds `public, max-age=0, must-revalidate`. This is hardening; no leak through caches was observed.
@@ -71,6 +93,12 @@ All notable changes to EstateForge are documented here. The format follows
   that does not exist. Nothing was leaked or changed. Checked in production with a synthetic property.
 - The local Blob simulator ignores a malformed `Range` header such as `bytes=-` (serving the whole
   file with `200`, as RFC 9110 allows) instead of answering `206`. Development and tests only.
+- The Spanish local template described business transfers as sales, named duplexes, studios, offices
+  and land as a generic property, wrote ground floors and basements as ordinals, missed the full stop
+  after the floor, dropped the rooms when the area was missing, and failed when a property had no area,
+  rooms or extras.
+- In the "Moderno" poster template, a two-line headline pushed the second row of extras onto the call to
+  action. Only the rows that fit above it are drawn now.
 
 ## 1.0.1 - 2026-11-17
 

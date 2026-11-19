@@ -114,4 +114,6 @@ EstateForge is proprietary software (see LICENSE in the source repository). The 
 font files served by this application include the third-party components listed below. Each of them
 remains under its own license, reproduced here with its copyright notice and, where provided, its
 NOTICE file. Nothing in the EstateForge license limits the rights granted by these licenses for the
-corresponding components.`
+corresponding components.
+
+${fs.readFileSync(new URL('../public/portales/NOTICE.txt', import.meta.url), 'utf8').trim()}`

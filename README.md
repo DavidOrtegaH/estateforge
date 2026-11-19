@@ -70,6 +70,16 @@ Las corregí con pruebas que fuerzan esos cruces. Como en el plan gratuito los r
 
 Detalle de lo comprobado y lo pendiente en la [guía de despliegue](docs/despliegue/vercel-neon-blob.md#estado-actual).
 
+**Cambios incluidos en la actualización del 19/11/2026:**
+
+1. **Anuncios en inglés sin IA: implementado y verificado en local.** Con «Plantilla local (sin IA)» e inglés, el anuncio, el cartel (las seis plantillas y «Aleatoria») y el vídeo clásico salen en inglés, a partir de los datos del inmueble. Las observaciones escritas en español no se traducen; se avisa para añadir su versión inglesa editando el anuncio. Comprobado con las pruebas automáticas, con PostgreSQL real y en Edge, inspeccionando el cartel y el vídeo descargados (con sonido). Detalle en [galería, cartel y vídeo](docs/producto-galeria-cartel-video.md#idioma-del-cartel-y-del-vídeo) y en [IA con la clave de cada usuario](docs/producto-ia-byok.md).
+2. **Iconos de los portales en la checklist: los cinco incorporados.** Idealista, Fotocasa, Pisos.com, Yaencontre y Habitaclia muestran sus recursos originales junto al nombre, con servicio local y respaldo genérico si falla una imagen. «Otro/a» mantiene el icono genérico. Se ha sustituido el logotipo textual de Pisos.com por su favicon oficial cuadrado. No se han enviado solicitudes, por instrucción del usuario. Procedencia y situación de derechos en la [checklist de publicación](docs/producto-checklist-y-estado.md#identificación-de-los-portales) y en los avisos de terceros.
+
+3. **Limitaciones fuera del alcance de estos cambios:**
+   - los rótulos obligatorios del material con IA siguen en español;
+   - la validación de coherencia no revisa los textos ingleses que redacte un proveedor de IA;
+   - el material en inglés no se ha probado en Safari, Chrome ni Firefox, solo en Edge.
+
 ## Tecnología y documentación
 
 React y Vite en la interfaz; Fastify en la API; TypeScript y PostgreSQL con Prisma. Los archivos se guardan fuera de la base de datos.

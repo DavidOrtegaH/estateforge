@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { MAX_OTHER_PUBLICATIONS, PUBLICATION_PLATFORMS } from '@estateforge/shared'
 
 import { PublicationChecklistRows } from './PublicationChecklist'
+import { PORTAL_ICONS } from '@/lib/portalIcons'
 
 import {
   buildChecklistRows,
@@ -192,16 +193,19 @@ describe('portales del catálogo', () => {
     expect(toChecklistPayload(rows).items.every((item) => !item.isPublished)).toBe(true)
   })
 
-  it('identifica cada portal por su nombre visible, con un icono genérico y sin logotipos de marca', () => {
+  it('identifica los cinco portales y sirve sus cinco recursos oficiales localmente', () => {
     const markup = html(fresh())
 
-    expect(markup).not.toContain('<img')
+    expect(PUBLICATION_PLATFORMS.map(({ name }) => name)).toEqual(['Idealista', 'Fotocasa', 'Pisos.com', 'Yaencontre', 'Habitaclia'])
     for (const { name } of PUBLICATION_PLATFORMS) {
       expect(markup).toContain(`aria-label="Publicado en ${name}"`)
       expect(markup).toContain(`>${name}<`)
     }
-    // Un icono decorativo por fila (portales y «Otro/a»), oculto a los lectores de pantalla.
-    expect(markup.match(/<svg[^>]*aria-hidden="true"/g)?.length).toBeGreaterThanOrEqual(PUBLICATION_PLATFORMS.length)
+    expect(Object.keys(PORTAL_ICONS)).toEqual(PUBLICATION_PLATFORMS.map(({ id }) => id))
+    expect(markup.match(/data-portal-icon="generic"/g)?.length).toBe(1)
+    expect(markup.match(/data-portal-icon="brand"/g)?.length).toBe(PUBLICATION_PLATFORMS.length)
+    for (const icon of Object.values(PORTAL_ICONS)) expect(markup).toContain(`src="${icon!.src}"`)
+    expect(markup).not.toMatch(/<img[^>]*src="(?:https?:)?\/\//)
   })
 
   it('el campo sigue el estado de la casilla', () => {
@@ -418,9 +422,12 @@ describe('detección de cambios sin guardar', () => {
   })
 })
 
-describe('sin recursos de marca de terceros', () => {
-  it('no se distribuyen logotipos de portales', () => {
-    expect(existsSync(resolve(import.meta.dirname, '../../../public/portales'))).toBe(false)
+describe('recursos de los portales', () => {
+  it('el recurso registrado y su atribución se distribuyen con la web', () => {
+    for (const icon of Object.values(PORTAL_ICONS)) {
+      expect(existsSync(resolve(import.meta.dirname, '../../../public', icon!.src.slice(1)))).toBe(true)
+    }
+    expect(existsSync(resolve(import.meta.dirname, '../../../public/portales/NOTICE.txt'))).toBe(true)
   })
 })
 
