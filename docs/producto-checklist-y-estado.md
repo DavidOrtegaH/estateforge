@@ -112,7 +112,7 @@ Prisma no modela los `CHECK` ni los índices parciales. Si una migración futura
 
 **Requisito actualizado (19/11/2026):** mostrar un icono identificativo de cada portal junto a su nombre, con recursos oficiales o verificables y respetando sus condiciones de uso y distribución.
 
-**Estado: cinco recursos incorporados con servicio local.** El usuario ha indicado expresamente que se utilicen los iconos y que no se envíen solicitudes. Los cinco portales muestran su imagen original, junto al nombre visible; «Otro/a» conserva el icono genérico.
+**Estado: cinco recursos incorporados con servicio local y publicados en Vercel el 19/11/2026.** El usuario ha indicado expresamente que se utilicen los iconos y que no se envíen solicitudes. Los cinco portales muestran su imagen original, junto al nombre visible; «Otro/a» conserva el icono genérico. Se verificaron en producción los cinco archivos por SHA-256; la comprobación visual e interactiva de la checklist se realizó en local.
 
 | Portal | Archivo local | Procedencia |
 |---|---|---|

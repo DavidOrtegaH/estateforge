@@ -2,7 +2,9 @@
 
 ## Estado actual
 
-Actualizado el **18/11/2026**. Las fechas de cada prueba concreta se conservan donde se indican.
+Actualizado el **19/11/2026**. Las fechas de cada prueba concreta se conservan donde se indican.
+
+**Actualización del 19/11/2026.** Publicados el inglés de las plantillas sin IA, los cinco iconos originales de portales servidos localmente y la nota simplificada de la landing. API: `dpl_49PiXC8oxLbm6XGPxpaZij1udFaW`; web: `dpl_9SExQzWikuLtLHqiUuxRPEVrYRoi`. Ambos se construyeron desde `1e428f7` y se promovieron tras pasar el [CI completo sobre `a385201`](https://github.com/DavidOrtegaH/estateforge/actions/runs/44567916015) (API 2385, web 715, shared 221, scripts 60); entre esos commits solo cambió una prueba que ahora admite la procedencia de los iconos y mantiene la guarda de ausencia de peticiones a portales. No se requieren migraciones nuevas. Comprobado en producción en Edge: texto exacto de la landing, temas y persistencia, 1440/320 px sin desbordamiento ni errores de página, los cinco recursos y su aviso con SHA-256 idéntico al local, avisos de terceros, PostgreSQL disponible y rechazo 401 de una ruta protegida por la reescritura web. El flujo autenticado del inglés se verificó en local, no se ha repetido en producción. Las verificaciones anteriores que siguen pendientes conservan su estado.
 
 **Publicado en producción.** Web: <https://estateforge-blush.vercel.app/>. API: <https://estateforge-api.vercel.app/>.
 
