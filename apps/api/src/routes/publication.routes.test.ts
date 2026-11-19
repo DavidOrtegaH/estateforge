@@ -74,12 +74,12 @@ describe('sin publicación automática', () => {
     expect(urls.filter((url) => /publish|publicar|republi|sync|portal|webhook/i.test(url))).toEqual([])
   })
 
-  it('solo el catálogo central nombra los dominios de los portales', () => {
+  it('solo el catálogo central y la procedencia de los iconos nombran los dominios de los portales', () => {
     const domains = /idealista\.|fotocasa\.|pisos\.com|yaencontre\.|habitaclia\./i
 
     expect(
       productionFiles.filter(({ text }) => domains.test(text)).map(({ path }) => path),
-    ).toEqual(['packages/shared/src/publications.ts'])
+    ).toEqual(['apps/web/src/lib/portalIcons.ts', 'packages/shared/src/publications.ts'])
   })
 
   it('la interfaz no ofrece acciones de publicar', () => {
@@ -104,8 +104,13 @@ describe('sin publicación automática', () => {
     ).toEqual([])
   })
 
-  it('la validación y las rutas del Checklist nunca hacen peticiones de red', () => {
-    for (const file of ['packages/shared/src/publications.ts', 'apps/api/src/routes/publication.routes.ts']) {
+  it('la validación, las rutas y los iconos del Checklist nunca hacen peticiones de red a los portales', () => {
+    for (const file of [
+      'packages/shared/src/publications.ts',
+      'apps/api/src/routes/publication.routes.ts',
+      'apps/web/src/lib/portalIcons.ts',
+      'apps/web/src/components/listings/PortalIcon.tsx',
+    ]) {
       expect(
         productionFiles.find(({ path }) => path === file)?.text,
       ).not.toMatch(/\bfetch\(|https?\.request|axios|undici/)
