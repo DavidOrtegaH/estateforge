@@ -12,6 +12,8 @@ publicHoistPattern:
   - '@types/*'
 # Security fixes for transitive dependencies, kept within each package's major version (release 1.0.0 audit).
 overrides:
+  # GHSA-7589-6fvf-x4pw: Prisma's configuration loader must use the patched Effect release.
+  'effect@<3.22.1': '3.22.1'
   'fast-uri@>=3.0.0 <3.1.9': '^3.1.9'
   'fast-uri@>=4.0.0 <4.2.3': '^4.2.3'
   'zod@>=4.0.0 <4.6.6': '^4.6.6'

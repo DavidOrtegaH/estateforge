@@ -38,3 +38,7 @@ Si una herramienta del proyecto llegara a aceptar patrones glob de una fuente ex
 
 - Cuando se publique una versión corregida de `picomatch`, actualizar el lockfile (o añadir una `override` dentro de la misma versión mayor, como las de `pnpm-workspace.yaml`).
 - La auditoría completa (`pnpm audit --audit-level high`, sin `--prod`) muestra además otros avisos en herramientas de desarrollo (`tinypool` de `vitest`, `vite` 7 de `vitest` 3 y `zod` 3 de la CLI de `shadcn`), ajenos a este cambio y pendientes de revisión aparte.
+
+## Actualización de Effect (20/11/2026)
+
+El CI detectó GHSA-7589-6fvf-x4pw en Effect 3.20.0, dependencia transitiva del cargador de configuración de Prisma. Se fija Effect 3.22.1 mediante una override y se actualiza únicamente su resolución en el lockfile. No se añade ninguna excepción a la auditoría. La generación del cliente y las migraciones se verifican con esta resolución, además del CI completo.
