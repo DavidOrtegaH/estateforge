@@ -56,6 +56,7 @@ const AI_POSTER_TEMPLATE: PosterTemplateInfo = { id: AI_POSTER_TEMPLATE_ID, name
 type Tx = Prisma.TransactionClient
 
 const MEDIA_SELECT = {
+  sourceHash: true,
   kind: true,
   contentType: true,
   size: true,
@@ -147,13 +148,13 @@ async function readSource(db: Tx | typeof prisma, generationId: string, userId: 
   const source = {
     // El idioma cambia las etiquetas que se dibujan, así que entra en la huella. Solo se añade cuando no es
     // el español por defecto: los anuncios en español (todos los anteriores) conservan su huella, y su
-    // material y sus trabajos de IA siguen siendo válidos porque su contenido no ha cambiado.
+    // material conserva ese componente de la huella. rendererVersion invalida las composiciones con pie.
     generation: language === DEFAULT_LISTING_LANGUAGE ? text : { ...text, language },
     property: { ...property, price: price.toFixed(2) },
     // La miniatura no cambia el contenido: queda fuera de la huella, que solo cubre lo que se dibuja.
     photos: photos.map(({ thumbSize: _thumb, ...photo }) => photo),
   }
-  return { sourceHash: createHash('sha256').update(JSON.stringify(source)).digest('hex'), ...source, generation: { ...text, language }, photos }
+  return { sourceHash: createHash('sha256').update(JSON.stringify({ ...source, rendererVersion: 2 })).digest('hex'), ...source, generation: { ...text, language }, photos }
 }
 
 export async function getMediaSource(generationId: string, userId: string): Promise<MediaSource> {

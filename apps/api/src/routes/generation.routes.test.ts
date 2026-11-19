@@ -188,9 +188,7 @@ describe('Generation routes - aislamiento por usuario', () => {
           userId: 'user-a',
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         property: true,
       },

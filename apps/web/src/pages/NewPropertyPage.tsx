@@ -1,3 +1,4 @@
+import { listingCopy } from '@estateforge/shared'
 
 import { useRef, useState } from 'react'
 import { Link } from 'react-router'
@@ -66,6 +67,8 @@ function NewPropertyPage() {
 
   const [language, setLanguage] =
     useState<ListingLanguage>('español')
+
+  const [generatedLanguage, setGeneratedLanguage] = useState<ListingLanguage>('español')
 
   const [generatedListing, setGeneratedListing] =
     useState<GeneratedListing | null>(null)
@@ -250,6 +253,7 @@ function NewPropertyPage() {
       })
 
       setGeneratedListing(result.listing)
+      setGeneratedLanguage(language)
       setGenerationNotices(result.notices ?? [])
       setEditedListing(result.listing)
       setCreatedPropertyId(result.propertyId)
@@ -423,7 +427,7 @@ ${listingToCopy.title}
 
 ${listingToCopy.description}
 
-Características destacadas:
+${listingCopy(generatedLanguage).highlightsHeading}:
 ${listingToCopy.highlights
           .map((highlight) => `- ${highlight}`)
           .join('\n')}
@@ -1158,7 +1162,7 @@ ${listingToCopy.callToAction}
               {/* CARACTERÍSTICAS DESTACADAS */}
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Características destacadas
+                  {listingCopy(generatedLanguage).highlightsHeading}
                 </p>
 
                 {isEditing &&

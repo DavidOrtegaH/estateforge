@@ -156,6 +156,8 @@ export function mediaDto(generationId: string, media: MediaRow) {
     variant: media.variant,
     version: media.version,
     photoCount: (JSON.parse(media.photoIds) as unknown[]).length,
+    photoIds: JSON.parse(media.photoIds) as string[],
+    sourceHash: media.sourceHash,
     templateId: media.templateId,
     templateName: media.templateId === AI_POSTER_TEMPLATE_ID ? 'Generación con IA' : media.templateId ? (findPosterTemplate(media.templateId)?.name ?? media.templateId) : null,
     generationMode: media.generationMode,

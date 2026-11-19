@@ -6,6 +6,13 @@ All notable changes to EstateForge are documented here. The format follows
 
 ## Unreleased
 
+### Listing language correction and chronology
+
+- Localize the listing features heading and copied text using the saved listing language.
+- Remove EstateForge attribution footers from all poster and video compositions. Keep AI disclosure labels in the listing language; mark older rendering revisions as outdated in the UI.
+- Add confirmed language regeneration (including repairing legacy mislabeled listings), with ownership and version checks, replacement of all four text fields, and automatic rebuilding of existing classic media. Disclose paid text regeneration and conversion of AI media to classic versions before confirmation. Retry failed media without regenerating or charging for text again.
+- Return properties and their nested listings newest first, with stable tie-breaking and sorting before pagination.
+
 ### Portal icons
 
 - Include the original official assets of all five portals, served locally in uniform 32px tiles,

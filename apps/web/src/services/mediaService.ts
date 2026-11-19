@@ -29,6 +29,8 @@ export interface GalleryResponse {
 }
 
 export interface ListingMediaItem {
+  photoIds?: string[]
+  sourceHash?: string
   kind: 'poster' | 'video'
   contentType: string
   size: number

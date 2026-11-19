@@ -69,6 +69,7 @@ export interface GenerationProperty {
 }
 
 export interface GenerationItem {
+  updatedAt?: string
   id: string
   propertyId: string
   title: string

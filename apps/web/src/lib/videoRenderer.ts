@@ -1,4 +1,4 @@
-import { AI_VIDEO_LABEL, fixVideoDuration, inspectVideoContainer, VIDEO_HEIGHT, VIDEO_MAX_BYTES, VIDEO_MAX_DURATION_MS, VIDEO_MAX_PHOTOS, VIDEO_WIDTH } from '@estateforge/shared'
+import { AI_VIDEO_LABEL, listingLanguageOf, fixVideoDuration, inspectVideoContainer, VIDEO_HEIGHT, VIDEO_MAX_BYTES, VIDEO_MAX_DURATION_MS, VIDEO_MAX_PHOTOS, VIDEO_WIDTH } from '@estateforge/shared'
 
 import { coverCrop, wrapText, type PosterContext, type PosterImage } from './posterRenderer'
 import type { PromoContent } from './promoContent'
@@ -171,7 +171,6 @@ export function drawVideoFrame(ctx: PosterContext, content: PromoContent, image:
       const [slogan] = wrapText(ctx, content.slogan, VIDEO_WIDTH - 128, 1)
       write(slogan, 64, 460, `700 40px ${SANS}`, accent)
     }
-    write(content.footer, 64, 660, `600 22px ${SANS}`, '#cbd5e1')
   }
   return texts
 }
@@ -453,17 +452,16 @@ export function drawAiVideoFrame(ctx: PosterContext, content: PromoContent, fram
     write(price, 64, 250, `800 76px ${SANS}`, '#ffffff')
     if (content.location) write(content.location, 64, 330, `500 34px ${SANS}`, '#e2e8f0')
     write(content.facts.join('  ·  '), 64, 410, `600 30px ${SANS}`, '#ffffff')
-    write(content.footer, 64, 660, `600 22px ${SANS}`, '#cbd5e1')
   } else {
     shade(ctx, 0.78)
     write(content.facts.join('  ·  '), 64, 668, `600 30px ${SANS}`, '#ffffff')
   }
   // Rótulo de contenido generado con IA, visible durante todo el vídeo.
   ctx.font = `700 20px ${SANS}`
-  const width = Math.min(VIDEO_WIDTH - 48, ctx.measureText(AI_VIDEO_LABEL).width + 32)
+  const width = Math.min(VIDEO_WIDTH - 48, ctx.measureText((listingLanguageOf(content.language) === 'english' ? 'AI-generated video · not a real representation of the property' : AI_VIDEO_LABEL)).width + 32)
   ctx.fillStyle = 'rgba(15, 23, 42, 0.82)'
   ctx.fillRect(24, 22, width, 40)
-  write(AI_VIDEO_LABEL, 40, 42, `700 20px ${SANS}`, '#ffffff', width - 32)
+  write((content.language === 'english' ? 'AI-generated video · not a real representation of the property' : AI_VIDEO_LABEL), 40, 42, `700 20px ${SANS}`, '#ffffff', width - 32)
   return texts
 }
 

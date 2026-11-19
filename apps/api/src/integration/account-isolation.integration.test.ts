@@ -264,6 +264,7 @@ const cases = (): Case[] => [
   { route: 'DELETE /api/properties/:id', url: () => `/api/properties/${a.propertyId}`, expect: 404 },
   { route: 'DELETE /api/properties', url: () => '/api/properties', payload: () => ({ ids: [a.propertyId] }), expect: 'bulk-zero' },
   { route: 'GET /api/generations/:id', url: () => `/api/generations/${a.generationId}`, expect: 404, ownerControl: true },
+  { route: 'POST /api/generations/:id/language', url: () => `/api/generations/${a.generationId}/language`, payload: () => ({ language: 'english', confirmed: true, expectedUpdatedAt: '2026-01-01T00:00:00.000Z' }), expect: 404 },
   { route: 'PUT /api/generations/:id', url: () => `/api/generations/${a.generationId}`, payload: () => ({ title: 'Cambiado por la cuenta B' }), expect: 404 },
   { route: 'DELETE /api/generations/:id', url: () => `/api/generations/${a.generationId}`, expect: 404 },
   { route: 'DELETE /api/generations', url: () => '/api/generations', payload: () => ({ ids: [a.generationId] }), expect: 'bulk-zero' },

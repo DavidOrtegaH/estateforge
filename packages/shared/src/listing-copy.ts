@@ -48,6 +48,7 @@ export interface ListingCopy {
   list: (items: string[]) => string
   callToAction: string
   footer: string
+  highlightsHeading: string
   featuresHeading: string
 }
 
@@ -110,7 +111,8 @@ const SPANISH: ListingCopy = {
   rentSuffix: '/mes',
   list: items => joinList(items, 'y'),
   callToAction: 'Contacta con nosotros para concertar una visita.',
-  footer: 'Material generado con EstateForge a partir de los datos del anuncio',
+  footer: '',
+  highlightsHeading: 'Características destacadas',
   featuresHeading: 'Características',
 }
 
@@ -160,7 +162,8 @@ const ENGLISH: ListingCopy = {
   rentSuffix: '/month',
   list: items => joinList(items, 'and'),
   callToAction: 'Contact us to arrange a viewing.',
-  footer: 'Material created with EstateForge from the listing data',
+  footer: '',
+  highlightsHeading: 'Key features',
   featuresHeading: 'Features',
 }
 

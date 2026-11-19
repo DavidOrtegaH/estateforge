@@ -126,12 +126,72 @@ describe('fuente multimedia', () => {
       return createHash('sha256').update(JSON.stringify({ generation, property: source.property, photos: source.photos.map(({ thumbSize: _thumb, ...photo }) => photo) })).digest('hex')
     }
     const es = await mods.getMediaSource(spanish, owner.userId)
-    expect(es.sourceHash).toBe(previousHash(es))
+    expect(es.sourceHash).not.toBe(previousHash(es))
     const en = await mods.getMediaSource(english, owner.userId)
     expect(en.sourceHash).not.toBe(previousHash(en))
     // Cambiar el idioma guardado cambia la huella: el material anterior queda desactualizado y el guardado
     // con la huella vieja se rechaza (protección existente frente a cambios concurrentes).
     await admin.query(`UPDATE "Generation" SET language = 'español' WHERE id = $1`, [english])
     expect((await mods.getMediaSource(english, owner.userId)).sourceHash).not.toBe(en.sourceHash)
+  })
+})
+
+describe('cambio confirmado de idioma y orden cronológico', () => {
+  async function fixture() {
+    const owner = await account()
+    const propertyId = await propertyOf(owner.userId)
+    const generationId = (await generate(owner.cookie, propertyId, 'español')).json().generationId as string
+    const get = async () => (await app.inject({ url: `/api/generations/${generationId}`, headers: { cookie: owner.cookie } })).json()
+    return { owner, propertyId, generationId, get }
+  }
+  it('rehace los cuatro campos, admite la vuelta al español y conserva el inmueble y los otros anuncios', async () => {
+    const { owner, propertyId, generationId, get } = await fixture()
+    const otherId = (await generate(owner.cookie, propertyId, 'español')).json().generationId
+    const change = async (language: string) => app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie: owner.cookie }, payload: { language, confirmed: true, expectedUpdatedAt: (await get()).updatedAt } })
+    const en = await change('english')
+    expect(en.statusCode).toBe(200)
+    expect(en.json()).toMatchObject({ generation: { language: 'english', title: '2-bedroom apartment for rent in Chamberí, Madrid', callToAction: 'Contact us to arrange a viewing.' }, mediaKinds: [], notices: ['FREE_TEXT_NOT_INCLUDED'] })
+    expect(en.json().generation.description).toContain('12th floor')
+    expect(JSON.parse(en.json().generation.highlights)).toContain('2 bedrooms')
+    expect((await admin.query('SELECT language FROM "Generation" WHERE id = $1', [otherId])).rows[0].language).toBe('español')
+    const es = await change('español')
+    expect(es.statusCode).toBe(200)
+    expect(es.json().generation.description).toContain('vistas al parque')
+    expect((await admin.query('SELECT title FROM "Property" WHERE id = $1', [propertyId])).rows[0].title).toBe('Piso precioso junto al parque')
+  })
+  it('sin confirmación, sin propiedad o con una versión vieja no modifica el anuncio', async () => {
+    const { owner, generationId, get } = await fixture()
+    const stranger = await account()
+    const before = await get()
+    const request = (cookie: string, payload: Record<string, unknown>) => app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie }, payload })
+    const body = { language: 'english', confirmed: true, expectedUpdatedAt: before.updatedAt }
+    expect((await request(owner.cookie, { ...body, confirmed: false })).statusCode).toBe(400)
+    expect((await request(stranger.cookie, body)).statusCode).toBe(404)
+    expect((await request(owner.cookie, { ...body, expectedUpdatedAt: '2020-01-01T00:00:00.000Z' })).statusCode).toBe(409)
+    expect((await app.inject({ method: 'PUT', url: `/api/generations/${generationId}`, headers: { cookie: owner.cookie }, payload: { language: 'english' } })).statusCode).toBe(409)
+    expect(await get()).toEqual(before)
+  })
+  it('repara un anuncio antiguo con etiqueta inglesa y contenido español aunque no cambie la etiqueta', async () => {
+    const { owner, generationId, get } = await fixture()
+    await admin.query('UPDATE "Generation" SET language = $2 WHERE id = $1', [generationId, 'english'])
+    const response = await app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie: owner.cookie }, payload: { language: 'english', confirmed: true, expectedUpdatedAt: (await get()).updatedAt } })
+    expect(response.statusCode).toBe(200)
+    expect(response.json().generation.description).not.toMatch(/habitaciones|Se encuentra/)
+  })
+  it('devuelve los inmuebles y sus anuncios del más reciente al más antiguo', async () => {
+    const { owner, propertyId, generationId } = await fixture()
+    const newer = await propertyOf(owner.userId)
+    const secondId = (await generate(owner.cookie, propertyId, 'english')).json().generationId
+    await admin.query('UPDATE "Property" SET "createdAt" = $2 WHERE id = $1', [propertyId, '2025-01-01T00:00:00Z'])
+    await admin.query('UPDATE "Property" SET "createdAt" = $2 WHERE id = $1', [newer, '2026-01-01T00:00:00Z'])
+    await admin.query('UPDATE "Generation" SET "createdAt" = $2 WHERE id = $1', [generationId, '2025-01-01T00:00:00Z'])
+    await admin.query('UPDATE "Generation" SET "createdAt" = $2 WHERE id = $1', [secondId, '2026-01-01T00:00:00Z'])
+    const headers = { cookie: owner.cookie }
+    const properties = (await app.inject({ url: '/api/properties', headers })).json()
+    expect(properties.map((p: { id: string }) => p.id)).toEqual([newer, propertyId])
+    const detail = (await app.inject({ url: `/api/properties/${propertyId}`, headers })).json()
+    expect(detail.generations.map((g: { id: string }) => g.id)).toEqual([secondId, generationId])
+    const listings = (await app.inject({ url: '/api/generations', headers })).json()
+    expect(listings.map((g: { id: string }) => g.id)).toEqual([secondId, generationId])
   })
 })

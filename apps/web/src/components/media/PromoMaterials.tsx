@@ -2,17 +2,16 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Download, Film, Image as ImageIcon, RefreshCw, Sparkles } from 'lucide-react'
 
-import { AI_POSTER_TEMPLATE_ID, AI_VIDEO_DEFAULT_DURATION, AI_VIDEO_DURATIONS, findAudioPreset, findPosterTemplate, POSTER_TEMPLATES, type AiVideoDuration, type AudioPresetId, type PosterTemplateId } from '@estateforge/shared'
+import { AI_POSTER_TEMPLATE_ID, AI_VIDEO_DEFAULT_DURATION, AI_VIDEO_DURATIONS, findAudioPreset, findPosterTemplate, POSTER_TEMPLATES, type AiVideoDuration, type PosterTemplateId } from '@estateforge/shared'
 
-import { synthesizePreset } from '@/lib/audioPresets'
+import { prepareSoundtrack } from '@/lib/regenerateListingMedia'
 import { DEFAULT_AUDIO, type AudioChoice } from '@/lib/audioChoice'
 import { fitWithin } from '@/lib/imagePrep'
 import { defaultVideoSelection, describeMediaError, formatBytes, formatDuration, resolveVideoSelection } from '@/lib/mediaUi'
 import { AI_POSTER_PHOTOS, photosForTemplate, renderAiPoster, renderPoster } from '@/lib/posterRenderer'
 import { buildPromoContent, nextVariant, orderedPhotos, type MediaSourceData, type PromoContent } from '@/lib/promoContent'
-import { buildSoundtrack, decodeAudio, type PcmAudio } from '@/lib/soundtrack'
 import { AI_INTRO_SECONDS, AI_OUTRO_SECONDS, estimateDuration, renderAiVideo, renderVideo } from '@/lib/videoRenderer'
-import { downloadPrivate, drawPosterTemplate, fetchPrivate, fileUrl, getMediaSource, listAudioTracks, listMedia, loadBitmap, MediaRequestError, mediaDownloadName, saveMedia, type ListingMediaItem, type SaveMediaMeta } from '@/services/mediaService'
+import { downloadPrivate, drawPosterTemplate, fileUrl, getMediaSource, listMedia, loadBitmap, MediaRequestError, mediaDownloadName, saveMedia, type ListingMediaItem, type SaveMediaMeta } from '@/services/mediaService'
 
 import {
   ACTIVE_STATUSES,
@@ -70,6 +69,7 @@ export function MediaCard({
   propertyId,
   onGenerate,
   onCancel,
+  outdated = false,
   children,
 }: {
   kind: Kind
@@ -80,6 +80,7 @@ export function MediaCard({
   propertyId: string
   onGenerate: () => void
   onCancel?: () => void
+  outdated?: boolean
   children?: ReactNode
 }) {
   const label = LABELS[kind]
@@ -104,14 +105,14 @@ export function MediaCard({
       )}
 
       <div className="mt-3 flex min-h-48 items-center justify-center overflow-hidden rounded-md bg-muted">
-        {item ? (
+        {item && !outdated ? (
           kind === 'poster' ? (
             <img src={fileUrl(item.url)} alt={`Cartel del anuncio, versión ${item.version}`} className="max-h-96 w-auto object-contain" />
           ) : (
             <video src={fileUrl(item.url)} controls preload="metadata" className="max-h-96 w-full" aria-label={`Vídeo del anuncio, versión ${item.version}`} />
           )
         ) : (
-          <p className="p-6 text-center text-sm text-muted-foreground">Todavía no se ha generado {label.noun}.</p>
+          <p className="p-6 text-center text-sm text-muted-foreground">{outdated ? `El ${label.title.toLowerCase()} está desactualizado. Regénéralo para usar el idioma y los textos actuales, sin el pie anterior.` : `Todavía no se ha generado ${label.noun}.`}</p>
         )}
       </div>
 
@@ -153,7 +154,7 @@ export function MediaCard({
             Cancelar
           </button>
         )}
-        {item && !busy && (
+        {item && !outdated && !busy && (
           <a
             href={`${fileUrl(item.url)}&download=1`}
             onClick={event => {
@@ -176,21 +177,6 @@ export function MediaCard({
 
 const POSTER_SIDE = 1600
 const PREVIEW_SIDE = 540
-
-/** Banda sonora del vídeo con la duración exacta, o null si se ha elegido «sin sonido». */
-async function prepareSoundtrack(choice: AudioChoice, seconds: number, signal: AbortSignal): Promise<PcmAudio | null> {
-  if (choice.source === 'none' || !choice.trackId) return null
-  let raw: PcmAudio
-  if (choice.source === 'preset') {
-    raw = synthesizePreset(choice.trackId as AudioPresetId, seconds)
-  } else {
-    const { tracks } = await listAudioTracks()
-    const track = tracks.find(item => item.id === choice.trackId)
-    if (!track) throw new MediaRequestError('La pista elegida ya no está en tu biblioteca. Elige otra.', 404, 'NOT_FOUND')
-    raw = await decodeAudio(await (await fetchPrivate(track.url, signal)).arrayBuffer())
-  }
-  return buildSoundtrack(raw, seconds, { volume: choice.volume / 100, fadeInSec: choice.fadeInMs / 1000, fadeOutSec: choice.fadeOutMs / 1000 })
-}
 
 export function PromoMaterials({ generationId, propertyId }: { generationId: string; propertyId: string }) {
   const [media, setMedia] = useState<{ poster: ListingMediaItem | null; video: ListingMediaItem | null } | null>(null)
@@ -574,6 +560,7 @@ export function PromoMaterials({ generationId, propertyId }: { generationId: str
       <p className="mt-1 text-sm text-muted-foreground">
         Se crean en tu navegador con los datos de este anuncio, los del inmueble y sus fotografías (la principal primero). No se muestra la dirección exacta. El vídeo se graba en tiempo real: tarda lo que dura.
       </p>
+      <p className="mt-1 text-xs text-muted-foreground">Usa fotografías originales sin carteles: las letras incrustadas en una imagen no se traducen ni eliminan al generar el material.</p>
       {loadError && (
         <p role="alert" className="mt-4 text-sm text-destructive">
           {loadError}
@@ -587,7 +574,7 @@ export function PromoMaterials({ generationId, propertyId }: { generationId: str
       {media === null && !loadError && <p className="mt-4 text-sm text-muted-foreground">Cargando…</p>}
       {media !== null && (
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          <MediaCard kind="poster" item={media.poster} busy={busy.poster} progress={null} error={errors.poster} propertyId={propertyId} onGenerate={() => request('poster')} onCancel={() => controllers.current.poster?.abort()}>
+          <MediaCard outdated={!!(source && media.poster?.sourceHash && media.poster.sourceHash !== source.sourceHash)} kind="poster" item={media.poster} busy={busy.poster} progress={null} error={errors.poster} propertyId={propertyId} onGenerate={() => request('poster')} onCancel={() => controllers.current.poster?.abort()}>
             <PosterTemplatePicker
               value={template}
               onChange={setTemplate}
@@ -629,7 +616,7 @@ export function PromoMaterials({ generationId, propertyId }: { generationId: str
               />
             )}
           </MediaCard>
-          <MediaCard kind="video" item={media.video} busy={busy.video} progress={progress} error={errors.video} propertyId={propertyId} onGenerate={() => request('video')} onCancel={() => controllers.current.video?.abort()}>
+          <MediaCard outdated={!!(source && media.video?.sourceHash && media.video.sourceHash !== source.sourceHash)} kind="video" item={media.video} busy={busy.video} progress={progress} error={errors.video} propertyId={propertyId} onGenerate={() => request('video')} onCancel={() => controllers.current.video?.abort()}>
             <fieldset className="min-w-0 space-y-2" data-testid="video-mode" disabled={busy.video}>
               <legend className="text-sm font-semibold">Modalidad</legend>
               <label className="flex items-start gap-2 text-sm">

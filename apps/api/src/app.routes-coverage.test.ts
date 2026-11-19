@@ -105,7 +105,7 @@ const DECLARED: Record<string, string[]> = {
   aiKeyRoutes: ['GET /api/account/ai-keys', 'PUT /api/account/ai-keys/:provider', 'DELETE /api/account/ai-keys/:provider'],
   generationRoutes: [
     'POST /api/generations', 'POST /api/generations/from-property', 'GET /api/generations', 'GET /api/generations/:id',
-    'PUT /api/generations/:id', 'DELETE /api/generations/:id', 'DELETE /api/generations', 'GET /api/generations/:id/publications', 'PUT /api/generations/:id/publications',
+    'POST /api/generations/:id/language', 'PUT /api/generations/:id', 'DELETE /api/generations/:id', 'DELETE /api/generations', 'GET /api/generations/:id/publications', 'PUT /api/generations/:id/publications',
   ],
   dashboardRoutes: ['GET /api/dashboard/stats'],
   propertyRoutes: ['GET /api/properties', 'GET /api/properties/:id', 'PUT /api/properties/:id', 'DELETE /api/properties', 'DELETE /api/properties/:id'],
@@ -277,11 +277,11 @@ afterEach(async () => {
 })
 
 describe('censo de rutas', () => {
-  it('coincide con las 88 rutas declaradas por grupo', () => {
+  it('coincide con las 89 rutas declaradas por grupo', () => {
     expect(Object.fromEntries(Object.entries(DECLARED).map(([group, routes]) => [group, routes.length]))).toEqual({
-      authRoutes: 16, adminRoutes: 10, aiKeyRoutes: 3, generationRoutes: 9, dashboardRoutes: 1, propertyRoutes: 5, mediaRoutes: 22, aiMediaRoutes: 21, health: 1,
+      authRoutes: 16, adminRoutes: 10, aiKeyRoutes: 3, generationRoutes: 10, dashboardRoutes: 1, propertyRoutes: 5, mediaRoutes: 22, aiMediaRoutes: 21, health: 1,
     })
-    expect(new Set(declaredRoutes).size).toBe(88)
+    expect(new Set(declaredRoutes).size).toBe(89)
   })
 })
 
@@ -315,7 +315,7 @@ describe('guarda del inventario', () => {
     const declared = new Set(declaredRoutes)
     const entries = work.routes().filter(route => declared.has(`${route.method} ${route.url}`))
 
-    expect(entries).toHaveLength(88)
+    expect(entries).toHaveLength(89)
     expect(entries.filter(route => !route.handlerIsAsync)).toEqual([])
     expect(entries.filter(route => route.routeHooks.some(hook => hook !== 'preHandler'))).toEqual([])
   })

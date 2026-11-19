@@ -23,6 +23,8 @@ import {
   requireAuth,
 } from '../middleware/auth.middleware.js'
 
+import { registerGenerationLanguageRoutes } from './generation-language.routes.js'
+
 import { registerPublicationRoutes } from './publication.routes.js'
 
 function sendValidationError(
@@ -47,6 +49,7 @@ export async function generationRoutes(
   app: FastifyInstance,
 ) {
   registerPublicationRoutes(app)
+  registerGenerationLanguageRoutes(app)
 
   /**
    * ==========================================================
@@ -173,9 +176,7 @@ export async function generationRoutes(
               userId,
             },
           },
-          orderBy: {
-            createdAt: 'desc',
-          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           include: {
             property: true,
           },
@@ -301,6 +302,10 @@ export async function generationRoutes(
         return reply.code(404).send({
           message: 'Generation not found',
         })
+      }
+
+      if (body.language !== undefined && body.language !== existingGeneration.language) {
+        return reply.code(409).send({ message: 'Usa el cambio de idioma con confirmación para regenerar el anuncio completo.' })
       }
 
       const generation =

@@ -78,7 +78,6 @@ Publicados en Vercel (web y API). El [CI completo](https://github.com/DavidOrteg
 2. **Iconos de los portales en la checklist: los cinco incorporados.** Idealista, Fotocasa, Pisos.com, Yaencontre y Habitaclia muestran sus recursos originales junto al nombre, con servicio local y respaldo genérico si falla una imagen. «Otro/a» mantiene el icono genérico. Se ha sustituido el logotipo textual de Pisos.com por su favicon oficial cuadrado. No se han enviado solicitudes, por instrucción del usuario. Procedencia y situación de derechos en la [checklist de publicación](docs/producto-checklist-y-estado.md#identificación-de-los-portales) y en los avisos de terceros.
 
 3. **Limitaciones fuera del alcance de estos cambios:**
-   - los rótulos obligatorios del material con IA siguen en español;
    - la validación de coherencia no revisa los textos ingleses que redacte un proveedor de IA;
    - el material en inglés no se ha probado en Safari, Chrome ni Firefox, solo en Edge.
 
@@ -95,3 +94,5 @@ React y Vite en la interfaz; Fastify en la API; TypeScript y PostgreSQL con Pris
 Código propietario, con todos los derechos reservados. Se publica para su consulta, con los permisos exigidos por GitHub y las excepciones legales aplicables; no se concede permiso general de modificación, redistribución o explotación comercial. No se aceptan contribuciones externas.
 
 Consulta la [licencia](LICENSE), los [avisos de terceros](THIRD_PARTY_NOTICES.md) y la [política de seguridad](SECURITY.md). Las licencias de los componentes de terceros se mantienen y se distribuyen con la aplicación.
+
+**Corrección de idioma y orden (19/11/2026).** Los rótulos de características del contenido y del texto copiado respetan el idioma del anuncio. El cartel y el vídeo no llevan pie de atribución a EstateForge. El idioma se puede rehacer con confirmación explícita, sustituyendo todos los textos y recomponiendo el material existente; se avisa de ediciones perdidas y del consumo de IA si el texto usa un proveedor. Los inmuebles y los anuncios, incluidos los de cada ficha, se ordenan de más reciente a más antiguo antes de paginar. El texto incrustado en una fotografía no se traduce: requiere una foto original sin esas letras.

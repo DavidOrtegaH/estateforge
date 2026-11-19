@@ -143,7 +143,7 @@ export async function isDiscoveredModel(providerId: string, modelId: string, api
  * Además, Prisma utiliza null para floor cuando no existe
  * valor, mientras que el tipo compartido utiliza undefined.
  */
-function toSharedProperty(
+export function toSharedProperty(
   property: {
     title: string
     operation: string

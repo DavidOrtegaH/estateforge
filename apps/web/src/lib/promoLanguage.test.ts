@@ -90,7 +90,7 @@ describe('cartel en inglés', () => {
       facts: ['85 m²', '3 bedrooms', '1 bathroom', '4th floor'],
       features: ['Lift', 'Terrace', 'Air conditioning'],
       featuresHeading: 'Features',
-      footer: 'Material created with EstateForge from the listing data',
+      footer: '',
       headline: englishListing.title,
       slogan: englishListing.callToAction,
     })
@@ -102,7 +102,7 @@ describe('cartel en inglés', () => {
     const { ctx, texts } = recorder()
     drawPoster(ctx, buildPromoContent(source('english')), images, templateId)
     const all = texts.join('\n')
-    expect(all).toContain('Material created with EstateForge from the listing data')
+    expect(all).not.toMatch(/Material created|Material generado/)
     expect(all).toContain('€325,000')
     expect(all).toContain('Chamberí')
     expect(all).not.toMatch(SPANISH_LABELS)
@@ -134,14 +134,14 @@ describe('vídeo en inglés', () => {
     expect(at('features')).toContain('Features')
     expect(at('features')).toContain('• Lift')
     expect(at('outro')).toContain('Contact us to arrange a viewing.')
-    expect(at('outro')).toContain('Material created with EstateForge from the listing data')
+    expect(at('outro')).not.toMatch(/Material created|Material generado/)
     for (const kind of ['intro', 'photo', 'features', 'outro']) expect(at(kind), kind).not.toMatch(SPANISH_LABELS)
   })
 
   it('el cierre del vídeo con IA usa también el pie del idioma del anuncio', () => {
     const { ctx } = recorder()
     const texts = drawAiVideoFrame(ctx, buildPromoContent(source('english')), null, 6, AI_INTRO_SECONDS + 6 + 0.5)
-    expect(texts).toContain('Material created with EstateForge from the listing data')
+    expect(texts.join(' ')).not.toMatch(/Material created|Material generado/)
   })
 })
 
@@ -152,7 +152,7 @@ describe('español (regresión) y anuncios anteriores al campo', () => {
     const { ctx, texts } = recorder()
     drawPoster(ctx, buildPromoContent(source('español', {}, spanishListing)), images, templateId)
     const all = texts.join('\n')
-    expect(all).toContain('Material generado con EstateForge a partir de los datos del anuncio')
+    expect(all).not.toMatch(/Material created|Material generado/)
     expect(all).toContain('325.000 €')
     expect(all).not.toMatch(/Material created|€325,000|bedroom|Features/)
   })
@@ -173,7 +173,7 @@ describe('español (regresión) y anuncios anteriores al campo', () => {
   })
 
   it('cambiar el idioma de otro anuncio no afecta a este: cada fuente lleva el suyo', () => {
-    expect(buildPromoContent(source('english')).footer).not.toBe(buildPromoContent(source('español', {}, spanishListing)).footer)
+    expect(buildPromoContent(source('english')).language).not.toBe(buildPromoContent(source('español', {}, spanishListing)).language)
   })
 })
 

@@ -1,3 +1,5 @@
+import { listingCopy } from '@estateforge/shared'
+import { ListingLanguageEditor } from '@/components/listings/ListingLanguageEditor'
 import { formatMoneyAmount } from '@estateforge/shared'
 import { useEffect, useState } from 'react'
 import {
@@ -361,7 +363,7 @@ function GenerationDetailPage() {
         '',
         highlights.length > 0
           ? [
-              'Características destacadas:',
+              `${listingCopy(generation.language).highlightsHeading}:`,
               ...highlights.map(
                 (highlight) =>
                   `• ${highlight}`,
@@ -584,7 +586,7 @@ function GenerationDetailPage() {
                 htmlFor="edit-highlights"
                 className="text-sm font-medium"
               >
-                Características destacadas
+                {listingCopy(generation.language).highlightsHeading}
               </label>
 
               <p className="mt-1 text-xs text-muted-foreground">
@@ -771,7 +773,7 @@ function GenerationDetailPage() {
 
           <section className="mt-6 rounded-lg border bg-card p-6">
             <h2 className="text-xl font-semibold">
-              Características destacadas
+              {listingCopy(generation.language).highlightsHeading}
             </h2>
 
             {highlights.length ===
@@ -809,6 +811,8 @@ function GenerationDetailPage() {
               {generation.callToAction}
             </p>
           </section>
+
+          <ListingLanguageEditor key={`${generation.id}-${generation.updatedAt}`} generation={generation} />
 
           <PublicationChecklist
             key={generation.id}

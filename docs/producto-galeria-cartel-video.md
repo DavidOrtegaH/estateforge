@@ -168,9 +168,9 @@ El cartel y el vídeo usan el idioma **guardado en el anuncio** (`Generation.lan
 - tipo de inmueble, operación, estado comercial y extras;
 - habitaciones y baños, con sus plurales;
 - planta: planta baja, sótanos y ordinales ingleses (1st, 2nd, 3rd, 11th, 12th, 13th, 21st…);
-- sufijo del alquiler (`/mes`, `/month`), rótulo «Características»/«Features» y pie «Material generado con EstateForge a partir de los datos del anuncio» / «Material created with EstateForge from the listing data».
+- sufijo del alquiler (`/mes`, `/month`) y rótulo «Características»/«Features». El pie de atribución a EstateForge se ha eliminado en ambos idiomas.
 
-Lo cumplen las vistas previas, las seis plantillas, «Aleatoria» (que sortea una de ellas) y los vídeos clásicos. El cierre del vídeo con IA usa también el pie del idioma del anuncio. Los rótulos de contenido con IA (`AI_POSTER_LABEL`, `AI_VIDEO_LABEL`) siguen en español: ver «Limitaciones».
+Lo cumplen las vistas previas, las seis plantillas, «Aleatoria» (que sortea una de ellas) y los vídeos clásicos. Los materiales con IA conservan su aviso de contenido asistido o generado con IA, traducido al idioma del anuncio; no llevan pie de atribución.
 
 **Formatos.** Los importes siguen en euros y las superficies en m², con los mismos dígitos que el dato (sin coma flotante ni conversiones): `250.000 €` y `€250,000`, `92,5 m²` y `92.5 m²`. Barrio y ciudad se conservan tal cual, como nombres propios.
 
@@ -178,7 +178,7 @@ Lo cumplen las vistas previas, las seis plantillas, «Aleatoria» (que sortea un
 
 **Huella y material anterior.**
 
-- La huella de la fuente incluye el idioma **solo cuando no es el español**. Los anuncios en español conservan la huella de siempre, así que su material y sus trabajos de IA siguen vigentes: su contenido no ha cambiado.
+- La huella incluye una revisión del renderizado (`rendererVersion: 2`), además del idioma cuando no es el español. La eliminación del pie cambia el resultado en ambos idiomas: el material anterior se muestra como desactualizado y no se ofrece su descarga desde la tarjeta hasta regenerarlo. No se borran sus archivos durante este despliegue.
 - Los anuncios guardados en inglés antes de este cambio tienen una huella nueva. Su material se compuso con etiquetas españolas, por eso debe **regenerarse** desde «Cartel y vídeo». Al guardar, la protección de siempre rechaza un material calculado con la huella anterior (`SOURCE_CHANGED`).
 - No se ha reescrito ningún anuncio ni archivo existente.
 
@@ -309,6 +309,12 @@ Diferencias de Firefox 160, comprobadas con el navegador instalado:
 - La API comprueba la estructura de las pistas, pero no decodifica el sonido: la decodificación completa la hace el navegador antes de subirla.
 - No hay recorte ni edición de fotografías ni de audio.
 - El material en inglés (cartel y vídeo clásico) solo se ha comprobado en Edge, en modo headless. No se ha probado en Safari, Chrome ni Firefox.
-- En un anuncio inglés, los rótulos obligatorios del material con IA («Diseño asistido por IA» y el aviso del vídeo con IA) siguen en español. El material clásico, sin IA, sí sale íntegramente en inglés. Las etiquetas del vídeo y del cartel no cambian el idioma de los textos que el usuario editó en el anuncio.
+- Los textos incrustados en una fotografía (por ejemplo, si se subió un cartel antiguo como foto) no son etiquetas del generador y no se traducen ni eliminan. Las fotografías deben sustituirse por originales sin texto si se quiere evitar ese contenido. Las ediciones manuales del anuncio se mantienen al generar material; para rehacerlas se usa el cambio confirmado de idioma.
 - Las subidas directas están probadas con el simulador local de Blob. El comportamiento real de Blob está pendiente de verificar: CORS del `PUT` y del `GET` prefirmados, Range y caducidad.
 - La integración con Vercel Blob y la IP del cliente en Vercel (MD-4) **no se han probado contra el servicio real**: ver [Preparación para Vercel, Neon y Blob](despliegue/vercel-neon-blob.md).
+
+### Editar el idioma y rehacer el anuncio
+
+La ficha y el detalle del anuncio permiten elegir español o inglés y pulsar «Cambiar idioma y rehacer». Una confirmación avisa de que se sustituyen título, descripción, características y llamada a la acción, perdiendo las ediciones manuales. Puede elegirse el mismo idioma para reparar anuncios antiguos cuya etiqueta no coincida con el contenido. La API exige confirmación, comprueba propiedad y versión y sustituye los cuatro textos en una transacción; las ediciones concurrentes se rechazan.
+
+El texto conserva el proveedor original. Si usa IA, la confirmación indica una operación con la API key y preferencias del usuario, coste no verificable y aceptación del consumo; no hay llamadas de IA durante las pruebas. Los carteles y vídeos que existan se recomponen en modo clásico sin IA, tal como avisa la confirmación (los diseños de IA se sustituyen por clásicos). Se conserva la plantilla clásica, la selección de fotos del vídeo y el sonido cuando los recursos siguen disponibles. El archivo anterior solo se sustituye después de guardar el nuevo. Si falla un material, el texto ya guardado no se vuelve a generar ni facturar al reintentar: se indican los materiales pendientes y se pueden revisar sus opciones. Mantener la pestaña abierta y visible durante la grabación.

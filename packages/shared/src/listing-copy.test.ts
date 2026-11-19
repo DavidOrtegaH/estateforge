@@ -67,8 +67,9 @@ describe('formatos', () => {
     expect([es.list(['a']), es.list(['a', 'b']), es.list(['a', 'b', 'c'])]).toEqual(['a', 'a y b', 'a, b y c'])
     expect(en.list(['a', 'b', 'c'])).toBe('a, b and c')
     expect([es.rentSuffix, en.rentSuffix]).toEqual(['/mes', '/month'])
-    expect(es.footer).toBe('Material generado con EstateForge a partir de los datos del anuncio')
-    expect(en.footer).toBe('Material created with EstateForge from the listing data')
+    expect(es.footer).toBe('')
+    expect(en.footer).toBe('')
+    expect([es.highlightsHeading, en.highlightsHeading]).toEqual(['Características destacadas', 'Key features'])
     expect([es.featuresHeading, en.featuresHeading]).toEqual(['Características', 'Features'])
   })
 

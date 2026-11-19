@@ -1,3 +1,5 @@
+import { listingCopy } from '@estateforge/shared'
+import { ListingLanguageEditor } from '@/components/listings/ListingLanguageEditor'
 
 import { formatMoneyAmount } from '@estateforge/shared'
 import { useEffect, useState } from 'react'
@@ -930,7 +932,7 @@ function PropertyDetailPage() {
         '',
         parsedHighlights.length > 0
           ? [
-            'Características destacadas:',
+            `${listingCopy(property?.generations.find(item => item.id === generationId)?.language).highlightsHeading}:`,
             ...parsedHighlights.map(
               (highlight) =>
                 `• ${highlight}`,
@@ -1035,7 +1037,7 @@ function PropertyDetailPage() {
   )
 
   const currentGenerations = pageSlice(
-    property.generations,
+    [...property.generations].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || b.id.localeCompare(a.id)),
     currentPage,
     itemsPerPage,
   )
@@ -2515,6 +2517,7 @@ function PropertyDetailPage() {
                   key={generation.id}
                   className="rounded-lg border bg-card transition"
                 >
+                  <ListingLanguageEditor key={`${generation.id}-${generation.updatedAt}`} generation={generation} />
                   {isEditingGeneration ? (
                     /* EDICIÓN DEL ANUNCIO */
                     <div className="p-5">
@@ -2599,7 +2602,7 @@ function PropertyDetailPage() {
                             htmlFor={`generation-highlights-${generation.id}`}
                             className="text-sm font-medium"
                           >
-                            Características destacadas
+                            {listingCopy(generation.language).highlightsHeading}
                           </label>
 
                           <p className="mt-1 text-xs text-muted-foreground">
@@ -2720,7 +2723,7 @@ function PropertyDetailPage() {
                         {highlights.length > 0 && (
                           <div className="mt-4 pl-5">
                             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Características destacadas
+                              {listingCopy(generation.language).highlightsHeading}
                             </p>
 
                             <ul className="mt-2 space-y-1 text-sm">

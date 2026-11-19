@@ -55,11 +55,9 @@ export async function propertyRoutes(
             userId: request.userId,
           },
           include: {
-            generations: true,
+            generations: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
           },
-          orderBy: {
-            createdAt: 'desc',
-          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         })
 
       return properties
@@ -97,7 +95,7 @@ export async function propertyRoutes(
             userId: request.userId,
           },
           include: {
-            generations: true,
+            generations: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
           },
         })
 
@@ -169,7 +167,7 @@ export async function propertyRoutes(
           },
           data: body,
           include: {
-            generations: true,
+            generations: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
           },
         })
 
