@@ -22,6 +22,7 @@ import {
   type MediaKind,
   type TemplateSelectionMode,
 } from '@estateforge/shared'
+import { DEFAULT_LISTING_LANGUAGE, listingLanguageOf, type ListingLanguage } from '@estateforge/shared'
 
 import { prisma } from '../db/prisma.js'
 import type { Prisma } from '../generated/prisma/client.js'
@@ -111,7 +112,8 @@ const PROPERTY_FIELDS = {
 
 export interface MediaSource {
   sourceHash: string
-  generation: { id: string; title: string; description: string; highlights: string[]; callToAction: string | null }
+  /** Idioma del contenido del anuncio («español» o «english»): decide las etiquetas del cartel y del vídeo. */
+  generation: { id: string; title: string; description: string; highlights: string[]; callToAction: string | null; language: ListingLanguage }
   property: Omit<Prisma.PropertyGetPayload<{ select: typeof PROPERTY_FIELDS }>, 'price'> & { price: string }
   photos: { id: string; position: number; isPrimary: boolean; width: number; height: number; sha256: string; thumbSize: number | null }[]
 }
@@ -134,18 +136,24 @@ async function readSource(db: Tx | typeof prisma, generationId: string, userId: 
       description: true,
       highlights: true,
       callToAction: true,
+      language: true,
       property: { select: { ...PROPERTY_FIELDS, photos: { orderBy: { position: 'asc' }, select: { id: true, position: true, isPrimary: true, width: true, height: true, sha256: true, thumbSize: true } } } },
     },
   })
   if (!generation) return null
   const { photos, price, ...property } = generation.property
+  const language = listingLanguageOf(generation.language)
+  const text = { id: generation.id, title: generation.title, description: generation.description, highlights: parseHighlights(generation.highlights), callToAction: generation.callToAction }
   const source = {
-    generation: { id: generation.id, title: generation.title, description: generation.description, highlights: parseHighlights(generation.highlights), callToAction: generation.callToAction },
+    // El idioma cambia las etiquetas que se dibujan, así que entra en la huella. Solo se añade cuando no es
+    // el español por defecto: los anuncios en español (todos los anteriores) conservan su huella, y su
+    // material y sus trabajos de IA siguen siendo válidos porque su contenido no ha cambiado.
+    generation: language === DEFAULT_LISTING_LANGUAGE ? text : { ...text, language },
     property: { ...property, price: price.toFixed(2) },
     // La miniatura no cambia el contenido: queda fuera de la huella, que solo cubre lo que se dibuja.
     photos: photos.map(({ thumbSize: _thumb, ...photo }) => photo),
   }
-  return { sourceHash: createHash('sha256').update(JSON.stringify(source)).digest('hex'), ...source, photos }
+  return { sourceHash: createHash('sha256').update(JSON.stringify(source)).digest('hex'), ...source, generation: { ...text, language }, photos }
 }
 
 export async function getMediaSource(generationId: string, userId: string): Promise<MediaSource> {

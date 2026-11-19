@@ -1,4 +1,4 @@
-import type { AIProviderType } from '@estateforge/shared'
+import type { AIProviderType, ListingLanguage } from '@estateforge/shared'
 
 import type { FetchImpl } from '../ai-media/safe-fetch.js'
 import { findProvider } from '../ai-media/registry.js'
@@ -26,9 +26,11 @@ export interface UserAICredential {
 export function createAIProvider(
   provider: AIProviderType,
   credential?: UserAICredential,
+  localTemplate: { language?: ListingLanguage } = {},
 ): AIProvider {
+  // La plantilla local necesita el idioma del anuncio; los proveedores de IA lo reciben en el prompt.
   if (provider === 'mock') {
-    return new MockAIProvider()
+    return new MockAIProvider(localTemplate.language)
   }
 
   if (!credential?.apiKey) {

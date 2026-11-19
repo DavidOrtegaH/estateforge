@@ -1,7 +1,11 @@
 import {
-  getCommercialStatusLabel,
-  operationLabels,
-  propertyTypeLabels,
+  COMMERCIAL_STATUS_NOT_SET_LABEL,
+  LISTING_COPY,
+  listingCopy,
+  listingLanguageOf,
+  type ListingFeature,
+  type ListingLanguage,
+  type PropertyCommercialStatus,
   type PropertyOperation,
   type PropertyType,
 } from '@estateforge/shared'
@@ -9,10 +13,17 @@ import {
 // Textos del cartel y del vídeo a partir de la fuente que entrega la API (DA-47). Solo se usan datos
 // reales del inmueble y del anuncio: si un dato falta (por ejemplo, la planta), no aparece; nunca se
 // inventa. La dirección exacta no se muestra: el material indica barrio y ciudad.
+//
+// Idioma: el guardado en el anuncio (generation.language), no el del selector de generación. Todas las
+// etiquetas automáticas (tipo, operación, estado, extras, estancias, planta, sufijo del alquiler, rótulos
+// y pie) salen de @estateforge/shared (listing-copy.ts), la misma fuente que usa la plantilla local de la
+// API. Los textos del anuncio (título, descripción, destacados y llamada a la acción) se dibujan tal como
+// están guardados, incluida cualquier edición manual; barrio y ciudad se conservan como nombres propios.
 
 export interface MediaSourceData {
   sourceHash: string
-  generation: { id: string; title: string; description: string; highlights: string[]; callToAction: string | null }
+  /** language falta en respuestas anteriores al campo: se trata como español. */
+  generation: { id: string; title: string; description: string; highlights: string[]; callToAction: string | null; language?: string | null }
   property: {
     id: string
     title: string
@@ -42,6 +53,8 @@ export interface MediaSourceData {
 }
 
 export interface PromoContent {
+  /** Idioma del contenido: el del anuncio. */
+  language: ListingLanguage
   headline: string
   slogan: string | null
   price: string
@@ -55,62 +68,55 @@ export interface PromoContent {
   status: string | null
   /** Primeras frases de la descripción del anuncio (texto real, recortado por frases). */
   excerpt: string
+  /** Rótulo de la lista de características del vídeo. */
+  featuresHeading: string
+  /** Pie del cartel y del vídeo. */
+  footer: string
 }
 
-const FEATURE_LABELS: [keyof MediaSourceData['property'], string][] = [
-  ['elevator', 'Ascensor'],
-  ['terrace', 'Terraza'],
-  ['balcony', 'Balcón'],
-  ['garage', 'Garaje'],
-  ['storageRoom', 'Trastero'],
-  ['pool', 'Piscina'],
-  ['garden', 'Jardín'],
-  ['airConditioning', 'Aire acondicionado'],
-  ['heating', 'Calefacción'],
-]
+// Orden de los extras en el material (el de siempre).
+const FEATURE_ORDER: ListingFeature[] = ['elevator', 'terrace', 'balcony', 'garage', 'storageRoom', 'pool', 'garden', 'airConditioning', 'heating']
 
-/** «250.000 €» a partir del decimal exacto («250000.00»), sin pasar por coma flotante. */
-export function formatPrice(price: string): string {
-  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(price.trim())
-  if (!match) return `${price} €`
-  const integer = match[1].replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  const decimals = (match[2] ?? '').padEnd(2, '0')
-  return decimals === '00' ? `${integer} €` : `${integer},${decimals} €`
-}
-
-function formatArea(area: number): string {
-  return `${Number.isInteger(area) ? area : area.toLocaleString('es-ES', { maximumFractionDigits: 2 })} m²`
+/**
+ * Importe exacto a partir del decimal («250000.00»), sin pasar por coma flotante: «250.000 €» en español y
+ * «€250,000» en inglés. Siempre en euros.
+ */
+export function formatPrice(price: string, language: ListingLanguage = 'español'): string {
+  return LISTING_COPY[language].formatPrice(price)
 }
 
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
 
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`
-}
-
 export function buildPromoContent(source: MediaSourceData): PromoContent {
   const p = source.property
   const g = source.generation
-  const facts = [formatArea(p.area), plural(p.bedrooms, 'habitación', 'habitaciones'), plural(p.bathrooms, 'baño', 'baños')]
-  if (p.floor !== null && p.floor !== undefined) facts.push(p.floor === 0 ? 'Planta baja' : p.floor < 0 ? `Planta ${p.floor}` : `${p.floor}.ª planta`)
+  const language = listingLanguageOf(g.language)
+  const copy = listingCopy(language)
+  const facts = [copy.formatArea(p.area), copy.bedrooms(p.bedrooms), copy.bathrooms(p.bathrooms)]
+  if (p.floor !== null && p.floor !== undefined) facts.push(copy.floor(p.floor))
   const location = [p.neighborhood.trim(), p.city.trim()].filter(Boolean).join(', ')
-  const features = FEATURE_LABELS.filter(([key]) => p[key] === true).map(([, label]) => label)
+  const features = FEATURE_ORDER.filter(key => p[key] === true).map(key => copy.feature[key])
   // Los destacados del anuncio que repiten un dato ya visible (superficie, habitaciones, extras) no se duplican.
   const known = new Set([...facts, ...features].map(normalize))
   const highlights = g.highlights.map(item => item.trim()).filter(item => item && !known.has(normalize(item))).slice(0, 3)
+  const status = p.commercialStatus ? (copy.commercialStatus[p.commercialStatus as PropertyCommercialStatus] ?? (language === 'español' ? COMMERCIAL_STATUS_NOT_SET_LABEL : null)) : null
   return {
-    headline: g.title.trim() || p.title.trim(),
+    language,
+    // El título del inmueble es texto libre del usuario: solo sirve de respaldo en el idioma por defecto.
+    headline: g.title.trim() || (language === 'español' ? p.title.trim() : ''),
     slogan: g.callToAction?.trim() || null,
-    price: formatPrice(p.price),
-    priceSuffix: p.operation === 'rent' ? '/mes' : '',
-    operation: operationLabels[p.operation as PropertyOperation] ?? p.operation,
-    type: propertyTypeLabels[p.type as PropertyType] ?? p.type,
+    price: copy.formatPrice(p.price),
+    priceSuffix: p.operation === 'rent' ? copy.rentSuffix : '',
+    operation: copy.operation[p.operation as PropertyOperation] ?? p.operation,
+    type: copy.propertyType[p.type as PropertyType] ?? p.type,
     location,
     facts,
     features,
     highlights,
-    status: p.commercialStatus ? getCommercialStatusLabel(p.commercialStatus) : null,
+    status,
     excerpt: excerptOf(g.description),
+    featuresHeading: copy.featuresHeading,
+    footer: copy.footer,
   }
 }
 

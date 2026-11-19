@@ -39,6 +39,7 @@ import { getProviderLabel } from '@estateforge/shared'
 import { TextAiChoice, TextAiNotice, TextProviderOptions } from '@/components/ai/TextAi'
 import { EMPTY_TEXT_CHOICE, useTextAi } from '@/hooks/useTextAi'
 import { PropertyGallery } from '@/components/media/PropertyGallery'
+import { GenerationNotices } from '@/components/listings/GenerationNotices'
 
 const propertyTypeLabels: Record<string, string> = {
   apartment: 'Apartamento',
@@ -246,6 +247,10 @@ function PropertyDetailPage() {
 
   const [generationError, setGenerationError] =
     useState<string | null>(null)
+
+  // Avisos del último anuncio generado (por ejemplo, observaciones no incluidas en el anuncio inglés).
+  const [generationNotices, setGenerationNotices] =
+    useState<string[]>([])
 
   const [provider, setProvider] =
     useState<AIProviderType>('mock')
@@ -541,10 +546,11 @@ function PropertyDetailPage() {
 
     setGenerating(true)
     setGenerationError(null)
+    setGenerationNotices([])
     setCopySuccess(null)
 
     try {
-      await generatePropertyListing({
+      const generated = await generatePropertyListing({
         propertyId: id,
         provider,
         ...(provider !== 'mock' && textChoice.model && { model: textChoice.model }),
@@ -552,6 +558,7 @@ function PropertyDetailPage() {
         tone,
         language,
       })
+      setGenerationNotices(generated.notices ?? [])
 
       const updatedProperty =
         await getProperty(id)
@@ -2443,6 +2450,8 @@ function PropertyDetailPage() {
             {generationError}
           </p>
         )}
+
+        <GenerationNotices notices={generationNotices} />
       </section>
 
       {/* =====================================================

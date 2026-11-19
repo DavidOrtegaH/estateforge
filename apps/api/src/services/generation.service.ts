@@ -9,6 +9,7 @@ import type {
   ListingLanguage,
   AIProviderType,
 } from '@estateforge/shared'
+import { FREE_TEXT_NOT_INCLUDED, type GenerationNotice } from '@estateforge/shared'
 
 import { prisma } from '../db/prisma.js'
 import { buildListingPrompt } from './prompt.service.js'
@@ -33,6 +34,17 @@ interface GenerationResult {
   listing: GeneratedListing
   propertyId: string
   generationId: string
+  /** Avisos para el usuario sobre el contenido generado (por ejemplo, texto libre no incluido). */
+  notices: GenerationNotice[]
+}
+
+/**
+ * La plantilla local inglesa no traduce ni copia las observaciones del inmueble (texto libre del usuario):
+ * se avisa para que el usuario añada su versión inglesa editando el anuncio, en vez de perderlas en silencio.
+ * Los proveedores de IA reciben las observaciones y redactan en el idioma pedido, así que no llevan aviso.
+ */
+export function generationNotices(provider: AIProviderType, language: ListingLanguage, additionalInformation: string | null | undefined): GenerationNotice[] {
+  return provider === 'mock' && language === 'english' && additionalInformation?.trim() ? [FREE_TEXT_NOT_INCLUDED] : []
 }
 
 /**
@@ -48,6 +60,8 @@ interface GenerationResult {
 export interface TextGenerationChoice {
   model?: string
   connectionId?: string
+  /** Idioma del anuncio: la plantilla local lo necesita; los proveedores de IA lo reciben en el prompt. */
+  language?: ListingLanguage
 }
 
 export async function generateWithUserKey(
@@ -57,7 +71,7 @@ export async function generateWithUserKey(
   choice: TextGenerationChoice = {},
 ): Promise<GeneratedListing> {
   if (provider === 'mock') {
-    return createAIProvider(provider).generate(prompt)
+    return createAIProvider(provider, undefined, { language: choice.language }).generate(prompt)
   }
 
   const definition = findProvider(provider)
@@ -237,7 +251,7 @@ export async function generateListing(
       request.provider,
       prompt,
       request.userId,
-      { model: request.model, connectionId: request.connectionId },
+      { model: request.model, connectionId: request.connectionId, language: request.language },
     )
 
   const {
@@ -250,7 +264,10 @@ export async function generateListing(
         const property =
           await tx.property.create({
             data: {
+              // El inmueble conserva el título que escribió el usuario si el anuncio se redacta en inglés
+              // (la interfaz y los datos del inmueble siguen en español); en español, como hasta ahora.
               title:
+                (request.language === 'english' ? request.property.title : '') ||
                 result.title ||
                 'Inmueble en ' +
                   request.property.city,
@@ -387,6 +404,8 @@ export async function generateListing(
 
     generationId:
       generation.id,
+
+    notices: generationNotices(request.provider, request.language, request.property.additionalInformation),
   }
 }
 
@@ -505,7 +524,7 @@ export async function generateListingForExistingProperty(
       request.provider,
       prompt,
       request.userId,
-      { model: request.model, connectionId: request.connectionId },
+      { model: request.model, connectionId: request.connectionId, language: request.language },
     )
 
   const validatedListing =
@@ -554,5 +573,7 @@ export async function generateListingForExistingProperty(
 
     generationId:
       generation.id,
+
+    notices: generationNotices(request.provider, request.language, sharedProperty.additionalInformation),
   }
 }

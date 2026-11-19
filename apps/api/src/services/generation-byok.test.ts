@@ -55,7 +55,8 @@ describe('generación de texto: solo con la API key del usuario (DA-77)', () => 
   it('la plantilla local «mock» no usa clave ni consulta credenciales', async () => {
     await expect(generateWithUserKey('mock', 'p', 'user-1')).resolves.toEqual(listing)
     expect(mocks.requireUserAIKey).not.toHaveBeenCalled()
-    expect(mocks.createAIProvider).toHaveBeenCalledWith('mock')
+    // Sin credencial (segundo argumento): la plantilla local solo recibe el idioma del anuncio.
+    expect(mocks.createAIProvider).toHaveBeenCalledWith('mock', undefined, { language: undefined })
   })
 
   it.each(['gemini', 'openai'] as const)('%s sin clave del usuario: error controlado, ninguna llamada y ninguna clave global', async provider => {

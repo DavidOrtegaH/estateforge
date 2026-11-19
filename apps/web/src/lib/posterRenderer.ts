@@ -45,7 +45,7 @@ const W = POSTER_WIDTH
 const H = POSTER_HEIGHT
 const SANS = "'Manrope Variable', 'Inter Variable', system-ui, sans-serif"
 const SERIF = "Georgia, 'Times New Roman', serif"
-const FOOTER = 'Material generado con EstateForge a partir de los datos del anuncio'
+// El pie sale del contenido (PromoContent.footer), en el idioma del anuncio.
 
 /** Recorte centrado que cubre el hueco sin deformar la imagen. */
 export function coverCrop(image: PosterImage, w: number, h: number) {
@@ -115,8 +115,8 @@ const priceText = (c: PromoContent) => `${c.price}${c.priceSuffix ? ` ${c.priceS
 const tagText = (c: PromoContent, withStatus = true) => [c.operation, c.type, withStatus ? c.status : null].filter(Boolean).join(' · ')
 const extras = (c: PromoContent, limit: number) => [...c.features, ...c.highlights].slice(0, limit)
 
-function footer(ctx: PosterContext, color: string, align: CanvasTextAlign = 'left', x = 64, y = H - 34) {
-  write(ctx, FOOTER, x, y, `500 18px ${SANS}`, color, align, W - 128)
+function footer(ctx: PosterContext, c: PromoContent, color: string, align: CanvasTextAlign = 'left', x = 64, y = H - 34) {
+  write(ctx, c.footer, x, y, `500 18px ${SANS}`, color, align, W - 128)
 }
 
 function check(ctx: PosterContext, x: number, y: number, color: string) {
@@ -170,7 +170,7 @@ const elegante: Draw = (ctx, c, images) => {
   if (more.length) y = paragraph(ctx, more.join(' · '), 120, y, W - 240, `italic 400 24px ${SERIF}`, 24, muted, 2, 'center') + 10
   if (c.slogan && y < H - 140) write(ctx, wrapText(ctx, c.slogan, W - 260, 1)[0] ?? '', W / 2, Math.max(y + 24, H - 136), `italic 600 30px ${SERIF}`, gold, 'center', W - 240)
   // Dentro del doble filete del marco.
-  footer(ctx, muted, 'center', W / 2, H - 64)
+  footer(ctx, c, muted, 'center', W / 2, H - 64)
   return 1
 }
 
@@ -208,7 +208,7 @@ const minimalista: Draw = (ctx, c, images) => {
   write(ctx, priceText(c), W - 80, priceY, `600 66px ${SANS}`, ink, 'right', 620)
   const more = extras(c, 3).join(' · ')
   paragraph(ctx, c.slogan ?? more, 80, priceY - 40, 340, `400 22px ${SANS}`, 22, muted, 3)
-  footer(ctx, '#b0b0b0')
+  footer(ctx, c, '#b0b0b0')
   return 1
 }
 
@@ -256,7 +256,7 @@ const editorial: Draw = (ctx, c, images) => {
     ry += 34
   }
   if (c.slogan) write(ctx, wrapText(ctx, c.slogan, W - 120, 1)[0] ?? '', 60, Math.min(H - 76, Math.max(leftEnd, ry) + 30), `italic 700 30px ${SERIF}`, red, 'left', W - 120)
-  footer(ctx, '#7a756c', 'left', 60)
+  footer(ctx, c, '#7a756c', 'left', 60)
   return used
 }
 
@@ -310,7 +310,7 @@ const premium: Draw = (ctx, c, images) => {
   }
   const more = extras(c, 4)
   if (more.length && next < H - 64) write(ctx, wrapText(ctx, more.join(' · '), W - 160, 1)[0] ?? '', 80, next, `400 22px ${SANS}`, '#9e9e9e', 'left', W - 160)
-  footer(ctx, '#6f6f6f', 'left', 80, H - 46)
+  footer(ctx, c, '#6f6f6f', 'left', 80, H - 46)
   return used
 }
 
@@ -357,11 +357,14 @@ const fotografico: Draw = (ctx, c, images) => {
   }
   write(ctx, c.facts.join(' · '), 92, y + 4, `600 26px ${SANS}`, '#0f172a', 'left', W - 184)
   if (c.slogan) write(ctx, wrapText(ctx, c.slogan, W - 184, 1)[0] ?? '', 92, y + 48, `600 26px ${SANS}`, accent, 'left', W - 184)
-  write(ctx, FOOTER, W / 2, H - 16, `500 15px ${SANS}`, '#ffffff', 'center', W - 100)
+  write(ctx, c.footer, W / 2, H - 16, `500 15px ${SANS}`, '#ffffff', 'center', W - 100)
   return used
 }
 
 /** Moderno: foto con corte diagonal, bloques de color, precio en etiqueta y características marcadas. */
+/** Línea base más baja de los extras de «Moderno»: deja 42 px libres sobre la llamada a la acción. */
+export const MODERNO_EXTRAS_LIMIT = H - 120
+
 const moderno: Draw = (ctx, c, images) => {
   const coral = '#f97316'
   const teal = '#0f766e'
@@ -427,14 +430,16 @@ const moderno: Draw = (ctx, c, images) => {
     x += w + 12
   }
   y += 86
-  extras(c, 4).forEach((item, i) => {
+  // Solo las filas que caben por encima de la llamada a la acción (H − 78): con un titular de dos líneas
+  // y ubicación, la segunda fila se superponía a ella.
+  extras(c, 4).filter((_, i) => y + Math.floor(i / 2) * 44 <= MODERNO_EXTRAS_LIMIT).forEach((item, i) => {
     const cx = 60 + (i % 2) * 490
     const cy = y + Math.floor(i / 2) * 44
     check(ctx, cx, cy - 8, coral)
     write(ctx, item, cx + 40, cy, `500 24px ${SANS}`, ink, 'left', 430)
   })
   if (c.slogan) write(ctx, wrapText(ctx, c.slogan, W - 120, 1)[0] ?? '', 60, H - 78, `800 28px ${SANS}`, teal, 'left', W - 120)
-  footer(ctx, '#94a3b8', 'left', 60)
+  footer(ctx, c, '#94a3b8', 'left', 60)
   return used
 }
 
@@ -551,7 +556,7 @@ export function drawAiPoster(ctx: PosterContext, c: PromoContent, background: Po
   ctx.roundRect(W - 64 - labelWidth, H - 70, labelWidth, 40, 20)
   ctx.fill()
   write(ctx, AI_POSTER_LABEL, W - 64 - labelWidth / 2, H - 42, `700 22px ${SANS}`, '#ffffff', 'center', labelWidth)
-  write(ctx, FOOTER, 64, H - 42, `500 17px ${SANS}`, '#e2e8f0', 'left', W - 128 - labelWidth - 24)
+  write(ctx, c.footer, 64, H - 42, `500 17px ${SANS}`, '#e2e8f0', 'left', W - 128 - labelWidth - 24)
   return { photosUsed: used.length }
 }
 

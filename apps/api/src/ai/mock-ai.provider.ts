@@ -1,9 +1,30 @@
 import {
   GeneratedListingSchema,
+  listingCopy,
+  listingLanguageOf,
   type GeneratedListing,
+  type ListingCopy,
+  type ListingFeature,
+  type ListingLanguage,
+  type PropertyCondition,
+  type PropertyOperation,
+  type PropertyType,
 } from '@estateforge/shared'
 import type { AIProvider } from './ai-provider.js'
 import { AIProviderError } from './ai-provider.error.js'
+
+// Plantilla local (sin IA): compone el anuncio de forma determinista a partir de los datos estructurados
+// del inmueble, sin llamadas externas ni claves. Las etiquetas salen de @estateforge/shared
+// (listing-copy.ts), la misma fuente que usan el cartel y el vídeo.
+//
+// Idioma: el del anuncio (español por defecto).
+// - Español: título del inmueble (lo escribió el usuario en el idioma de la interfaz), descripción con
+//   las observaciones del usuario al final, destacados y llamada a la acción.
+// - Inglés: todo el contenido automático se construye en inglés con los datos estructurados. El título y
+//   las observaciones del inmueble son texto libre del usuario: no se traducen ni se copian como si
+//   estuvieran traducidos. El título se compone con los datos; las observaciones quedan fuera y el
+//   servicio de generación devuelve el aviso FREE_TEXT_NOT_INCLUDED para que el usuario añada su versión
+//   inglesa editando el anuncio. Los nombres propios (barrio, ciudad) se conservan tal cual.
 
 interface PromptProperty {
   title: string
@@ -16,7 +37,7 @@ interface PromptProperty {
   area: number
   bedrooms: number
   bathrooms: number
-  floor?: number
+  floor?: number | null
   condition: string
   elevator: boolean
   terrace: boolean
@@ -72,327 +93,129 @@ function extractPropertyFromPrompt(
     )
   }
 
-  const json = prompt.slice(
-    jsonStart,
-    jsonEnd + 1,
-  )
-
-  return JSON.parse(json) as PromptProperty
+  return JSON.parse(prompt.slice(jsonStart, jsonEnd + 1)) as PromptProperty
 }
 
-function getPropertyLabel(
-  type: string,
-): string {
-  switch (type) {
-    case 'apartment':
-      return 'Apartamento'
+// Orden de los extras en los destacados y en la frase de la descripción (el de la plantilla original).
+const FEATURE_ORDER: ListingFeature[] = ['terrace', 'balcony', 'elevator', 'garage', 'storageRoom', 'pool', 'garden', 'airConditioning', 'heating']
 
-    case 'house':
-      return 'Casa'
+const typeLabel = (copy: ListingCopy, type: string, fallback: string) => copy.propertyType[type as PropertyType] ?? fallback
+const operationOf = (operation: string): PropertyOperation => (operation === 'rent' || operation === 'transfer' ? operation : 'sale')
+const featuresOf = (property: PromptProperty, copy: ListingCopy) => FEATURE_ORDER.filter(key => property[key] === true).map(key => copy.feature[key])
+const hasFloor = (floor: number | null | undefined): floor is number => typeof floor === 'number' && Number.isInteger(floor)
+const locationOf = (property: PromptProperty) => [property.neighborhood, property.city].map(part => part?.trim()).filter(Boolean).join(', ')
+const conditionOf = (copy: ListingCopy, condition: string) => copy.conditionSentence[condition as PropertyCondition] ?? ''
 
-    case 'villa':
-      return 'Chalet'
-
-    case 'penthouse':
-      return 'Ático'
-
-    case 'commercial':
-      return 'Local comercial'
-
-    default:
-      return 'Inmueble'
-  }
-}
-
-function getOperationLabel(
-  operation: string,
-): string {
-  return operation === 'rent'
-    ? 'en alquiler'
-    : 'en venta'
-}
-
-function getConditionLabel(
-  condition: string,
-): string {
-  switch (condition) {
-    case 'new':
-      return 'obra nueva'
-
-    case 'renovated':
-      return 'reformado'
-
-    case 'needs-renovation':
-      return 'para reformar'
-
-    case 'good':
-      return 'en buen estado'
-
-    default:
-      return ''
-  }
-}
-
-function formatPrice(
-  price: number,
-): string {
-  return `${price.toLocaleString('es-ES')} €`
-}
-
-function buildHighlights(
-  property: PromptProperty,
-): string[] {
+function buildHighlights(property: PromptProperty, copy: ListingCopy): string[] {
   const highlights: string[] = []
-
-  if (property.area > 0) {
-    highlights.push(`${property.area} m²`)
-  }
-
-  if (property.bedrooms > 0) {
-    highlights.push(
-      `${property.bedrooms} ${
-        property.bedrooms === 1
-          ? 'habitación'
-          : 'habitaciones'
-      }`,
-    )
-  }
-
-  if (property.bathrooms > 0) {
-    highlights.push(
-      `${property.bathrooms} ${
-        property.bathrooms === 1
-          ? 'baño'
-          : 'baños'
-      }`,
-    )
-  }
-
-  if (property.terrace) {
-    highlights.push('Terraza')
-  }
-
-  if (property.balcony) {
-    highlights.push('Balcón')
-  }
-
-  if (property.elevator) {
-    highlights.push('Ascensor')
-  }
-
-  if (property.garage) {
-    highlights.push('Garaje')
-  }
-
- if (property.storageRoom) {
-    highlights.push('Trastero')
-  }
-
-  if (property.pool) {
-    highlights.push('Piscina')
-  }
-
-  if (property.garden) {
-    highlights.push('Jardín')
-  }
-
-  if (property.airConditioning) {
-    highlights.push('Aire acondicionado')
-  }
-
-  if (property.heating) {
-    highlights.push('Calefacción')
-  }
-
-  return highlights
+  if (property.area > 0) highlights.push(copy.formatArea(property.area))
+  if (property.bedrooms > 0) highlights.push(copy.bedrooms(property.bedrooms))
+  if (property.bathrooms > 0) highlights.push(copy.bathrooms(property.bathrooms))
+  const all = [...highlights, ...featuresOf(property, copy)]
+  if (all.length > 0) return all
+  // Sin superficie, estancias ni extras (por ejemplo, un terreno con pocos datos) el anuncio necesita al
+  // menos un destacado: el precio exacto o, si tampoco lo hay, el tipo. Antes la plantilla fallaba aquí.
+  if (property.price > 0) return [`${copy.formatPrice(property.price)}${operationOf(property.operation) === 'rent' ? copy.rentSuffix : ''}`]
+  return [typeLabel(copy, property.type, copy.propertyType.apartment)]
 }
 
-function buildDescription(
-  property: PromptProperty,
-): string {
-  const propertyLabel =
-    getPropertyLabel(property.type)
+// ------------------------------------------------------------------------------------------ Español
 
-  const operationText =
-    property.operation === 'rent'
-      ? 'en alquiler'
-      : 'en venta'
+function spanishFloorSentence(floor: number): string {
+  if (floor === 0) return ' Se encuentra en planta baja.'
+  if (floor < 0) return ` Se encuentra en la planta ${floor}.`
+  return ` Se encuentra en una ${floor}.ª planta.`
+}
 
-  const location = [
-    property.neighborhood,
-    property.city,
-  ]
-    .filter(Boolean)
-    .join(', ')
-
-  const locationText = location
-    ? ` situado en ${location}`
-    : ''
-
-  const areaText =
+function buildSpanishDescription(property: PromptProperty, copy: ListingCopy): string {
+  const location = locationOf(property)
+  const rooms = [property.bedrooms > 0 ? copy.bedrooms(property.bedrooms) : '', property.bathrooms > 0 ? copy.bathrooms(property.bathrooms) : ''].filter(Boolean)
+  // «Cuenta con 92 m² distribuidos en 3 habitaciones y 2 baños.»; sin superficie, solo las estancias.
+  const sizeSentence =
     property.area > 0
-      ? ` Cuenta con ${property.area} m²`
-      : ''
+      ? ` Cuenta con ${copy.formatArea(property.area)}${property.bedrooms > 0 ? ` distribuidos en ${copy.bedrooms(property.bedrooms)}` : ''}${property.bathrooms > 0 ? ` y ${copy.bathrooms(property.bathrooms)}` : ''}.`
+      : rooms.length > 0
+        ? ` Cuenta con ${copy.list(rooms)}.`
+        : ''
+  const features = featuresOf(property, copy).map(label => label.toLowerCase())
+  const condition = conditionOf(copy, property.condition)
+  const additional = property.additionalInformation?.trim() ?? ''
 
-  const bedroomsText =
-    property.bedrooms > 0
-      ? ` distribuidos en ${property.bedrooms} ${
-          property.bedrooms === 1
-            ? 'habitación'
-            : 'habitaciones'
-        }`
-      : ''
-
-  const bathroomsText =
-    property.bathrooms > 0
-      ? ` y ${property.bathrooms} ${
-          property.bathrooms === 1
-            ? 'baño'
-            : 'baños'
-        }`
-      : ''
-
-  const floorText =
-    property.floor !== undefined
-      ? ` Se encuentra en una ${getFloorText(property.floor)} planta`
-      : ''
-
-  const features = buildFeatureSentence(
-    property,
-  )
-
-  const conditionLabel =
-    getConditionLabel(property.condition)
-
-  const conditionText =
-    conditionLabel === 'reformado'
-      ? ' La vivienda está reformada.'
-      : conditionLabel === 'obra nueva'
-        ? ' La vivienda es de obra nueva.'
-        : conditionLabel === 'para reformar'
-          ? ' La vivienda necesita reforma.'
-          : conditionLabel === 'en buen estado'
-            ? ' La vivienda está en buen estado.'
-            : ''
-
-  const priceText =
-    property.price > 0
-      ? ` Precio: ${formatPrice(property.price)}.`
-      : ''
-
-  const additionalInformation =
-    property.additionalInformation.trim()
-
-  const additionalText =
-    additionalInformation
-      ? ` ${additionalInformation}`
-      : ''
-
-return (
-    `${propertyLabel} ${operationText}${locationText}.` +
-    `${areaText}${bedroomsText}${bathroomsText}.` +
-    `${floorText}${features}` +
-    `${conditionText}${priceText}` +
-    `${additionalText}`
+  return (
+    `${typeLabel(copy, property.type, 'Inmueble')} ${copy.operationPhrase[operationOf(property.operation)]}${location ? ` situado en ${location}` : ''}.` +
+    sizeSentence +
+    (hasFloor(property.floor) ? spanishFloorSentence(property.floor) : '') +
+    (features.length > 0 ? ` Dispone de ${copy.list(features)}.` : '') +
+    (condition ? ` ${condition}` : '') +
+    (property.price > 0 ? ` Precio: ${copy.formatPrice(property.price)}.` : '') +
+    (additional ? ` ${additional}` : '')
   ).trim()
 }
 
-function getFloorText(
-  floor: number,
-): string {
-  return `${floor}`+ 'ª'
+// ------------------------------------------------------------------------------------------- Inglés
+
+function englishFloorSentence(floor: number, copy: ListingCopy): string {
+  if (floor === 0) return ' It is on the ground floor.'
+  if (floor < 0) return ` It is on ${copy.floor(floor).toLowerCase()} (level ${floor}).`
+  return ` It is on the ${copy.floor(floor)}.`
 }
 
-function buildFeatureSentence(
-  property: PromptProperty,
-): string {
-  const features: string[] = []
+// Tipos en los que «3-bedroom» tiene sentido como parte del título.
+const RESIDENTIAL = new Set(['apartment', 'house', 'villa', 'penthouse', 'duplex'])
 
-  if (property.terrace) {
-    features.push('terraza')
-  }
+function buildEnglishTitle(property: PromptProperty, copy: ListingCopy): string {
+  const type = typeLabel(copy, property.type, 'Property')
+  const bedrooms = RESIDENTIAL.has(property.type) && property.bedrooms > 0 ? `${property.bedrooms}-bedroom ${type.toLowerCase()}` : type
+  const location = locationOf(property)
+  const title = `${bedrooms} ${copy.operationPhrase[operationOf(property.operation)]}${location ? ` in ${location}` : ''}`
+  return title.charAt(0).toUpperCase() + title.slice(1)
+}
 
-  if (property.balcony) {
-    features.push('balcón')
-  }
+function buildEnglishDescription(property: PromptProperty, copy: ListingCopy): string {
+  const location = locationOf(property)
+  const size = [
+    property.area > 0 ? copy.formatArea(property.area) : '',
+    property.bedrooms > 0 ? copy.bedrooms(property.bedrooms) : '',
+    property.bathrooms > 0 ? copy.bathrooms(property.bathrooms) : '',
+  ].filter(Boolean)
+  const features = featuresOf(property, copy).map(label => label.toLowerCase())
+  const condition = conditionOf(copy, property.condition)
+  const operation = operationOf(property.operation)
+  const price = property.price > 0 ? `${copy.formatPrice(property.price)}${operation === 'rent' ? copy.rentSuffix : ''}` : ''
 
-  if (property.elevator) {
-    features.push('ascensor')
-  }
-
-  if (property.garage) {
-    features.push('garaje')
-  }
-
-  if (property.storageRoom) {
-    features.push('trastero')
-  }
-
-  if (property.pool) {
-    features.push('piscina')
-  }
-
-  if (property.garden) {
-    features.push('jardín')
-  }
-
-  if (property.airConditioning) {
-    features.push('aire acondicionado')
-  }
-
-  if (property.heating) {
-    features.push('calefacción')
-  }
-
-  if (features.length === 0) {
-    return ''
-  }
-
-  if (features.length === 1) {
-    return ` Dispone de ${features[0]}.`
-  }
-
-  const last = features[features.length - 1]
-
-  const previous = features
-    .slice(0, -1)
-    .join(', ')
-
-  return ` Dispone de ${previous} y ${last}.`
+  return (
+    `${typeLabel(copy, property.type, 'Property')} ${copy.operationPhrase[operation]}${location ? ` in ${location}` : ''}.` +
+    (size.length > 0 ? ` It has ${copy.list(size)}.` : '') +
+    (hasFloor(property.floor) ? englishFloorSentence(property.floor, copy) : '') +
+    (features.length > 0 ? ` Features: ${copy.list(features)}.` : '') +
+    (condition ? ` ${condition}` : '') +
+    (price ? ` Price: ${price}.` : '')
+  ).trim()
 }
 
 export class MockAIProvider
   implements AIProvider
 {
+  private readonly language: ListingLanguage
+
+  constructor(language?: ListingLanguage) {
+    this.language = listingLanguageOf(language)
+  }
+
   async generate(
     prompt: string,
   ): Promise<GeneratedListing> {
     const property =
       extractPropertyFromPrompt(prompt)
 
-    const propertyLabel =
-      getPropertyLabel(property.type)
-
-    const operationLabel =
-      getOperationLabel(property.operation)
-
-    const conditionLabel =
-      getConditionLabel(property.condition)
-
-    const title = [
-      property.title
-    ]
-      .filter(Boolean)
-      .join(' ')
+    const copy = listingCopy(this.language)
+    const english = this.language === 'english'
 
     const result = {
-      title,
-      description:
-        buildDescription(property),
-      highlights:
-        buildHighlights(property),
-      callToAction:
-        'Contacta con nosotros para concertar una visita.',
+      title: english ? buildEnglishTitle(property, copy) : property.title,
+      description: english ? buildEnglishDescription(property, copy) : buildSpanishDescription(property, copy),
+      highlights: buildHighlights(property, copy),
+      callToAction: copy.callToAction,
     }
 
     const validation =

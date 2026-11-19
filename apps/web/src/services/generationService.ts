@@ -4,6 +4,7 @@ import type {
   GeneratedListing,
   GenerationRequest,
   GenerationUpdate,
+  GenerationNotice,
 } from '@estateforge/shared'
 
 export type GenerationApiErrorCode =
@@ -38,6 +39,8 @@ export interface GenerationResult {
   listing: GeneratedListing
   propertyId: string
   generationId: string
+  /** Avisos sobre el contenido generado (ausentes en respuestas anteriores). */
+  notices?: GenerationNotice[]
 }
 
 export interface GenerationProperty {

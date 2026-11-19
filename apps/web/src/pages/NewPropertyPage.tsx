@@ -28,6 +28,7 @@ import {
 
 import { TextAiChoice, TextAiNotice, TextProviderOptions } from '@/components/ai/TextAi'
 import { EMPTY_TEXT_CHOICE, useTextAi } from '@/hooks/useTextAi'
+import { GenerationNotices } from '@/components/listings/GenerationNotices'
 
 const initialProperty: Property = {
   title: '',
@@ -68,6 +69,10 @@ function NewPropertyPage() {
 
   const [generatedListing, setGeneratedListing] =
     useState<GeneratedListing | null>(null)
+
+  // Avisos del anuncio generado (por ejemplo, observaciones no incluidas en el anuncio inglés).
+  const [generationNotices, setGenerationNotices] =
+    useState<string[]>([])
 
   const [createdPropertyId, setCreatedPropertyId] =
     useState<string | null>(null)
@@ -224,6 +229,7 @@ function NewPropertyPage() {
 
     setIsGenerating(true)
     setGeneratedListing(null)
+    setGenerationNotices([])
     setEditedListing(null)
     setCreatedPropertyId(null)
     setCreatedGenerationId(null)
@@ -244,6 +250,7 @@ function NewPropertyPage() {
       })
 
       setGeneratedListing(result.listing)
+      setGenerationNotices(result.notices ?? [])
       setEditedListing(result.listing)
       setCreatedPropertyId(result.propertyId)
       setCreatedGenerationId(
@@ -1036,6 +1043,8 @@ ${listingToCopy.callToAction}
           </Button>
         </div>
       </form>
+
+      {generatedListing && <GenerationNotices notices={generationNotices} />}
 
       {generatedListing && (
         <section

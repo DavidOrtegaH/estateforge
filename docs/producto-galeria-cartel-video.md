@@ -157,6 +157,31 @@ Metadatos del vídeo: MIME con códecs, `hasAudio`, origen del audio (`none`, `p
 
 No se ha descargado ni incorporado ningún archivo de audio de terceros.
 
+## Idioma del cartel y del vídeo
+
+El cartel y el vídeo usan el idioma **guardado en el anuncio** (`Generation.language`), no el del selector. Generar después otro anuncio en otro idioma no cambia el material de este. La interfaz de EstateForge sigue en español.
+
+**Origen del idioma.** La fuente que entrega la API (`GET /api/generations/:id/media/source`) incluye `generation.language` («español» o «english»). Las respuestas anteriores al campo se tratan como español.
+
+**Qué se traduce.** Todas las etiquetas automáticas que se dibujan salen de una única fuente compartida, `packages/shared/src/listing-copy.ts`, la misma que usa la plantilla local de la API para redactar el anuncio:
+
+- tipo de inmueble, operación, estado comercial y extras;
+- habitaciones y baños, con sus plurales;
+- planta: planta baja, sótanos y ordinales ingleses (1st, 2nd, 3rd, 11th, 12th, 13th, 21st…);
+- sufijo del alquiler (`/mes`, `/month`), rótulo «Características»/«Features» y pie «Material generado con EstateForge a partir de los datos del anuncio» / «Material created with EstateForge from the listing data».
+
+Lo cumplen las vistas previas, las seis plantillas, «Aleatoria» (que sortea una de ellas) y los vídeos clásicos. El cierre del vídeo con IA usa también el pie del idioma del anuncio. Los rótulos de contenido con IA (`AI_POSTER_LABEL`, `AI_VIDEO_LABEL`) siguen en español: ver «Limitaciones».
+
+**Formatos.** Los importes siguen en euros y las superficies en m², con los mismos dígitos que el dato (sin coma flotante ni conversiones): `250.000 €` y `€250,000`, `92,5 m²` y `92.5 m²`. Barrio y ciudad se conservan tal cual, como nombres propios.
+
+**Textos del anuncio.** Título, descripción, destacados y llamada a la acción se dibujan tal como están guardados en el anuncio, incluida cualquier edición manual. Generar el cartel o el vídeo nunca modifica el anuncio. El título del inmueble (texto libre del usuario) solo sirve de respaldo en español; nunca se dibuja en un material inglés.
+
+**Huella y material anterior.**
+
+- La huella de la fuente incluye el idioma **solo cuando no es el español**. Los anuncios en español conservan la huella de siempre, así que su material y sus trabajos de IA siguen vigentes: su contenido no ha cambiado.
+- Los anuncios guardados en inglés antes de este cambio tienen una huella nueva. Su material se compuso con etiquetas españolas, por eso debe **regenerarse** desde «Cartel y vídeo». Al guardar, la protección de siempre rechaza un material calculado con la huella anterior (`SOURCE_CHANGED`).
+- No se ha reescrito ningún anuncio ni archivo existente.
+
 ## Regeneración segura (cartel y vídeo)
 
 Igual que antes, para cada recurso por separado:
@@ -283,5 +308,7 @@ Diferencias de Firefox 160, comprobadas con el navegador instalado:
 - El vídeo se graba en tiempo real (hasta 60 s) y la pestaña debe estar visible.
 - La API comprueba la estructura de las pistas, pero no decodifica el sonido: la decodificación completa la hace el navegador antes de subirla.
 - No hay recorte ni edición de fotografías ni de audio.
+- El material en inglés (cartel y vídeo clásico) solo se ha comprobado en Edge, en modo headless. No se ha probado en Safari, Chrome ni Firefox.
+- En un anuncio inglés, los rótulos obligatorios del material con IA («Diseño asistido por IA» y el aviso del vídeo con IA) siguen en español. El material clásico, sin IA, sí sale íntegramente en inglés. Las etiquetas del vídeo y del cartel no cambian el idioma de los textos que el usuario editó en el anuncio.
 - Las subidas directas están probadas con el simulador local de Blob. El comportamiento real de Blob está pendiente de verificar: CORS del `PUT` y del `GET` prefirmados, Range y caducidad.
 - La integración con Vercel Blob y la IP del cliente en Vercel (MD-4) **no se han probado contra el servicio real**: ver [Preparación para Vercel, Neon y Blob](despliegue/vercel-neon-blob.md).

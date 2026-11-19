@@ -132,6 +132,7 @@ describe('generation.service - ownership', () => {
       generationId: 'cmj7b5q8r0000v6y7g5q4m3p',
       propertyId,
       listing: generatedListing,
+      notices: [],
     })
 
     expect(mocks.propertyFindFirst).toHaveBeenCalledWith({

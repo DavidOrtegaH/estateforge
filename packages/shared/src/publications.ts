@@ -13,7 +13,9 @@
 /**
  * Para añadir, cambiar o retirar un portal basta con editar esta lista.
  * `domains` contiene los dominios registrables; se admiten sus subdominios.
- * Los portales se identifican por su nombre, sin logotipos de marca (DA-102).
+ * Los portales se identifican por su nombre y sus recursos locales, con procedencia y situación de
+ * derechos documentadas en apps/web/src/lib/portalIcons.ts y docs/producto-checklist-y-estado.md.
+ * El usuario ha solicitado incluir los cinco iconos sin enviar solicitudes a terceros (actualiza DA-102).
  */
 export const PUBLICATION_PLATFORMS = [
   {

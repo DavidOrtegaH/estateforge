@@ -158,7 +158,7 @@ export function drawVideoFrame(ctx: PosterContext, content: PromoContent, image:
   } else if (segment.kind === 'features') {
     ctx.fillStyle = 'rgba(15, 23, 42, 0.72)'
     ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT)
-    write('Características', 64, 120, `800 48px ${SANS}`, accent)
+    write(content.featuresHeading, 64, 120, `800 48px ${SANS}`, accent)
     const items = [...content.facts, ...content.features, ...content.highlights].slice(0, 9)
     items.forEach((item, i) => write(`• ${item}`, 64 + (i >= 5 ? 580 : 0), 210 + (i % 5) * 82, `600 34px ${SANS}`, '#ffffff', 520))
   } else {
@@ -171,7 +171,7 @@ export function drawVideoFrame(ctx: PosterContext, content: PromoContent, image:
       const [slogan] = wrapText(ctx, content.slogan, VIDEO_WIDTH - 128, 1)
       write(slogan, 64, 460, `700 40px ${SANS}`, accent)
     }
-    write('Material generado con EstateForge a partir de los datos del anuncio', 64, 660, `600 22px ${SANS}`, '#cbd5e1')
+    write(content.footer, 64, 660, `600 22px ${SANS}`, '#cbd5e1')
   }
   return texts
 }
@@ -453,7 +453,7 @@ export function drawAiVideoFrame(ctx: PosterContext, content: PromoContent, fram
     write(price, 64, 250, `800 76px ${SANS}`, '#ffffff')
     if (content.location) write(content.location, 64, 330, `500 34px ${SANS}`, '#e2e8f0')
     write(content.facts.join('  ·  '), 64, 410, `600 30px ${SANS}`, '#ffffff')
-    write('Material generado con EstateForge a partir de los datos del anuncio', 64, 660, `600 22px ${SANS}`, '#cbd5e1')
+    write(content.footer, 64, 660, `600 22px ${SANS}`, '#cbd5e1')
   } else {
     shade(ctx, 0.78)
     write(content.facts.join('  ·  '), 64, 668, `600 30px ${SANS}`, '#ffffff')

@@ -33,6 +33,23 @@ En «Nuevo inmueble» y en el detalle del inmueble, los tres campos (método de 
 |---|---|---|---|---|---|
 | Texto del anuncio (título, descripción, puntos destacados y llamada a la acción) | Gemini `gemini-3.6-flash` o `gemini-3.5-flash-lite`; OpenAI `gpt-6.1-terra`, `gpt-6-luna`, `gpt-6.1-sol` o `gpt-5.5` (heredado) | Del usuario | `services/generation.service.ts` (`generateWithUserKey`), `ai/*.provider.ts` | En la cuenta del usuario | 409 `AI_KEY_REQUIRED`; quedan la plantilla local y la edición manual |
 | Texto con la plantilla local (`mock`) | Ninguno: no es IA ni llama a nada | Ninguna | `ai/mock-ai.provider.ts` | Ninguno | Disponible siempre |
+
+**Idioma de la plantilla local.** La plantilla respeta el idioma elegido (español por defecto) y es determinista. Sus etiquetas salen de `packages/shared/src/listing-copy.ts`, la misma fuente que usan el cartel y el vídeo.
+
+- **Español:** usa el título del inmueble y añade al final de la descripción las observaciones del usuario, como hasta ahora.
+- **Inglés:** título, descripción, destacados y llamada a la acción se construyen en inglés solo a partir de los datos estructurados. El ejemplo «3-bedroom apartment for sale in Chamberí, Madrid» conserva barrio y ciudad tal cual.
+- **Texto libre en inglés:** el título y las observaciones del inmueble son texto libre que el usuario escribió en español. Un diccionario no los traduce, así que no se copian como si estuvieran traducidos.
+  - Las observaciones quedan fuera del anuncio inglés y la API devuelve el aviso `FREE_TEXT_NOT_INCLUDED`. La web lo muestra e indica que se puede añadir la versión inglesa editando el anuncio.
+  - El inmueble conserva su título en español.
+  - No se promete ninguna traducción automática.
+- **Correcciones del español:**
+  - los traspasos ya no se redactan como venta;
+  - los tipos dúplex, estudio, oficina y terreno tienen su nombre;
+  - la planta baja y los sótanos se redactan bien;
+  - se añade el punto que faltaba tras la planta;
+  - sin superficie, las estancias quedan en una frase completa;
+  - un inmueble sin superficie, estancias ni extras ya no hace fallar la generación: se destaca el precio.
+- **Validación:** la validación de coherencia del anuncio (`listing-validator.service.ts`) reconoce etiquetas españolas. Con un anuncio inglés no rechaza nada indebidamente, pero tampoco aplica sus comprobaciones de extras y datos a textos ingleses redactados por un proveedor de IA (limitación conocida; la plantilla local usa datos exactos).
 | Fondo del cartel con IA | Gemini (modelos de imagen) | Del usuario | `ai-media/jobs.service.ts`, `gemini.adapter.ts` | En la cuenta del usuario | Opción deshabilitada con enlace a Ajustes |
 | Vídeo con IA | Gemini (`gemini-omni-flash`) | Del usuario | Ídem | En la cuenta del usuario | Opción deshabilitada; el vídeo clásico sigue disponible |
 | Moderación y clasificación de entradas y resultados | Reglas locales (sin coste) y clasificador del mismo proveedor | Del usuario | `ai-media/policy.ts`, `gemini.adapter.ts` | En la cuenta del usuario (se avisa antes de confirmar) | No se ejecuta: sin clave no hay generación con IA |

@@ -2,6 +2,7 @@ import type {
   AIProviderType,
   ListingLanguage,
   ListingTone,
+  GenerationNotice,
 } from '@estateforge/shared'
 
 import { API_URL } from '@/lib/api'
@@ -55,6 +56,8 @@ export interface UpdatePropertyListingRequest {
 export interface GeneratePropertyListingResult {
   generationId: string
   propertyId: string
+  /** Avisos sobre el contenido generado (ausentes en respuestas anteriores). */
+  notices?: GenerationNotice[]
   listing: {
     title: string
     description: string
