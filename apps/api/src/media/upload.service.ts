@@ -21,6 +21,7 @@ import { prisma } from '../db/prisma.js'
 import { audioKey, getStorage, mediaKey, photoKey, thumbKey, type SignedTransfer } from '../storage/object-storage.js'
 import { addTrack, type AudioTrackRow } from './audio.service.js'
 import { precheckMedia, saveMedia, type MediaRow } from './listing-media.service.js'
+import { assertDraftSnapshot, readLanguageDraft } from './language-draft.js'
 import { MediaError, notFound } from './media-errors.js'
 import { addPhoto, assertPropertyCapacity, replacePhoto, setPhotoThumbnail, type PhotoRow } from './photo.service.js'
 import { assertUserQuota, lockUser } from './quota.js'
@@ -66,6 +67,7 @@ export interface MediaUploadMeta {
 }
 
 export interface PrepareInput {
+  languageDraftId?: string
   kind: UploadKind
   contentType: string
   size: number
@@ -151,6 +153,8 @@ export async function prepareUpload(log: FastifyBaseLogger | null, userId: strin
   if (!Number.isInteger(input.size) || input.size <= 0) throw new MediaError('INVALID_REQUEST', 'Tamaño de archivo no válido.')
   if (input.size > max) throw new MediaError('TOO_LARGE', `El archivo supera el tamaño máximo de ${Math.round(max / 1024 / 1024) || 1} MB.`)
 
+  if (input.languageDraftId && input.kind !== 'poster' && input.kind !== 'video') throw new MediaError('INVALID_REQUEST', 'La preparación de idioma solo admite cartel y vídeo.')
+
   // Destino del recurso: solo identificadores, comprobados contra el propietario.
   let propertyId: string | null = null
   let photoId: string | null = null
@@ -169,6 +173,11 @@ export async function prepareUpload(log: FastifyBaseLogger | null, userId: strin
     if (!input.generationId || !input.media) throw new MediaError('INVALID_REQUEST', 'Faltan el anuncio o los datos del material.')
     generationId = input.generationId
     const media = input.media
+    const draft = input.languageDraftId ? await readLanguageDraft(userId, generationId, input.languageDraftId) : null
+    if (draft) {
+      if (draft.status !== 'pending' || draft.data.mediaVersions[input.kind] === undefined || draft.data.mediaVersions[input.kind] !== media.expectedVersion || media.aiJobId) throw new MediaError('INVALID_REQUEST', 'El material no corresponde a esta preparación.')
+      await assertDraftSnapshot(userId, generationId, draft.data)
+    }
     await precheckMedia(userId, generationId, {
       kind: input.kind as MediaKind,
       declaredType: contentType,
@@ -181,7 +190,7 @@ export async function prepareUpload(log: FastifyBaseLogger | null, userId: strin
       ...(media.audio && { audio: media.audio }),
       codecs: media.codecs ?? null,
       ...(media.aiJobId && { ai: { jobId: media.aiJobId } }),
-    })
+    }, draft?.data.source)
     metadata = { ...media }
   }
 
@@ -199,6 +208,11 @@ export async function prepareUpload(log: FastifyBaseLogger | null, userId: strin
   const attempt = await prisma.$transaction(async tx => {
     // Mismo orden de bloqueos que el resto de escrituras: usuario y, si hay, inmueble.
     await lockUser(tx, userId)
+    if (input.languageDraftId) {
+      const draft = await readLanguageDraft(userId, generationId!, input.languageDraftId, tx)
+      if (draft.status !== 'pending') throw new MediaError('UPLOAD_CLOSED', 'La preparación ya ha terminado.')
+      await assertDraftSnapshot(userId, generationId!, draft.data, tx)
+    }
     if (propertyId) {
       const locked = await tx.$executeRaw`UPDATE "Property" SET "userId" = "userId" WHERE "id" = ${propertyId} AND "userId" = ${userId}`
       if (locked !== 1) throw notFound('El inmueble')
@@ -213,7 +227,7 @@ export async function prepareUpload(log: FastifyBaseLogger | null, userId: strin
     }
     await assertUserQuota(tx, userId, input.size)
     return tx.uploadAttempt.create({
-      data: { userId, kind: input.kind, storageKey: key, contentType, size: input.size, propertyId, photoId, generationId, metadata: JSON.stringify(metadata), expiresAt },
+      data: { userId, kind: input.kind, storageKey: key, contentType, size: input.size, propertyId, photoId, generationId, metadata: JSON.stringify(metadata), expiresAt, languageDraftId: input.languageDraftId ?? null },
       select: { id: true },
     })
   })
@@ -228,7 +242,7 @@ export async function prepareUpload(log: FastifyBaseLogger | null, userId: strin
   }
 }
 
-async function readExactly(key: string, size: number): Promise<Buffer | null> {
+export async function readExactly(key: string, size: number): Promise<Buffer | null> {
   const object = await (await getStorage()).get(key)
   if (!object) return null
   const chunks: Buffer[] = []
@@ -266,9 +280,10 @@ async function resultOf(attempt: { kind: string; userId: string; resultId: strin
 
 /** Confirma una subida directa. Idempotente: si ya se confirmó, devuelve el mismo recurso. */
 export async function completeUpload(log: FastifyBaseLogger | null, userId: string, attemptId: string): Promise<CompletedUpload> {
-  const claimed = await prisma.uploadAttempt.updateMany({ where: { id: attemptId, userId, status: 'pending', expiresAt: { gt: new Date() } }, data: { status: 'processing' } })
+  const claimed = await prisma.uploadAttempt.updateMany({ where: { id: attemptId, userId, languageDraftId: null, status: 'pending', expiresAt: { gt: new Date() } }, data: { status: 'processing' } })
   const attempt = await prisma.uploadAttempt.findFirst({ where: { id: attemptId, userId } })
   if (!attempt) throw notFound('La subida')
+  if (attempt.languageDraftId) throw new MediaError('INVALID_REQUEST', 'Esta subida solo se confirma con el cambio completo de idioma.')
   if (claimed.count !== 1) {
     if (attempt.status === 'completed') return resultOf(attempt)
     if (attempt.status === 'processing') throw new MediaError('VERSION_CONFLICT', 'La subida ya se está confirmando.')

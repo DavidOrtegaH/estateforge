@@ -69,6 +69,7 @@ const PrepareBody = z
     propertyId: ID.optional(),
     photoId: ID.optional(),
     generationId: ID.optional(),
+    languageDraftId: ID.optional(),
     rightsConfirmed: z.boolean().optional(),
     media: z
       .object({

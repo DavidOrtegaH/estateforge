@@ -522,6 +522,8 @@ function GenerationDetailPage() {
             </button>
           </div>
 
+          <ListingLanguageEditor key={`${generation.id}-${generation.updatedAt}`} generation={generation} />
+
           <div className="mt-6 space-y-5">
             {/* TÍTULO */}
 
@@ -812,7 +814,6 @@ function GenerationDetailPage() {
             </p>
           </section>
 
-          <ListingLanguageEditor key={`${generation.id}-${generation.updatedAt}`} generation={generation} />
 
           <PublicationChecklist
             key={generation.id}

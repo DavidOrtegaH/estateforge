@@ -128,7 +128,7 @@ function parseHighlights(raw: string): string[] {
   }
 }
 
-async function readSource(db: Tx | typeof prisma, generationId: string, userId: string): Promise<MediaSource | null> {
+export async function readSource(db: Tx | typeof prisma, generationId: string, userId: string): Promise<MediaSource | null> {
   const generation = await db.generation.findFirst({
     where: { id: generationId, property: { userId } },
     select: {
@@ -155,6 +155,13 @@ async function readSource(db: Tx | typeof prisma, generationId: string, userId: 
     photos: photos.map(({ thumbSize: _thumb, ...photo }) => photo),
   }
   return { sourceHash: createHash('sha256').update(JSON.stringify({ ...source, rendererVersion: 2 })).digest('hex'), ...source, generation: { ...text, language }, photos }
+}
+
+/** Source that will exist after the prepared listing is committed, without writing it yet. */
+export function sourceWithListing(base: MediaSource, listing: { title: string; description: string; highlights: string[]; callToAction: string | null }, language: ListingLanguage): MediaSource {
+  const text = { id: base.generation.id, title: listing.title, description: listing.description, highlights: listing.highlights, callToAction: listing.callToAction }
+  const source = { generation: language === DEFAULT_LISTING_LANGUAGE ? text : { ...text, language }, property: base.property, photos: base.photos.map(({ thumbSize: _thumb, ...photo }) => photo) }
+  return { ...base, sourceHash: createHash('sha256').update(JSON.stringify({ ...source, rendererVersion: 2 })).digest('hex'), generation: { ...text, language } }
 }
 
 export async function getMediaSource(generationId: string, userId: string): Promise<MediaSource> {
@@ -310,14 +317,14 @@ function assertOptions(upload: MediaUpload): CheckedOptions {
  * opciones, propiedad, huella de la fuente, versión esperada y pista de audio propia. Se repiten al
  * confirmar, con los bloqueos.
  */
-export async function precheckMedia(userId: string, generationId: string, upload: Omit<MediaUpload, 'body'>): Promise<void> {
+export async function precheckMedia(userId: string, generationId: string, upload: Omit<MediaUpload, 'body'>, draftSource?: MediaSource): Promise<void> {
   if (upload.kind === 'video' && (upload.durationMs === null || !Number.isInteger(upload.durationMs) || upload.durationMs < 1000 || upload.durationMs > VIDEO_MAX_DURATION_MS)) {
     throw new MediaError('INVALID_REQUEST', 'La duración del vídeo no es válida.')
   }
   const options = assertOptions({ ...upload, body: Buffer.alloc(0) })
   if (!Number.isInteger(upload.variant) || upload.variant < 0 || upload.variant > 1_000_000) throw new MediaError('INVALID_REQUEST', 'Variante no válida.')
   if (!Number.isInteger(upload.expectedVersion) || upload.expectedVersion < 0) throw new MediaError('INVALID_REQUEST', 'Versión esperada no válida.')
-  const source = await readSource(prisma, generationId, userId)
+  const source = draftSource ?? await readSource(prisma, generationId, userId)
   if (!source) throw notFound('El anuncio')
   assertSourceUse(source, { ...upload, body: Buffer.alloc(0) })
   const current = await prisma.listingMedia.findUnique({ where: { generationId_kind: { generationId, kind: upload.kind } }, select: { version: true } })
@@ -325,7 +332,7 @@ export async function precheckMedia(userId: string, generationId: string, upload
   if (options.kind === 'video' && options.audio.source === 'library' && !(await findOwnTrack(userId, options.audio.trackId!))) throw notFound('La pista de audio')
 }
 
-export async function saveMedia(log: FastifyBaseLogger | null, userId: string, generationId: string, upload: MediaUpload, direct?: DirectCommit): Promise<MediaRow> {
+export async function saveMedia(log: FastifyBaseLogger | null, userId: string, generationId: string, upload: MediaUpload, direct?: DirectCommit, transaction?: Tx): Promise<MediaRow> {
   const file = inspectMedia(upload)
   if (direct && !direct.key.endsWith(file.contentType === 'image/png' ? '.png' : file.contentType === 'image/jpeg' ? '.jpg' : file.contentType === 'video/mp4' ? '.mp4' : '.webm')) {
     throw new MediaError('TYPE_MISMATCH', 'El tipo del archivo no coincide con su contenido.')
@@ -335,10 +342,10 @@ export async function saveMedia(log: FastifyBaseLogger | null, userId: string, g
   if (!Number.isInteger(upload.expectedVersion) || upload.expectedVersion < 0) throw new MediaError('INVALID_REQUEST', 'Versión esperada no válida.')
 
   // Comprobaciones previas para no almacenar un archivo que se va a rechazar.
-  const before = await readSource(prisma, generationId, userId)
+  const before = await readSource(transaction ?? prisma, generationId, userId)
   if (!before) throw notFound('El anuncio')
   assertSourceUse(before, upload)
-  const current = await prisma.listingMedia.findUnique({ where: { generationId_kind: { generationId, kind: upload.kind } }, select: { version: true } })
+  const current = await (transaction ?? prisma).listingMedia.findUnique({ where: { generationId_kind: { generationId, kind: upload.kind } }, select: { version: true } })
   if ((current?.version ?? 0) !== upload.expectedVersion) {
     throw new MediaError('VERSION_CONFLICT', 'El material se ha actualizado desde otra pestaña o petición. Recarga la página.')
   }
@@ -357,7 +364,7 @@ export async function saveMedia(log: FastifyBaseLogger | null, userId: string, g
   let aiResultKeyToDrain: string | null = null
   let saved: MediaRow
   try {
-    ;({ oldKey, saved } = await prisma.$transaction(async tx => {
+    const mutate = async (tx: Tx) => {
       // Orden fijo de bloqueos: usuario, inmueble y anuncio. Excluye cambios de fotografías y de datos.
       await lockUser(tx, userId)
       const propertyId = before.property.id
@@ -371,7 +378,7 @@ export async function saveMedia(log: FastifyBaseLogger | null, userId: string, g
       if ((existing?.version ?? 0) !== upload.expectedVersion) {
         throw new MediaError('VERSION_CONFLICT', 'El material se ha actualizado desde otra pestaña o petición. Recarga la página.')
       }
-      await assertUserQuota(tx, userId, upload.body.length, existing?.size ?? 0, direct?.attemptId ?? null)
+      if (!transaction) await assertUserQuota(tx, userId, upload.body.length, existing?.size ?? 0, direct?.attemptId ?? null)
 
       let posterData = {}
       if (options.kind === 'poster') {
@@ -429,7 +436,8 @@ export async function saveMedia(log: FastifyBaseLogger | null, userId: string, g
         : await tx.listingMedia.create({ data: { ...data, generationId, kind: upload.kind }, select: MEDIA_SELECT })
       if (direct) await completeAttempt(tx, direct, `${generationId}:${upload.kind}:${row.version}`)
       return { oldKey: existing?.storageKey ?? null, saved: row }
-    }))
+    }
+    ;({ oldKey, saved } = transaction ? await mutate(transaction) : await prisma.$transaction(mutate))
   } catch (error) {
     if (!direct) await discardUnreferenced(log, key, `${upload.kind}:save-failed`)
     if ((error as { code?: unknown } | null)?.code === 'P2002') {
@@ -438,7 +446,7 @@ export async function saveMedia(log: FastifyBaseLogger | null, userId: string, g
     throw error
   }
   const drain = [oldKey, aiResultKeyToDrain].filter((key): key is string => Boolean(key))
-  if (drain.length) await drainStorageCleanup(log, drain)
+  if (!transaction && drain.length) await drainStorageCleanup(log, drain)
   return saved
 }
 

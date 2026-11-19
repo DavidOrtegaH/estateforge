@@ -1,59 +1,124 @@
 import { useEffect, useRef, useState } from 'react'
-import { getProviderLabel, listingLanguageOf, type ListingLanguage } from '@estateforge/shared'
+import { getProviderLabel, listingLanguageOf } from '@estateforge/shared'
 import { API_URL } from '@/lib/api'
-import { regenerateListingMedia } from '@/lib/regenerateListingMedia'
+import { prepareListingMedia, type PreparedLanguageChange } from '@/lib/regenerateListingMedia'
+import { cancelUpload } from '@/services/mediaService'
 import { ConfirmDialog } from '@/components/media/ConfirmDialog'
 
 type Listing = { id: string; language: string; provider: string; updatedAt?: string }
 
 export function ListingLanguageEditor({ generation }: { generation: Listing }) {
-  const [language, setLanguage] = useState<ListingLanguage>(listingLanguageOf(generation.language))
+  const currentLanguage = listingLanguageOf(generation.language)
+  const language = currentLanguage === 'english' ? 'español' : 'english'
+  const targetLabel = language === 'english' ? 'Inglés' : 'Español'
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [pending, setPending] = useState<string[] | null>(null)
   const running = useRef(false)
+  const active = useRef(true)
+  const committed = useRef(false)
+  const controller = useRef<AbortController | null>(null)
+  const prepared = useRef<PreparedLanguageChange | null>(null)
+  const readyUploads = useRef<string[] | null>(null)
+  const commitStarted = useRef(false)
+  const path = `${API_URL}/api/generations/${generation.id}/language`
   useEffect(() => {
-    if (!busy) return
-    const prevent = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
-    window.addEventListener('beforeunload', prevent)
-    return () => window.removeEventListener('beforeunload', prevent)
-  }, [busy])
+    active.current = true
+    const abandon = () => {
+      active.current = false
+      controller.current?.abort()
+      if (prepared.current && !committed.current) {
+        void fetch(`${path}/${prepared.current.draftId}`, { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => undefined)
+      }
+    }
+    window.addEventListener('pagehide', abandon)
+    return () => { window.removeEventListener('pagehide', abandon); abandon() }
+  }, [path])
+
   async function save() {
     if (running.current) return
     running.current = true; setBusy(true); setConfirming(false); setMessage(null)
+    const operation = new AbortController()
+    controller.current = operation
+    let rejected = false
     try {
-      let kinds = pending
-      if (kinds === null) {
-        // La versión abierta se compara bajo bloqueo: una pestaña antigua no puede
-        // sobrescribir ediciones posteriores de otra pestaña.
-        const expectedUpdatedAt = generation.updatedAt
-        if (!expectedUpdatedAt) throw new Error('Recarga la página antes de cambiar el idioma.')
-        const response = await fetch(`${API_URL}/api/generations/${generation.id}/language`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language, confirmed: true, expectedUpdatedAt }) })
+      if (!prepared.current) {
+        if (!generation.updatedAt) throw new Error('Recarga la página antes de cambiar el idioma.')
+        const response = await fetch(path, { method: 'POST', credentials: 'include', signal: operation.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language, confirmed: true, expectedUpdatedAt: generation.updatedAt, stageOnly: true }) })
         const data = await response.json()
-        if (!response.ok) throw new Error(data.message ?? 'No se pudo cambiar el idioma.')
-        kinds = data.mediaKinds as string[]
-        setPending(kinds)
+        if (!response.ok) throw new Error(data.message ?? 'No se pudo preparar el cambio de idioma.')
+        prepared.current = data as PreparedLanguageChange
       }
-      const details: string[] = []
-      const failures = await regenerateListingMedia(generation.id, kinds, text => { if (text.includes('pendiente:')) details.push(text); setMessage(text) })
-      setPending(failures)
-      if (failures.length) setMessage(`El texto ya está en el idioma elegido. ${details.join(' ')} Reintenta sin volver a generar ni facturar el texto, o abre el anuncio para revisar sus opciones.`)
-      else window.location.assign(`/historial/${generation.id}`)
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'No se pudo completar el cambio de idioma.') }
-    finally { running.current = false; setBusy(false) }
+      operation.signal.throwIfAborted()
+      const draft = prepared.current
+      const uploadIds = readyUploads.current ?? await prepareListingMedia(generation.id, draft, operation.signal, text => { if (active.current) setMessage(text) })
+      readyUploads.current = uploadIds
+      operation.signal.throwIfAborted()
+      if (!active.current) return
+      setMessage('Guardando el anuncio y todos sus archivos…')
+      commitStarted.current = true
+      const response = await fetch(`${path}/${draft.draftId}/complete`, { method: 'POST', credentials: 'include', signal: operation.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadIds }) })
+      const data = await response.json()
+      if (!response.ok) { rejected = true; throw new Error(data.message ?? 'No se pudo guardar el cambio completo.') }
+      committed.current = true
+      readyUploads.current = null
+      prepared.current = null
+      if (active.current) {
+        setBusy(false)
+        // There is no beforeunload handler: successful completion reloads without an exit prompt.
+        window.location.replace(`/historial/${generation.id}`)
+      }
+    } catch (error) {
+      if (rejected) {
+        await Promise.allSettled((readyUploads.current ?? []).map(id => cancelUpload(id)))
+        readyUploads.current = null
+        commitStarted.current = false
+      }
+      if (active.current) {
+        if (commitStarted.current) setMessage('No se ha podido confirmar el resultado del guardado. Reintenta la confirmación o recarga el anuncio para comprobarlo.')
+        else setMessage(operation.signal.aborted ? 'Cambio cancelado. El anuncio y sus archivos siguen como estaban.' : `${error instanceof Error ? error.message : 'No se pudo completar el cambio.'} El anuncio y sus archivos siguen como estaban.`)
+      }
+    } finally {
+      running.current = false
+      if (active.current) setBusy(false)
+    }
   }
+
+  async function cancel() {
+    controller.current?.abort()
+    const draft = prepared.current
+    prepared.current = null
+    readyUploads.current = null
+    if (draft) {
+      try {
+        const response = await fetch(`${path}/${draft.draftId}`, { method: 'DELETE', credentials: 'include' })
+        if (response.status === 409) {
+          committed.current = true
+          if (active.current) window.location.replace(`/historial/${generation.id}`)
+          return
+        }
+        if (!response.ok) throw new Error('Cancelación no confirmada')
+      } catch {
+        if (active.current) setMessage('No se ha podido confirmar la cancelación. Recarga el anuncio para comprobar su estado.')
+        return
+      }
+    }
+    commitStarted.current = false
+    if (active.current) setMessage('Cambio cancelado. El anuncio y sus archivos siguen como estaban.')
+  }
+
   return <section className="my-4 rounded-lg border p-4" aria-label="Idioma del anuncio">
-    <label htmlFor={`listing-language-${generation.id}`} className="text-sm font-medium">Idioma del anuncio</label>
+    <p className="text-sm text-muted-foreground">Idioma actual: {currentLanguage === 'english' ? 'Inglés' : 'Español'}</p>
+    <label htmlFor={`listing-language-${generation.id}`} className="text-sm font-medium">Cambiar idioma a</label>
     <div className="mt-2 flex flex-wrap items-center gap-3">
-      <select id={`listing-language-${generation.id}`} value={language} disabled={busy || pending !== null} onChange={event => setLanguage(event.target.value as ListingLanguage)} className="rounded-md border bg-background px-3 py-2 text-sm">
-        <option value="español">Español</option><option value="english">Inglés</option>
+      <select id={`listing-language-${generation.id}`} value={language} onChange={() => undefined} disabled={busy} className="rounded-md border bg-background px-3 py-2 text-sm">
+        <option value={language}>{targetLabel}</option>
       </select>
-      <button type="button" disabled={busy} onClick={() => pending !== null ? void save() : setConfirming(true)} className="rounded-md border px-3 py-2 text-sm disabled:opacity-50">{busy ? 'Rehaciendo anuncio…' : pending !== null ? 'Reintentar material pendiente' : 'Cambiar idioma y rehacer'}</button>
-      {pending !== null && !busy && <a href={`/historial/${generation.id}`} className="text-sm underline">Abrir anuncio y revisar material</a>}
+      <button type="button" disabled={busy} onClick={() => prepared.current ? void save() : setConfirming(true)} className="rounded-md border px-3 py-2 text-sm disabled:opacity-50">{busy ? 'Rehaciendo anuncio…' : prepared.current ? 'Reintentar preparación' : 'Cambiar idioma y rehacer'}</button>
+      {(busy || prepared.current) && <button type="button" onClick={() => void cancel()} className="rounded-md border px-3 py-2 text-sm">Cancelar cambio</button>}
     </div>
-    <p className="mt-2 text-xs text-muted-foreground">Sustituye los textos y rehace el cartel y el vídeo existentes. También permite corregir anuncios antiguos que tengan el idioma indicado incorrectamente. No traduce letras incrustadas en las fotografías.</p>
+    <p className="mt-2 text-xs text-muted-foreground">El anuncio y sus archivos se sustituyen juntos al terminar. Si sales durante la preparación, se cancela el cambio y se conserva el original. Al finalizar se abrirá el anuncio actualizado automáticamente.</p>
     {message && <p role="status" className="mt-2 text-sm">{message}</p>}
-    {confirming && <ConfirmDialog id={`language-confirm-${generation.id}`} confirmLabel="Confirmar y rehacer" destructive title="¿Rehacer el anuncio en otro idioma?" description={`Se sustituirán título, descripción, características y llamada a la acción por textos en ${language === 'english' ? 'inglés' : 'español'}. Se perderán las ediciones manuales; las observaciones no se traducen automáticamente con la plantilla local. Se reharán el cartel y el vídeo que ya existan, sin el pie de EstateForge. Los materiales con IA se sustituirán por versiones clásicas sin IA; podrás generar otros con IA después. El texto usará ${getProviderLabel(generation.provider)}.${generation.provider !== 'mock' ? ' Una operación de texto con tu API key y preferencias actuales: coste no verificable, facturado por tu proveedor. Al confirmar aceptas ese consumo.' : ' Sin llamadas a IA ni coste de proveedor.'} Mantén la pestaña abierta hasta terminar. ¿Confirmas la sustitución?`} onConfirm={() => void save()} onCancel={() => setConfirming(false)} />}
+    {confirming && <ConfirmDialog id={`language-confirm-${generation.id}`} confirmLabel="Confirmar y rehacer" destructive title={`¿Rehacer el anuncio en ${targetLabel.toLowerCase()}?`} description={`Se sustituirán título, descripción, características y llamada a la acción. Se perderán las ediciones manuales y se reharán el cartel y el vídeo existentes. Los materiales con IA se sustituirán por versiones clásicas sin IA. La plantilla local no traduce las observaciones ni las letras incrustadas en fotos. El texto usará ${getProviderLabel(generation.provider)}.${generation.provider !== 'mock' ? ' Una operación con tu API key y preferencias actuales: coste no verificable, facturado por tu proveedor aunque canceles después de generar el texto. Al confirmar aceptas ese consumo.' : ' Sin llamadas a IA ni coste de proveedor.'} Nada se sustituye hasta que todo esté listo; si abandonas la preparación, se mantiene el anuncio original. ¿Confirmas el cambio?`} onConfirm={() => void save()} onCancel={() => setConfirming(false)} />}
   </section>
 }

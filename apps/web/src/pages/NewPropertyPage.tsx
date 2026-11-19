@@ -1,3 +1,4 @@
+import { SavedListingLanguageEditor } from '@/components/listings/SavedListingLanguageEditor'
 import { listingCopy } from '@estateforge/shared'
 
 import { useRef, useState } from 'react'
@@ -1096,6 +1097,7 @@ ${listingToCopy.callToAction}
 
           {/* CONTENIDO DEL ANUNCIO */}
           <div className="p-6">
+            {isEditing && createdGenerationId && <SavedListingLanguageEditor generationId={createdGenerationId} />}
             <div className="space-y-6">
               {/* TÍTULO */}
               <div>

@@ -6,6 +6,13 @@ All notable changes to EstateForge are documented here. The format follows
 
 ## Unreleased
 
+### Atomic language changes and property listing filters (2026-11-20)
+
+- Offer only the opposite language, exclusively while editing a listing in all three editing screens.
+- Prepare text and direct uploads without changing the saved listing; commit all fields and media together after validation. Abort preparation on navigation, reload or cancellation; expire abandoned drafts and uploads. Reload automatically on success without an exit confirmation.
+- Add a bounded temporary language-draft table and upload relation; retain optimistic concurrency, ownership checks, aggregate quota checks and idempotent final confirmation.
+- Add property-scoped title search, generation-method/tone/language filters and chronological ordering before pagination, sharing the matching rules with the general listings page.
+
 ### Listing language correction and chronology
 
 - Localize the listing features heading and copied text using the saved listing language.

@@ -74,7 +74,7 @@ describe('historia de migraciones', () => {
 
     // DA-46: galería, cartel y vídeo; DA-51 a DA-55: galería de 50, plantillas y audio. Aditivas sobre la
     // línea base. Una migración nueva debe añadirse aquí.
-    expect(active.filter((name) => name !== 'migration_lock.toml').sort()).toEqual(['0_postgresql_baseline', '20261110120000_add_property_photos_and_listing_media', '20261111120000_gallery_50_poster_templates_audio', '20261112120000_direct_uploads', '20261113120000_ai_media_byok', '20261114120000_ai_text_byok', '20261115120000_ai_provider_catalog', '20261115200000_ai_provider_trials', '20261118120000_maintenance_runs'])
+    expect(active.filter((name) => name !== 'migration_lock.toml').sort()).toEqual(['0_postgresql_baseline', '20261110120000_add_property_photos_and_listing_media', '20261111120000_gallery_50_poster_templates_audio', '20261112120000_direct_uploads', '20261113120000_ai_media_byok', '20261114120000_ai_text_byok', '20261115120000_ai_provider_catalog', '20261115200000_ai_provider_trials', '20261118120000_maintenance_runs', '20261120090000_generation_language_drafts'])
     expect(readFileSync(resolve(prismaDir, 'migrations/migration_lock.toml'), 'utf8')).toContain('provider = "postgresql"')
   })
 

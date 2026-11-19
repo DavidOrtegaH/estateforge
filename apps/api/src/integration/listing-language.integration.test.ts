@@ -1,3 +1,5 @@
+import { makePng } from '../test-support/images.js'
+import { makeVideo } from '../test-support/media-files.js'
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -19,6 +21,8 @@ let root: string
 let mods: {
   createSession: typeof import('../services/session.service.js')['createSession']
   getMediaSource: typeof import('../media/listing-media.service.js')['getMediaSource']
+  saveMedia: typeof import('../media/listing-media.service.js')['saveMedia']
+  expireLanguageDrafts: typeof import('../media/language-draft.js')['expireLanguageDrafts']
   closeDatabase: () => Promise<void>
 }
 
@@ -52,8 +56,10 @@ beforeAll(async () => {
   await admin.connect()
   vi.resetModules()
   const { LocalStorage } = await import('../storage/local-storage.js')
-  ;(await import('../storage/object-storage.js')).setStorageForTests(new LocalStorage(root))
+  ;(await import('../storage/object-storage.js')).setStorageForTests(new LocalStorage(root, { signer: new (await import('../storage/local-signer.js')).LocalSigner('http://localhost:3000') }))
   mods = {
+    saveMedia: (await import('../media/listing-media.service.js')).saveMedia,
+    expireLanguageDrafts: (await import('../media/language-draft.js')).expireLanguageDrafts,
     createSession: (await import('../services/session.service.js')).createSession,
     getMediaSource: (await import('../media/listing-media.service.js')).getMediaSource,
     closeDatabase: (await import('../db/prisma.js')).closeDatabase,
@@ -147,10 +153,14 @@ describe('cambio confirmado de idioma y orden cronológico', () => {
   it('rehace los cuatro campos, admite la vuelta al español y conserva el inmueble y los otros anuncios', async () => {
     const { owner, propertyId, generationId, get } = await fixture()
     const otherId = (await generate(owner.cookie, propertyId, 'español')).json().generationId
-    const change = async (language: string) => app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie: owner.cookie }, payload: { language, confirmed: true, expectedUpdatedAt: (await get()).updatedAt } })
+    const change = async (language: string) => {
+      const draft = await app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie: owner.cookie }, payload: { language, confirmed: true, stageOnly: true, expectedUpdatedAt: (await get()).updatedAt } })
+      expect(draft.statusCode).toBe(200)
+      return app.inject({ method: 'POST', url: `/api/generations/${generationId}/language/${draft.json().draftId}/complete`, headers: { cookie: owner.cookie }, payload: { uploadIds: [] } })
+    }
     const en = await change('english')
     expect(en.statusCode).toBe(200)
-    expect(en.json()).toMatchObject({ generation: { language: 'english', title: '2-bedroom apartment for rent in Chamberí, Madrid', callToAction: 'Contact us to arrange a viewing.' }, mediaKinds: [], notices: ['FREE_TEXT_NOT_INCLUDED'] })
+    expect(en.json()).toMatchObject({ generation: { language: 'english', title: '2-bedroom apartment for rent in Chamberí, Madrid', callToAction: 'Contact us to arrange a viewing.' } })
     expect(en.json().generation.description).toContain('12th floor')
     expect(JSON.parse(en.json().generation.highlights)).toContain('2 bedrooms')
     expect((await admin.query('SELECT language FROM "Generation" WHERE id = $1', [otherId])).rows[0].language).toBe('español')
@@ -164,19 +174,20 @@ describe('cambio confirmado de idioma y orden cronológico', () => {
     const stranger = await account()
     const before = await get()
     const request = (cookie: string, payload: Record<string, unknown>) => app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie }, payload })
-    const body = { language: 'english', confirmed: true, expectedUpdatedAt: before.updatedAt }
+    const body = { language: 'english', confirmed: true, stageOnly: true, expectedUpdatedAt: before.updatedAt }
     expect((await request(owner.cookie, { ...body, confirmed: false })).statusCode).toBe(400)
     expect((await request(stranger.cookie, body)).statusCode).toBe(404)
     expect((await request(owner.cookie, { ...body, expectedUpdatedAt: '2020-01-01T00:00:00.000Z' })).statusCode).toBe(409)
     expect((await app.inject({ method: 'PUT', url: `/api/generations/${generationId}`, headers: { cookie: owner.cookie }, payload: { language: 'english' } })).statusCode).toBe(409)
     expect(await get()).toEqual(before)
   })
-  it('repara un anuncio antiguo con etiqueta inglesa y contenido español aunque no cambie la etiqueta', async () => {
+  it('rechaza volver a generar en el idioma actual sin modificar el anuncio', async () => {
     const { owner, generationId, get } = await fixture()
     await admin.query('UPDATE "Generation" SET language = $2 WHERE id = $1', [generationId, 'english'])
-    const response = await app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie: owner.cookie }, payload: { language: 'english', confirmed: true, expectedUpdatedAt: (await get()).updatedAt } })
-    expect(response.statusCode).toBe(200)
-    expect(response.json().generation.description).not.toMatch(/habitaciones|Se encuentra/)
+    const response = await app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers: { cookie: owner.cookie }, payload: { language: 'english', confirmed: true, stageOnly: true, expectedUpdatedAt: (await get()).updatedAt } })
+    const before = await get()
+    expect(response.statusCode).toBe(409)
+    expect(await get()).toEqual(before)
   })
   it('devuelve los inmuebles y sus anuncios del más reciente al más antiguo', async () => {
     const { owner, propertyId, generationId } = await fixture()
@@ -193,5 +204,91 @@ describe('cambio confirmado de idioma y orden cronológico', () => {
     expect(detail.generations.map((g: { id: string }) => g.id)).toEqual([secondId, generationId])
     const listings = (await app.inject({ url: '/api/generations', headers })).json()
     expect(listings.map((g: { id: string }) => g.id)).toEqual([secondId, generationId])
+  })
+})
+
+describe('preparación de idioma: todo o nada', () => {
+  async function fixture() {
+    const owner = await account()
+    const propertyId = await propertyOf(owner.userId)
+    const generationId = (await generate(owner.cookie, propertyId, 'español')).json().generationId as string
+    const photo = await app.inject({ method: 'POST', url: `/api/properties/${propertyId}/photos`, headers: { cookie: owner.cookie, 'content-type': 'image/png' }, payload: makePng() })
+    expect(photo.statusCode).toBe(201)
+    const photoIds = [photo.json().id]
+    const source = await mods.getMediaSource(generationId, owner.userId)
+    const common = { sourceHash: source.sourceHash, expectedVersion: 0, variant: 0, photoIds }
+    await mods.saveMedia(null, owner.userId, generationId, { ...common, kind: 'poster', body: makePng(200, 300), declaredType: 'image/png', durationMs: null, poster: { templateId: 'minimalista', selection: 'manual', drawId: null } })
+    await mods.saveMedia(null, owner.userId, generationId, { ...common, kind: 'video', body: makeVideo('mp4', 3), declaredType: 'video/mp4', durationMs: 3000 })
+    const snapshot = async () => ({ generation: (await admin.query('SELECT * FROM "Generation" WHERE id=$1', [generationId])).rows, media: (await admin.query('SELECT * FROM "ListingMedia" WHERE "generationId"=$1 ORDER BY kind', [generationId])).rows })
+    const before = await snapshot()
+    const headers = { cookie: owner.cookie }
+    const response = await app.inject({ method: 'POST', url: `/api/generations/${generationId}/language`, headers, payload: { language: 'english', confirmed: true, stageOnly: true, expectedUpdatedAt: before.generation[0].updatedAt.toISOString() } })
+    expect(response.statusCode).toBe(200)
+    const draft = response.json()
+    const root = `/api/generations/${generationId}/language/${draft.draftId}`
+    async function stage(kind: 'poster' | 'video', corrupt = false) {
+      const bytes = corrupt ? Buffer.from('invalid') : kind === 'poster' ? makePng(200, 300, 19) : makeVideo('mp4', 3, { seed: 19 })
+      const contentType = kind === 'poster' ? 'image/png' : 'video/mp4'
+      const media = { sourceHash: draft.sourceHash, expectedVersion: 1, variant: 1, photoIds, ...(kind === 'poster' ? { poster: { templateId: 'minimalista', selection: 'manual', drawId: null } } : { durationMs: 3000 }) }
+      const prepared = await app.inject({ method: 'POST', url: '/api/uploads', headers, payload: { kind, contentType, size: bytes.length, generationId, languageDraftId: draft.draftId, media } })
+      expect(prepared.statusCode, prepared.body).toBe(201)
+      const body = prepared.json()
+      const url = new URL(body.upload.url)
+      expect((await app.inject({ method: 'PUT', url: url.pathname + url.search, headers: body.upload.headers, payload: bytes })).statusCode).toBe(200)
+      return body.attemptId as string
+    }
+    const complete = (uploadIds: string[]) => app.inject({ method: 'POST', url: root + '/complete', headers, payload: { uploadIds } })
+    return { owner, generationId, draft, root, stage, complete, before, snapshot, headers }
+  }
+  it('preparar, subir solo un archivo y cancelar conserva exactamente texto y ambos archivos anteriores', async () => {
+    const f = await fixture()
+    expect(await f.snapshot()).toEqual(f.before)
+    const poster = await f.stage('poster')
+    expect(await f.snapshot()).toEqual(f.before)
+    expect((await app.inject({ method: 'POST', url: `/api/uploads/${poster}/complete`, headers: f.headers })).statusCode).toBe(400)
+    expect((await f.complete([poster])).statusCode).toBe(400)
+    expect((await app.inject({ method: 'DELETE', url: f.root, headers: f.headers })).statusCode).toBe(204)
+    expect((await f.complete([poster])).statusCode).toBe(410)
+    expect(await f.snapshot()).toEqual(f.before)
+  })
+  it('un vídeo inválido deshace también el texto y el cartel ya procesados en la transacción', async () => {
+    const f = await fixture()
+    const poster = await f.stage('poster')
+    const video = await f.stage('video', true)
+    expect((await f.complete([poster, video])).statusCode).toBe(400)
+    expect(await f.snapshot()).toEqual(f.before)
+    expect((await admin.query('SELECT status FROM "GenerationLanguageDraft" WHERE id=$1', [f.draft.draftId])).rows[0].status).toBe('pending')
+  })
+  it('confirma todo junto y repetir la confirmación no crea versiones adicionales', async () => {
+    const f = await fixture()
+    const poster = await f.stage('poster')
+    const video = await f.stage('video')
+    expect(await f.snapshot()).toEqual(f.before)
+    const result = await f.complete([poster, video])
+    expect(result.statusCode, result.body).toBe(200)
+    expect(result.json().generation.language).toBe('english')
+    const after = await f.snapshot()
+    expect(after.media.map(row => row.version)).toEqual([2, 2])
+    expect(after.media.every(row => row.sourceHash === f.draft.sourceHash)).toBe(true)
+    expect((await f.complete([poster, video])).statusCode).toBe(200)
+    expect(await f.snapshot()).toEqual(after)
+    expect((await app.inject({ method: 'DELETE', url: f.root, headers: f.headers })).statusCode).toBe(409)
+  })
+  it('la caducidad descarta la preparación y sus subidas sin alterar el anuncio', async () => {
+    const f = await fixture()
+    const poster = await f.stage('poster')
+    await admin.query('UPDATE "GenerationLanguageDraft" SET "expiresAt"=now()-interval \'1 second\' WHERE id=$1', [f.draft.draftId])
+    expect((await f.complete([poster])).statusCode).toBe(410)
+    await mods.expireLanguageDrafts(f.owner.userId)
+    expect((await admin.query('SELECT id FROM "UploadAttempt" WHERE id=$1', [poster])).rowCount).toBe(0)
+    expect(await f.snapshot()).toEqual(f.before)
+  })
+  it('una cuenta ajena no puede subir, cancelar ni confirmar una preparación', async () => {
+    const f = await fixture()
+    const stranger = await account()
+    const headers = { cookie: stranger.cookie }
+    expect((await app.inject({ method: 'DELETE', url: f.root, headers })).statusCode).toBe(404)
+    expect((await app.inject({ method: 'POST', url: f.root + '/complete', headers, payload: { uploadIds: [] } })).statusCode).toBe(404)
+    expect(await f.snapshot()).toEqual(f.before)
   })
 })

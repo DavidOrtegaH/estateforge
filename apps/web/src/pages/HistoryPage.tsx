@@ -1,3 +1,4 @@
+import { matchesListingFilters, compareListingDate } from '@/lib/listingFilters'
 import { formatMoneyAmount, getProviderLabel } from '@estateforge/shared'
 import {
   useEffect,
@@ -501,17 +502,7 @@ function HistoryPage() {
       const filtered =
         generations.filter(
           (generation) => {
-            // Búsqueda
-            if (
-              normalizedSearch &&
-              !generation.title
-                .toLowerCase()
-                .includes(
-                  normalizedSearch,
-                )
-            ) {
-              return false
-            }
+            if (!matchesListingFilters(generation, { search: normalizedSearch, provider: filterProvider, tone: filterTone, language: filterLanguage })) return false
 
             const property =
               generation.property
@@ -546,40 +537,6 @@ function HistoryPage() {
                     .trim()
                     .toLowerCase(),
                 )
-            ) {
-              return false
-            }
-
-            // Proveedor
-            if (
-              filterProvider &&
-              generation.provider
-                ?.toLowerCase()
-                .includes(
-                  filterProvider
-                    .trim()
-                    .toLowerCase(),
-                ) !== true
-            ) {
-              return false
-            }
-
-            // Tono
-            if (
-              filterTone &&
-              generation.tone
-                ?.toLowerCase() !==
-              filterTone.toLowerCase()
-            ) {
-              return false
-            }
-
-            // Idioma
-            if (
-              filterLanguage &&
-              generation.language
-                ?.toLowerCase() !==
-              filterLanguage.toLowerCase()
             ) {
               return false
             }
@@ -659,20 +616,7 @@ function HistoryPage() {
             sortOption === 'newest' ||
             sortOption === 'oldest'
           ) {
-            const dateA =
-              new Date(
-                a.createdAt,
-              ).getTime()
-
-            const dateB =
-              new Date(
-                b.createdAt,
-              ).getTime()
-
-            return sortOption ===
-              'newest'
-              ? dateB - dateA
-              : dateA - dateB
+            return compareListingDate(a, b, sortOption)
           }
 
           const priceA =

@@ -119,6 +119,7 @@ export interface SignedTransfer {
 }
 
 export interface PrepareRequest {
+  languageDraftId?: string
   kind: UploadKind
   contentType: string
   size: number
@@ -146,7 +147,7 @@ export interface UploadOptions {
 
 const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
 
-export const prepareUpload = (body: PrepareRequest) => request<{ attemptId: string; expiresAt: string; upload: SignedTransfer }>('/api/uploads', json(body))
+export const prepareUpload = (body: PrepareRequest, signal?: AbortSignal) => request<{ attemptId: string; expiresAt: string; upload: SignedTransfer }>('/api/uploads', { ...json(body), signal })
 export const completeUpload = <T>(attemptId: string) => request<T>(`/api/uploads/${attemptId}/complete`, { method: 'POST' })
 export const cancelUpload = (attemptId: string) => request<void>(`/api/uploads/${attemptId}`, { method: 'DELETE' })
 

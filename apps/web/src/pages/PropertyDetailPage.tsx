@@ -1,3 +1,5 @@
+import { PropertyListingFilters } from '@/components/listings/PropertyListingFilters'
+import { EMPTY_LISTING_FILTERS, filterPropertyListings, type PropertyListingFilter } from '@/lib/listingFilters'
 import { listingCopy } from '@estateforge/shared'
 import { ListingLanguageEditor } from '@/components/listings/ListingLanguageEditor'
 
@@ -332,6 +334,7 @@ function PropertyDetailPage() {
   // ==========================================================
 
   const [currentPage, setCurrentPage] = useState(1)
+  const [listingFilters, setListingFilters] = useState<PropertyListingFilter>({ ...EMPTY_LISTING_FILTERS })
 
   const itemsPerPage = 3
 
@@ -340,6 +343,8 @@ function PropertyDetailPage() {
   // ==========================================================
 
   useEffect(() => {
+    setListingFilters({ ...EMPTY_LISTING_FILTERS })
+    setCurrentPage(1)
     async function loadProperty() {
       if (!id) {
         setError(
@@ -1031,32 +1036,34 @@ function PropertyDetailPage() {
   const totalGenerations =
     property.generations.length
 
+  const processedGenerations = filterPropertyListings(property.generations, listingFilters)
   const totalPages = totalPagesFor(
-    totalGenerations,
+    processedGenerations.length,
     itemsPerPage,
   )
 
+  const visiblePage = clampPage(currentPage, totalPages)
   const currentGenerations = pageSlice(
-    [...property.generations].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || b.id.localeCompare(a.id)),
-    currentPage,
+    processedGenerations,
+    visiblePage,
     itemsPerPage,
   )
 
   const handleNextPage = () => {
     if (
-      currentPage <
+      visiblePage <
       totalPages
     ) {
       setCurrentPage(
-        (prev) => prev + 1,
+        visiblePage + 1,
       )
     }
   }
 
   const handlePrevPage = () => {
-    if (currentPage > 1) {
+    if (visiblePage > 1) {
       setCurrentPage(
-        (prev) => prev - 1,
+        visiblePage - 1,
       )
     }
   }
@@ -2487,6 +2494,8 @@ function PropertyDetailPage() {
           )}
         </div>
 
+        {totalGenerations > 0 && <PropertyListingFilters listings={property.generations} value={listingFilters} count={processedGenerations.length} onChange={value => { setListingFilters(value); setCurrentPage(1) }} />}
+
         {totalGenerations === 0 ? (
           <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
@@ -2495,6 +2504,7 @@ function PropertyDetailPage() {
           </div>
         ) : (
           <div className="mt-5 space-y-4">
+            {processedGenerations.length === 0 && <p role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No hay anuncios de este inmueble que coincidan con la búsqueda y los filtros.</p>}
             {currentGenerations.map((generation) => {
               const isEditingGeneration =
                 editingGenerationId === generation.id
@@ -2517,7 +2527,6 @@ function PropertyDetailPage() {
                   key={generation.id}
                   className="rounded-lg border bg-card transition"
                 >
-                  <ListingLanguageEditor key={`${generation.id}-${generation.updatedAt}`} generation={generation} />
                   {isEditingGeneration ? (
                     /* EDICIÓN DEL ANUNCIO */
                     <div className="p-5">
@@ -2543,6 +2552,7 @@ function PropertyDetailPage() {
                         </button>
                       </div>
 
+                      <ListingLanguageEditor key={`${generation.id}-${generation.updatedAt}`} generation={generation} />
                       <div className="mt-6 space-y-5">
                         {/* TÍTULO */}
                         <div>
@@ -2820,7 +2830,7 @@ function PropertyDetailPage() {
                 <button
                   type="button"
                   onClick={handlePrevPage}
-                  disabled={currentPage === 1}
+                  disabled={visiblePage === 1}
                   className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                 >
                   Anterior
@@ -2830,7 +2840,7 @@ function PropertyDetailPage() {
                   <span className="text-sm text-muted-foreground">
                     Página{' '}
                     <span className="font-semibold">
-                      {currentPage}
+                      {visiblePage}
                     </span>{' '}
                     de{' '}
                     <span className="font-semibold">
@@ -2838,7 +2848,7 @@ function PropertyDetailPage() {
                     </span>
                   </span>
                   <PageJump
-                    currentPage={currentPage}
+                    currentPage={visiblePage}
                     totalPages={totalPages}
                     onJump={handleJumpToPage}
                     label="Ir a la página de generaciones"
@@ -2848,7 +2858,7 @@ function PropertyDetailPage() {
                 <button
                   type="button"
                   onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
+                  disabled={visiblePage === totalPages}
                   className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
                 >
                   Siguiente

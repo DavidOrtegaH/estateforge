@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 
 import type { FastifyInstance } from 'fastify'
 
+import { expireLanguageDrafts } from '../media/language-draft.js'
 import { drainStorageCleanup } from '../media/storage-cleanup.js'
 import { AUDIT_RETENTION_BATCH, purgeExpiredAuditLogs } from '../services/audit-retention.service.js'
 import { safeErrorName } from '../services/log-safety.js'
@@ -18,8 +19,8 @@ import { countPendingCleanup, maintenanceTrigger, recordMaintenanceRun, type Mai
 // services/audit-retention.service.ts): un lote de registros caducados, conservando los de cuentas
 // con un incidente abierto.
 //
-// Lo que esta ruta NO hace: no busca ni borra huérfanos (findOrphans) y no toca sesiones, tokens,
-// cuentas ni ningún otro registro. La retención solo afecta a AdminAuditLog.
+// Lo que esta ruta NO hace: no busca ni borra huérfanos (findOrphans) y no toca sesiones, tokens ni cuentas. También caduca preparaciones temporales de idioma
+// y sus subidas asociadas; la retención de auditoría solo afecta a AdminAuditLog.
 //
 // Autenticación: Vercel Cron envía `Authorization: Bearer <CRON_SECRET>`. Fallo cerrado: sin
 // CRON_SECRET (o demasiado corto) la ruta responde 503 y no hace nada; con una cabecera distinta,
@@ -41,6 +42,7 @@ type PurgeAudit = (options: { batchSize: number }) => Promise<{ deleted: number 
 
 export interface MaintenanceRoutesOptions {
   /** Variables de entorno (por defecto process.env); se leen en cada petición. */
+  expireDrafts?: () => Promise<number>
   env?: NodeJS.ProcessEnv
   /** Solo para pruebas: por defecto, drainStorageCleanup. */
   drain?: Drain
@@ -71,6 +73,7 @@ export function cronAuthorizationMatches(header: unknown, secret: string): boole
 
 export async function maintenanceRoutes(app: FastifyInstance, options: MaintenanceRoutesOptions = {}) {
   const env = options.env ?? process.env
+  const expireDrafts = options.expireDrafts ?? expireLanguageDrafts
   const drain = options.drain ?? drainStorageCleanup
   const purgeAudit = options.purgeAudit ?? purgeExpiredAuditLogs
   const recordRun = options.recordRun ?? recordMaintenanceRun
@@ -94,6 +97,12 @@ export async function maintenanceRoutes(app: FastifyInstance, options: Maintenan
 
       const startedAt = new Date()
       const started = performance.now()
+
+      let draftCleanupFailed = false
+      try { await expireDrafts() } catch (error) {
+        draftCleanupFailed = true
+        request.log.error({ errorName: safeErrorName(error) }, 'No se han podido caducar las preparaciones de idioma')
+      }
 
       // Las dos tareas se ejecutan aunque falle la otra; cualquier fallo responde 500 sin detalles.
       let storage: { deleted: number; failed: number } | null = null
@@ -123,7 +132,7 @@ export async function maintenanceRoutes(app: FastifyInstance, options: Maintenan
 
       const record: MaintenanceRunRecord = {
         trigger: maintenanceTrigger(request.headers['user-agent']),
-        status: storage === null || auditDeleted === null ? 'error' : 'ok',
+        status: storage === null || auditDeleted === null || draftCleanupFailed ? 'error' : 'ok',
         storageDeleted: storage?.deleted ?? null,
         storageFailed: storage?.failed ?? null,
         auditDeleted,
@@ -139,7 +148,7 @@ export async function maintenanceRoutes(app: FastifyInstance, options: Maintenan
         request.log.error({ errorName: safeErrorName(error) }, 'No se pudo dejar constancia de la ejecución del mantenimiento')
       }
 
-      if (storage === null || auditDeleted === null) return reply.code(500).send({ status: 'error' })
+      if (storage === null || auditDeleted === null || draftCleanupFailed) return reply.code(500).send({ status: 'error' })
       return { status: 'ok', deleted: storage.deleted, failed: storage.failed, auditDeleted }
     },
   )

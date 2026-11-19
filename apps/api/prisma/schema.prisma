@@ -38,6 +38,7 @@ model User {
   securityIncidentTokens SecurityIncidentToken[]
   aiKeys              UserAIKey[]
   audioTracks         AudioTrack[]
+  languageDrafts      GenerationLanguageDraft[]
   uploadAttempts      UploadAttempt[]
   aiMediaPreference   AiMediaPreference?
   aiMediaJobs         AiMediaJob[]
@@ -210,6 +211,7 @@ model Generation {
 
   publications ListingPublication[]
   media        ListingMedia[]
+  languageDrafts GenerationLanguageDraft[]
   templateDraws MediaTemplateDraw[]
   aiMediaJobs   AiMediaJob[]
 }
@@ -392,7 +394,25 @@ model AdminAuditLog {
 /// Intento de subida directa (DA-58): el navegador sube el archivo al almacenamiento con una URL
 /// firmada (su clave, tipo, tamaño máximo y 15 minutos, sin sobrescribir) y después lo confirma. Mientras está pendiente reserva su tamaño en la
 /// cuota del usuario y su hueco en la galería. La clave la genera la API; nunca el navegador.
+/// Preparación temporal de un cambio de idioma. No modifica el anuncio hasta completar todos los archivos.
+model GenerationLanguageDraft {
+  id           String   @id @default(cuid())
+  userId       String
+  generationId String
+  data         String
+  status       String   @default("pending")
+  expiresAt    DateTime @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  uploads      UploadAttempt[]
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
 model UploadAttempt {
+  languageDraftId String?
+  languageDraft GenerationLanguageDraft? @relation(fields: [languageDraftId], references: [id], onDelete: Cascade)
   id           String    @id @default(cuid())
   userId       String
   kind         String
@@ -413,6 +433,7 @@ model UploadAttempt {
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, expiresAt])
+  @@index([languageDraftId])
   @@index([propertyId, status])
   @@index([status, expiresAt])
 }

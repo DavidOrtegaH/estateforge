@@ -21,6 +21,7 @@ const fake = vi.hoisted(() => {
     audioTrack: { count: countFor('storageKey') },
     uploadAttempt: { count: countFor('storageKey') },
     aiMediaJob: { count: countFor('resultKey') },
+    generationLanguageDraft: { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
     maintenanceRun: { create: vi.fn(async () => ({ id: 'run' })) },
     user: { delete: vi.fn(), deleteMany: vi.fn() },
     session: { deleteMany: vi.fn() },
