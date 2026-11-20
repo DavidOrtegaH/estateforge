@@ -6,6 +6,15 @@ Las pruebas locales usan PostgreSQL 17 real y el **simulador** de Vercel Blob (`
 
 Documentación oficial consultada el 18/11/2026: [Managing Cron Jobs](https://vercel.com/docs/cron-jobs/manage-cron-jobs) (cabecera `Authorization: Bearer <CRON_SECRET>`, `user-agent: vercel-cron/1.0`, solo en Production, ejecución manual desde el panel), [`vercel crons`](https://vercel.com/docs/cli/crons), [Runtime Logs](https://vercel.com/docs/logs/runtime) (Hobby: **1 hora** de retención), [`vercel blob`](https://vercel.com/docs/cli/blob), [Request headers](https://vercel.com/docs/headers/request-headers) y [Rewrites](https://vercel.com/docs/routing/rewrites).
 
+## Actualización del 20/11/2026: borrado múltiple desde el inmueble
+
+- Código web publicado: `e7d5db131e15a989f1b0193b9bbe74b7030fda0a`; [CI completo aprobado](https://github.com/DavidOrtegaH/estateforge/actions/runs/44642772650): pruebas, tipos, lint, compilaciones y auditoría de producción.
+- Web `dpl_2VGdxfj6Sb16oeCUV2AtEcjBdxV9`, READY y commit esperado al consultar el dominio canónico después de promover. API anterior conservada: `dpl_H7EHxAZH628dd3KfZrvqK3ZWKmdT`. Sin migraciones ni cambios en el backend.
+- Barra de selección y borrado entre los filtros y los anuncios, con el mismo diseño, selección por tarjeta/página y confirmación que la página general. Mantiene la selección al filtrar y paginar, la vacía al cambiar de inmueble y envía solo ids pertenecientes al inmueble mostrado a la ruta de lotes existente.
+- Ocho comprobaciones completas locales en Edge con PostgreSQL real y datos sintéticos: posición de la barra y selección parcial; selección entre páginas y filtros; cancelación sin peticiones; fallo y reintento; borrado exacto conservando otro inmueble; fallo de recarga tras borrar; cambio de inmueble y ajuste de última página; diseño a 320 px y estado vacío. También se comprobó que la selección general sigue disponible. Cero errores de página.
+- Producción: 20 módulos JavaScript accesibles, incluido Administración; nuevo código de borrado presente; login sin errores; API y PostgreSQL disponibles; ruta de borrado protegida con 401 sin sesión. No se borraron anuncios reales ni se repitió el flujo autenticado en producción.
+- Evidencias: `revision/evidencias_borrado_multiple_inmueble_2026-11-20/`, fuera del repositorio público. API local, preview y PostgreSQL temporal detenidos; datos de prueba y sesión sintética retirados.
+
 ## Actualización del 20/11/2026: idioma atómico y filtros del inmueble
 
 - Código publicado: `278da8513b7ddc574b4b7512a64a2180b26185ec`. [CI completo aprobado](https://github.com/DavidOrtegaH/estateforge/actions/runs/44640282985): pruebas, tipos, lint, compilaciones, migraciones y auditoría de producción. Effect se actualiza a 3.22.1; la única excepción previa de auditoría permanece sin ampliaciones.
