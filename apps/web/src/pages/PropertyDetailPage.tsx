@@ -4,7 +4,8 @@ import { listingCopy } from '@estateforge/shared'
 import { ListingLanguageEditor } from '@/components/listings/ListingLanguageEditor'
 
 import { formatMoneyAmount } from '@estateforge/shared'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { deleteGenerations } from '@/services/generationService'
 import { Link, useNavigate, useParams } from 'react-router'
 
 import { PageJump } from '@/components/ui/PageJump'
@@ -333,6 +334,11 @@ function PropertyDetailPage() {
   // PAGINACIÓN
   // ==========================================================
 
+  const [selectedGenerationIds, setSelectedGenerationIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null)
+  const currentPropertyId = useRef(id)
+
   const [currentPage, setCurrentPage] = useState(1)
   const [listingFilters, setListingFilters] = useState<PropertyListingFilter>({ ...EMPTY_LISTING_FILTERS })
 
@@ -343,6 +349,10 @@ function PropertyDetailPage() {
   // ==========================================================
 
   useEffect(() => {
+    currentPropertyId.current = id
+    setSelectedGenerationIds(new Set())
+    setBulkDeleting(false)
+    setBulkDeleteError(null)
     setListingFilters({ ...EMPTY_LISTING_FILTERS })
     setCurrentPage(1)
     async function loadProperty() {
@@ -541,7 +551,7 @@ function PropertyDetailPage() {
   // ==========================================================
 
   async function handleGenerateListing() {
-    if (!id || generating) {
+    if (!id || generating || bulkDeleting) {
       return
     }
 
@@ -634,7 +644,7 @@ function PropertyDetailPage() {
   // ==========================================================
 
   async function handleDeleteProperty() {
-    if (!id || deleting) {
+    if (!id || deleting || bulkDeleting) {
       return
     }
 
@@ -822,6 +832,7 @@ function PropertyDetailPage() {
   ) {
     if (
       deletingGenerationId ||
+      bulkDeleting ||
       savingGeneration
     ) {
       return
@@ -862,6 +873,11 @@ function PropertyDetailPage() {
 
       setProperty(propertyWithStorage)
       setEditForm(propertyWithStorage)
+      setSelectedGenerationIds(previous => {
+        const next = new Set(previous)
+        next.delete(generationId)
+        return next
+      })
 
       const remainingGenerations =
         updatedProperty.generations.length
@@ -1049,6 +1065,70 @@ function PropertyDetailPage() {
     itemsPerPage,
   )
 
+  const currentPageIds = currentGenerations.map(generation => generation.id)
+  const selectedCount = property.generations.filter(generation => selectedGenerationIds.has(generation.id)).length
+  const selectedOnCurrentPage = currentPageIds.filter(generationId => selectedGenerationIds.has(generationId)).length
+  const allCurrentPageSelected = currentPageIds.length > 0 && selectedOnCurrentPage === currentPageIds.length
+  const someCurrentPageSelected = selectedOnCurrentPage > 0 && !allCurrentPageSelected
+  const selectionDisabled = bulkDeleting || deleting || savingGeneration || !!deletingGenerationId || generating
+
+  function toggleGenerationSelection(generationId: string) {
+    setSelectedGenerationIds(previous => {
+      const next = new Set(previous)
+      if (next.has(generationId)) next.delete(generationId)
+      else next.add(generationId)
+      return next
+    })
+    setBulkDeleteError(null)
+  }
+
+  function toggleCurrentPageSelection() {
+    setSelectedGenerationIds(previous => {
+      const next = new Set(previous)
+      for (const generationId of currentPageIds) {
+        if (allCurrentPageSelected) next.delete(generationId)
+        else next.add(generationId)
+      }
+      return next
+    })
+    setBulkDeleteError(null)
+  }
+
+  async function handleDeleteSelectedGenerations() {
+    if (selectionDisabled || !property) return
+    // Only ids belonging to the currently displayed property may enter this request.
+    const ids = property.generations.filter(generation => selectedGenerationIds.has(generation.id)).map(generation => generation.id)
+    if (!ids.length) return
+    if (!window.confirm(`¿Seguro que quieres eliminar ${ids.length} ${ids.length === 1 ? 'anuncio' : 'anuncios'} seleccionados? Esta acción no se puede deshacer.`)) return
+    const propertyId = property.id
+    setBulkDeleting(true)
+    setBulkDeleteError(null)
+    let deleted = false
+    try {
+      await deleteGenerations(ids)
+      deleted = true
+      if (currentPropertyId.current !== propertyId) return
+      // Reflect the successful deletion even if the subsequent refresh fails.
+      const removedIds = new Set(ids)
+      setProperty(previous => previous?.id === propertyId ? { ...previous, generations: previous.generations.filter(generation => !removedIds.has(generation.id)) } : previous)
+      setSelectedGenerationIds(new Set())
+      if (editingGenerationId && removedIds.has(editingGenerationId)) handleCancelEditGeneration()
+      const updatedProperty = await getProperty(propertyId)
+      if (currentPropertyId.current !== propertyId) return
+      setProperty({ ...updatedProperty, storageRoom: updatedProperty.storageRoom ?? false })
+      // Keep any unsaved property form values; only the listing collection was changed.
+      setCurrentPage(previous => clampPage(previous, totalPagesFor(filterPropertyListings(updatedProperty.generations, listingFilters).length, itemsPerPage)))
+    } catch {
+      if (currentPropertyId.current === propertyId) {
+        setBulkDeleteError(deleted
+          ? 'Los anuncios se han eliminado, pero no se ha podido actualizar el inmueble. Recarga la página.'
+          : 'No se han podido eliminar los anuncios seleccionados.')
+      }
+    } finally {
+      if (currentPropertyId.current === propertyId) setBulkDeleting(false)
+    }
+  }
+
   const handleNextPage = () => {
     if (
       visiblePage <
@@ -1112,7 +1192,7 @@ function PropertyDetailPage() {
             onClick={
               handleDeleteProperty
             }
-            disabled={deleting}
+            disabled={deleting || bulkDeleting}
             className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {deleting
@@ -2343,7 +2423,7 @@ function PropertyDetailPage() {
                 }
               }
               disabled={
-                generating
+                generating || bulkDeleting
               }
               className="mt-2 box-border w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -2375,7 +2455,7 @@ function PropertyDetailPage() {
                 )
               }
               disabled={
-                generating
+                generating || bulkDeleting
               }
               className="mt-2 box-border w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -2419,7 +2499,7 @@ function PropertyDetailPage() {
                 )
               }
               disabled={
-                generating
+                generating || bulkDeleting
               }
               className="mt-2 box-border w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -2444,7 +2524,7 @@ function PropertyDetailPage() {
               handleGenerateListing
             }
             disabled={
-              generating
+              generating || bulkDeleting
             }
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -2496,6 +2576,77 @@ function PropertyDetailPage() {
 
         {totalGenerations > 0 && <PropertyListingFilters listings={property.generations} value={listingFilters} count={processedGenerations.length} onChange={value => { setListingFilters(value); setCurrentPage(1) }} />}
 
+        {totalGenerations > 0 && <>
+          <div className="mt-5 flex flex-col justify-between gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="select-current-page-generations"
+                checked={
+                  allCurrentPageSelected
+                }
+                ref={(element) => {
+                  if (element) {
+                    element.indeterminate =
+                      someCurrentPageSelected
+                  }
+                }}
+                onChange={
+                  toggleCurrentPageSelection
+                }
+                disabled={selectionDisabled}
+                className="h-4 w-4 cursor-pointer"
+              />
+
+              <label
+                htmlFor="select-current-page-generations"
+                className="cursor-pointer text-sm font-medium"
+              >
+                Seleccionar todos los de
+                esta página
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                {selectedCount}{' '}
+                {selectedCount === 1
+                  ? 'anuncio seleccionado'
+                  : 'anuncios seleccionados'}
+              </span>
+
+              <button
+                type="button"
+                onClick={
+                  handleDeleteSelectedGenerations
+                }
+                disabled={
+                  selectionDisabled ||
+                  selectedCount === 0
+                }
+                aria-hidden={
+                  selectedCount === 0
+                }
+                tabIndex={
+                  selectedCount === 0
+                    ? -1
+                    : 0
+                }
+                className={`rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 ${selectedCount > 0
+                  ? 'visible'
+                  : 'pointer-events-none invisible'
+                  }`}
+              >
+                {bulkDeleting
+                  ? 'Eliminando...'
+                  : `Eliminar seleccionados (${selectedCount})`}
+              </button>
+            </div>
+          </div>
+
+        </>}
+        {bulkDeleteError && <p role="alert" className="mt-3 text-sm text-destructive">{bulkDeleteError}</p>}
+
         {totalGenerations === 0 ? (
           <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
@@ -2506,6 +2657,7 @@ function PropertyDetailPage() {
           <div className="mt-5 space-y-4">
             {processedGenerations.length === 0 && <p role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No hay anuncios de este inmueble que coincidan con la búsqueda y los filtros.</p>}
             {currentGenerations.map((generation) => {
+              const isSelected = selectedGenerationIds.has(generation.id)
               const isEditingGeneration =
                 editingGenerationId === generation.id
 
@@ -2525,8 +2677,41 @@ function PropertyDetailPage() {
               return (
                 <div
                   key={generation.id}
-                  className="rounded-lg border bg-card transition"
+                  className={`overflow-hidden rounded-lg border bg-card transition ${isSelected ? 'border-primary ring-2 ring-primary/25' : 'border-border'}`}
                 >
+                  <div className="relative w-full overflow-hidden border-b border-border">
+                    <input
+                      type="checkbox"
+                      aria-label={`Seleccionar anuncio ${generation.title}`}
+                      checked={
+                        isSelected
+                      }
+                      onChange={() =>
+                        toggleGenerationSelection(
+                          generation.id,
+                        )
+                      }
+                      disabled={
+                        selectionDisabled
+                      }
+                      className={`peer block h-11 w-full cursor-pointer appearance-none border-0 bg-muted/40 text-xs font-semibold transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isSelected
+                        ? 'cursor-default bg-primary text-primary-foreground'
+                        : 'bg-muted/40 text-muted-foreground'
+                        }`}
+                    />
+
+                    <div
+                      className={`pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-semibold transition-colors ${isSelected
+                        ? 'text-primary-foreground'
+                        : 'text-muted-foreground'
+                        } peer-hover:text-primary-foreground`}
+                    >
+                      {isSelected
+                        ? '✓ Seleccionado'
+                        : 'Seleccionar'}
+                    </div>
+                  </div>
+
                   {isEditingGeneration ? (
                     /* EDICIÓN DEL ANUNCIO */
                     <div className="p-5">
@@ -2771,7 +2956,7 @@ function PropertyDetailPage() {
                             handleStartEditGeneration(generation)
                           }
                           disabled={
-                            isDeletingGeneration || deleting
+                            isDeletingGeneration || deleting || bulkDeleting
                           }
                           className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -2792,7 +2977,7 @@ function PropertyDetailPage() {
                           disabled={
                             isCopyingGeneration ||
                             isDeletingGeneration ||
-                            deleting
+                            deleting || bulkDeleting
                           }
                           className="flex min-h-11 items-center justify-center border-r text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -2809,7 +2994,7 @@ function PropertyDetailPage() {
                             void handleDeleteGeneration(generation.id)
                           }
                           disabled={
-                            isDeletingGeneration || deleting
+                            isDeletingGeneration || deleting || bulkDeleting
                           }
                           className="flex min-h-11 items-center justify-center text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >

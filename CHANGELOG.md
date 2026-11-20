@@ -6,6 +6,12 @@ All notable changes to EstateForge are documented here. The format follows
 
 ## Unreleased
 
+### Property-scoped bulk listing deletion (2026-11-20)
+
+- Add the same per-listing selectors and current-page selection toolbar used by general listings, between the property filters and listing cards.
+- Keep selections across pages and filters, reset on property navigation, confirm deletion and reuse the existing authenticated bulk endpoint with ids from the current property only.
+- Refresh listings and clamp pagination after deletion; preserve selection on failure and distinguish refresh failures after a successful deletion.
+
 ### Atomic language changes and property listing filters (2026-11-20)
 
 - Offer only the opposite language, exclusively while editing a listing in all three editing screens.
