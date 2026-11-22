@@ -438,3 +438,10 @@ Para la publicación actual (CLI de Vercel, sin integración con Git) se han rea
 8. Decidir la política de registro antes de anunciar la web: el registro está abierto; Turnstile y la verificación del email (`EMAIL_VERIFICATION_REQUIRED_FROM`) son las medidas disponibles.
 9. Seguir [Search Console](search-console.md) para la indexación.
 10. Recorrer el procedimiento de evaluación de [producto-galeria-cartel-video.md](../producto-galeria-cartel-video.md#cómo-evaluarlo) y anotar los resultados como evidencia.
+
+
+### Dominio de producción
+
+El proyecto web usa `estateforge.casa` y redirige `www.estateforge.casa` al dominio principal. Mantener los servidores DNS de Namecheap y consultar los valores vigentes en Vercel al actualizar los registros de la web. En producción, configurar `SITE_URL` en el proyecto web y `WEB_APP_URL`, `API_PUBLIC_URL` y `CORS_ORIGIN` en el proyecto de API con `https://estateforge.casa`. La web reenvía `/api/*` al proyecto de API y las cookies de sesión pertenecen al host que utilizó el navegador. Al pasar del dominio anterior al nuevo, el usuario deberá iniciar sesión en el dominio nuevo.
+
+El dominio del remitente de correo se autentica por separado en Brevo antes de cambiar `SMTP_FROM`. Los enlaces de cuenta y el remitente se configuran por separado.

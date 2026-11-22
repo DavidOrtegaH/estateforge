@@ -17,6 +17,10 @@ Documentación consultada el **17/11/2026**:
 - [Verificar la propiedad en Search Console](https://support.google.com/webmasters/answer/9008080)
 - [Entornos de Vercel (cabecera `X-Robots-Tag` en las vistas previas)](https://vercel.com/docs/deployments/environments), [variables de sistema](https://vercel.com/docs/environment-variables/system-environment-variables) y [`vercel.json`](https://vercel.com/docs/project-configuration/vercel-json)
 
+## Dominio propio: estateforge.casa
+
+El dominio principal se configura en el proyecto web de Vercel. Namecheap gestiona los registros DNS y `www.estateforge.casa` redirige al dominio principal. `SITE_URL=https://estateforge.casa` fija la canónica, Open Graph, robots y sitemap en el build de producción. La propiedad anterior de Search Console corresponde al dominio de Vercel. Para el dominio propio, verificar una propiedad nueva y enviar `https://estateforge.casa/sitemap.xml`.
+
 ## Qué se indexa
 
 | Ruta | Indexable | Cómo |
