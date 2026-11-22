@@ -444,4 +444,4 @@ Para la publicación actual (CLI de Vercel, sin integración con Git) se han rea
 
 El proyecto web usa `estateforge.casa` y redirige `www.estateforge.casa` al dominio principal. Mantener los servidores DNS de Namecheap y consultar los valores vigentes en Vercel al actualizar los registros de la web. En producción, configurar `SITE_URL` en el proyecto web y `WEB_APP_URL`, `API_PUBLIC_URL` y `CORS_ORIGIN` en el proyecto de API con `https://estateforge.casa`. La web reenvía `/api/*` al proyecto de API y las cookies de sesión pertenecen al host que utilizó el navegador. Al pasar del dominio anterior al nuevo, el usuario deberá iniciar sesión en el dominio nuevo.
 
-El dominio del remitente de correo se autentica por separado en Brevo antes de cambiar `SMTP_FROM`. Los enlaces de cuenta y el remitente se configuran por separado.
+Brevo autenticó `estateforge.casa` el 22/11/2026 tras verificar el TXT de propiedad, los dos CNAME de DKIM y el TXT de DMARC en Namecheap. El remitente verificado de producción es `EstateForge <no-reply@estateforge.casa>`, configurado mediante `SMTP_FROM` en el proyecto de API. El dominio usa DMARC en modo de monitorización (`p=none`).

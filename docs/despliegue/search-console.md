@@ -19,7 +19,7 @@ Documentación consultada el **17/11/2026**:
 
 ## Dominio propio: estateforge.casa
 
-El dominio principal se configura en el proyecto web de Vercel. Namecheap gestiona los registros DNS y `www.estateforge.casa` redirige al dominio principal. `SITE_URL=https://estateforge.casa` fija la canónica, Open Graph, robots y sitemap en el build de producción. La propiedad anterior de Search Console corresponde al dominio de Vercel. Para el dominio propio, verificar una propiedad nueva y enviar `https://estateforge.casa/sitemap.xml`.
+El dominio principal se configura en el proyecto web de Vercel. Namecheap gestiona los registros DNS y `www.estateforge.casa` redirige al dominio principal. `SITE_URL=https://estateforge.casa` fija la canónica, Open Graph, robots y sitemap en el build de producción. La propiedad de dominio `estateforge.casa` se verificó el 22/11/2026 con un TXT en Namecheap. Search Console confirmó la recepción de `https://estateforge.casa/sitemap.xml` ese mismo día. El estado de indexación de las páginas del dominio nuevo se consulta en la propiedad. La propiedad anterior corresponde al dominio de Vercel.
 
 ## Qué se indexa
 
