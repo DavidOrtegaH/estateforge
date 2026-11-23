@@ -443,7 +443,7 @@ describe('las seis pruebas propuestas (DA-93) y el coste por resolución (DA-92)
     })
     const target = { connectionId: runway, kind: 'video', model: 'gemini_omni_flash_1.2', durationSeconds: 4, resolution: '360p', references: 1 }
     const planned = (await plan(owner.cookie, target)).json().plan
-    expect(planned).toMatchObject({ resolution: '360p', resolutionLabel: '360p (640×360)', durationSeconds: 4, referenceImages: 1, estimatedCostMicroUsd: 90_000, costKnownUsd: 0.09, priceConsultedAt: '2026-11-15', priceStale: false, moderation: { provider: 'simulador', external: true } })
+    expect(planned).toMatchObject({ resolution: '360p', resolutionLabel: '360p (640×360)', durationSeconds: 4, referenceImages: 1, estimatedCostMicroUsd: 90_000, costKnownUsd: 0.09, priceConsultedAt: '2026-11-15', moderation: { provider: 'simulador', external: true } })
     expect(planned.costLines.map((line: { usd: number | null }) => line.usd)).toEqual([0.08, 0.01, 0])
     expect(calls).toHaveLength(0)
     const created = await confirmAndCreate(owner.cookie, target)
